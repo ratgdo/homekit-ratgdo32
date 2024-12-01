@@ -161,33 +161,29 @@ void LOG::printMessageLog(Print &outputDev)
 #ifdef NTP_CLIENT
     if (enableNTP && clockSet)
     {
-        outputDev.write("Server time (secs): ");
-        outputDev.println(time(NULL));
+        outputDev.printf("Server time: %s\n", timeString());
     }
 #endif
-    outputDev.write("Server uptime (ms): ");
-    outputDev.println(millis());
-    outputDev.write("Firmware version: ");
-    outputDev.write(AUTO_VERSION);
-    outputDev.println();
+    outputDev.printf("Server uptime (ms): %lu\n", millis());
+    outputDev.printf("Firmware version: %s\n", AUTO_VERSION);
 #ifdef ESP8266
     outputDev.write("Flash CRC: 0x");
     outputDev.println(__crc_val, 16);
     outputDev.write("Flash length: ");
     outputDev.println(__crc_len);
 #endif
-    outputDev.write("Free heap: ");
-    outputDev.println(free_heap);
-    outputDev.write("Minimum heap: ");
-    outputDev.println(min_heap);
-    outputDev.println();
+    outputDev.printf("Free heap: %lu\n", free_heap);
+    outputDev.printf("Minimum heap: %lu\n\n", min_heap);
     if (msgBuffer)
     {
+        // head points to a zero (null terminator of previous log line) which we need to skip.
+        size_t start = (msgBuffer->head + 1) % sizeof(msgBuffer->buffer);
         if (msgBuffer->wrapped != 0)
         {
-            outputDev.write(&msgBuffer->buffer[msgBuffer->head], sizeof(msgBuffer->buffer) - msgBuffer->head);
+            outputDev.write(&msgBuffer->buffer[start], sizeof(msgBuffer->buffer) - start);
         }
-        outputDev.write(msgBuffer->buffer, msgBuffer->head);
+        outputDev.print(msgBuffer->buffer); // assumes null terminated
+        // outputDev.write(msgBuffer->buffer, start);
     }
     xSemaphoreGiveRecursive(logMutex);
 }
