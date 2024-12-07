@@ -17,7 +17,7 @@
 // C/C++ language includes
 
 // ESP system includes
-#include "esp_core_dump.h"
+#include <esp_core_dump.h>
 
 // RATGDO project includes
 #include "ratgdo.h"
@@ -72,6 +72,9 @@ void setup()
         }
         free(summary);
     }
+
+    // Beep on boot...
+    tone(BEEPER_PIN, 1300, 500);
 
     load_all_config_settings();
 

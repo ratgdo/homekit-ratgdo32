@@ -168,6 +168,7 @@ userSettings::userSettings()
     uint8_t mac[6];
     Network.macAddress(mac);
     snprintf(default_device_name, sizeof(default_device_name), "Garage Door %02X%02X%02X", mac[3], mac[4], mac[5]);
+    strlcpy(device_name, default_device_name, sizeof(device_name));
     make_rfc952(device_name_rfc952, default_device_name, sizeof(device_name_rfc952));
     // key, {reboot, wifiChanged, value, fn to call}
     settings = {

@@ -1248,12 +1248,18 @@ void TTCdelayLoop()
 {
     if (--TTCcountdown > 0)
     {
+        if (garage_door.light)
+        {
+            // play alert beep every other loop
+            tone(BEEPER_PIN, 1300, 500);
+        }
         // If light is on, turn it off.  If off, turn it on.
         set_light(!garage_door.light);
     }
     else
     {
         // End of delay period
+        tone(BEEPER_PIN, 2000, 500);
         TTCtimer.detach();
         if (TTC_Action)
             (*TTC_Action)();
