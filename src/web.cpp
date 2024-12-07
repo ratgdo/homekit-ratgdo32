@@ -381,36 +381,6 @@ void load_page(const char *page)
     HTTPMethod method = server.method();
     if (strcmp(crc32, matchHdr))
     {
-#if defined(CHUNK_WEB_PAGES)
-        WiFiClient client = server.client();
-        client.print("HTTP/1.1 200 OK\n");
-        client.print("Content-Type: ");
-        client.print(type);
-        client.print("\n");
-        client.print("Content-Encoding: gzip\n");
-        client.print("Cache-Control: ");
-        client.print(cacheHdr);
-        client.print("\n");
-        if (cache)
-        {
-            client.print("ETag: ");
-            client.print(crc32);
-            client.print("\n");
-        }
-        client.print("Connection: close\n");
-        client.print("\n");
-        client.clear();
-#define CHUNK_SIZE 536
-        while (length > 0)
-        {
-            uint32_t sent;
-            uint32_t tx_size = min(CHUNK_SIZE, length);
-            sent = client.write_P(data, tx_size);
-            length -= sent;
-            data += sent;
-        }
-        client.stop();
-#else
         server.sendHeader(F("Content-Encoding"), F("gzip"));
         server.sendHeader(F("Cache-Control"), cacheHdr);
         if (cache)
@@ -425,7 +395,6 @@ void load_page(const char *page)
             RINFO(TAG, "Client %s requesting: %s (HTTP_GET, type: %s, length: %i)", server.client().remoteIP().toString().c_str(), page, type, length);
             server.send_P(200, type, data, length);
         }
-#endif
     }
     else
     {
