@@ -74,7 +74,7 @@ void handle_crash_oom();
 void *crashptr;
 char *test_str = NULL;
 #endif
-void handle_checkflash();
+// TODO Add back flash CRC checking? void handle_checkflash();
 void handle_update();
 void handle_firmware_upload();
 void SSEHandler(uint8_t channel);
@@ -90,7 +90,7 @@ const std::unordered_map<std::string, std::pair<const HTTPMethod, void (*)()>> b
     {"/auth", {HTTP_GET, handle_auth}},
     {"/showlog", {HTTP_GET, handle_showlog}},
     {"/showrebootlog", {HTTP_GET, handle_showrebootlog}},
-    {"/checkflash", {HTTP_GET, handle_checkflash}},
+    // TODO Add back flash CRC checking? {"/checkflash", {HTTP_GET, handle_checkflash}},
     {"/wifiap", {HTTP_POST, handle_wifiap}},
     {"/wifinets", {HTTP_GET, handle_wifinets}},
     {"/setssid", {HTTP_POST, handle_setssid}},
@@ -121,7 +121,7 @@ std::string _updaterError;
 bool _authenticatedUpdate;
 char firmwareMD5[36] = "";
 size_t firmwareSize = 0;
-bool flashCRC = true;
+// TODO Add back flash CRC checking? bool flashCRC = true;
 
 // Common HTTP responses
 const char response400missing[] = "400: Bad Request, missing argument\n";
@@ -344,6 +344,7 @@ void handle_reboot()
     return;
 }
 
+/* TODO Add back flash CRC checking?
 void handle_checkflash()
 {
     // TODO check flash CRC... flashCRC = ESP.checkFlashCRC();
@@ -352,6 +353,7 @@ void handle_checkflash()
     server.send_P(200, type_txt, flashCRC ? "true\n" : "false\n");
     return;
 }
+*/
 
 void load_page(const char *page)
 {
@@ -498,7 +500,7 @@ void handle_status()
         }
     }
     ADD_STR(json, cfg_timeZone, userConfig->getTimeZone().c_str());
-    ADD_BOOL(json, "checkFlashCRC", flashCRC);
+    // TODO Add back flash CRC checking... ADD_BOOL(json, "checkFlashCRC", flashCRC);
     END_JSON(json);
 
     // send JSON straight to serial port
@@ -763,7 +765,7 @@ void SSEheartbeat(SSESubscription *s)
         ADD_INT(json, "freeHeap", free_heap);
         ADD_INT(json, "minHeap", min_heap);
         // TODO monitor stack... ADD_INT(json, "minStack", ESP.getFreeContStack());
-        ADD_BOOL(json, "checkFlashCRC", flashCRC);
+        // TODO Add back flash CRC checking... ADD_BOOL(json, "checkFlashCRC", flashCRC);
         if (lastRSSI != WiFi.RSSI())
         {
             lastRSSI = WiFi.RSSI();

@@ -391,11 +391,12 @@
             </table>
           </div>
         </div>
-        <div class="fullwidth" style="padding-left: 20px;padding-right: 20px; display: flex; justify-content: space-evenly;">
-            <input type="button" value="Reset Door" onclick="resetDoor()">
-            <input type="button" value="Set WiFi SSID" onclick="setSSID()">
-            <input type="button" value="Boot Soft AP" onclick="bootSoftAP()">
-            <input type="button" value="Factory Reset" onclick="factoryReset()">
+        <div class="fullwidth"
+          style="padding-left: 20px;padding-right: 20px; display: flex; justify-content: space-evenly;">
+          <input type="button" value="Reset Door" onclick="resetDoor()">
+          <input type="button" value="Set WiFi SSID" onclick="setSSID()">
+          <input type="button" value="Boot Soft AP" onclick="bootSoftAP()">
+          <input type="button" value="Factory Reset" onclick="factoryReset()">
         </div>
       </div>
     </main>
@@ -439,11 +440,13 @@
         <p style="margin:0px;">
           <a href="logs.html" target="_blank">Show system logs</a>&nbsp;(crashCount:&nbsp;<span id="crashCount"></span>)
         </p>
+        <!-- TODO Add back flash CRC checking?
         <p style="margin:0px; color:red;">
           <span id="checkFlashCRC" style="display:none;">
             checkFlashCRC() failed. Flash new firmware by USB cable to recover.
           </span>
         </p>
+        -->
       </div>
     </footer>
   </div>
@@ -455,7 +458,9 @@
         onclick="document.getElementById('myModal').style.display = 'none'">&times;</span>
       <span id="modalTitle">Installed Firmware:&nbsp;<span id="firmwareVersion2">xxx</span><br></span><br>
       <div id="updateDialog" style="float: none; padding:0px">
+        <!-- TODO Add back flash CRC checking for OTA update dialog?
         <span id="modalFlashCRC" style="font-size: 0.8em; display: block">xxx</span><br>
+         -->
         <fieldset>
           <legend>Update from GitHub</legend>
           <table>

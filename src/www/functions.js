@@ -285,12 +285,14 @@ function setElementsFromStatus(status) {
                 date.setTime(value * 1000);
                 console.log(`Server time: ${date.toUTCString()}`);
                 break;
+            /* TODO Add back flash CRC checking?
             case "checkFlashCRC":
                 if (!value) {
                     console.warn("WARNING: Server checkFlashCRC() failed. Flash new firmware by USB cable to recover.");
                     document.getElementById("checkFlashCRC").style.display = "initial";
                 }
                 break;
+            */
             case "motionTriggers":
                 setMotionTriggers(value);
                 break;
@@ -485,10 +487,13 @@ function countdown(secs, msg) {
 }
 
 async function showUpdateDialog() {
+    /* TODO Add back flash CRC checking for OTA update dialog?
     const modalFlashCRC = document.getElementById("modalFlashCRC");
     modalFlashCRC.innerHTML = "Checking Flash CRC...";
     modalFlashCRC.style.color = '';
+    */
     document.getElementById("myModal").style.display = 'block';
+    /* TODO Add back flash CRC checking for OTA update dialog?
     const response = await fetch("checkflash", {
         method: "GET",
         cache: "no-cache"
@@ -501,6 +506,7 @@ async function showUpdateDialog() {
         modalFlashCRC.style.color = 'red';
         modalFlashCRC.innerHTML = "WARNING: Flash CRC check failed. You must flash new firmware by USB cable to recover, please consult <a href='https://github.com/ratgdo/homekit-ratgdo32?tab=readme-ov-file#flash-crc-errors' style='color:red'>documentation.</a> RATGDO device may not restart if you reboot now.";
     }
+    */
 }
 
 // Handles request to update server firmware from either GitHub (default) or from
@@ -630,7 +636,8 @@ async function firmwareUpdate(github = true) {
 
 async function rebootRATGDO(dialog = true) {
     if (dialog) {
-        /*** Disable this as we don't have any CRC problems anymore.
+        let txt = "Reboot RATGDO, are you sure?";
+        /* TODO Add back flash CRC checking on reboot?
         document.getElementById("pleaseWait").style.display = "block";
         loaderElem.style.visibility = "visible";
         const response = await fetch("checkflash", {
@@ -642,9 +649,6 @@ async function rebootRATGDO(dialog = true) {
         // Give browser a moment to actually hide the spinner...
         await new Promise(r => setTimeout(r, 50));
         document.getElementById("pleaseWait").style.display = "none";
-        */
-        let txt = "Reboot RATGDO, are you sure?";
-        /*
         if (result !== 'true') {
             txt = "WARNING: Flash CRC check failed. You must flash new firmware by USB cable to recover, please consult documentation. RATGDO device may not restart if you reboot now. Reboot anyway?";
         }
