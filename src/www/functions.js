@@ -400,8 +400,9 @@ function dotDotDot(elem) {
 async function checkVersion(progress) {
     const versionElem = document.getElementById("newversion");
     const versionElem2 = document.getElementById("newversion2");
-    versionElem.innerHTML = "Checking";
-    versionElem2.innerHTML = "Checking";
+    var msg = "Checking";
+    versionElem.innerHTML = msg;
+    versionElem2.innerHTML = msg;
     const spanDots = document.getElementById(progress);
     const aniDots = dotDotDot(spanDots);
     // TODO check this is correct URL for ratgdo32 releases
@@ -430,20 +431,27 @@ async function checkVersion(progress) {
             return (prerelease || !obj.prerelease);
         });
     serverStatus.latestVersion = latest;
-    console.log("Newest version: " + latest.tag_name);
-    const asset = latest.assets.find((obj) => {
-        return (obj.content_type === "application/octet-stream") && (obj.name.startsWith("homekit-ratgdo"));
-    });
-    serverStatus.downloadURL = "https://ratgdo.github.io/homekit-ratgdo/firmware/" + asset.name;
-    let msg = "You have newest release";
-    if (serverStatus.firmwareVersion < latest.tag_name) {
-        // Newest version at GitHub is greater from that installed
-        msg = "Update available  (" + latest.tag_name + ")";
+    if (latest) {
+        console.log("Newest version: " + latest.tag_name);
+        const asset = latest.assets.find((obj) => {
+            return (obj.content_type === "application/octet-stream") && (obj.name.startsWith("homekit-ratgdo"));
+        });
+        serverStatus.downloadURL = "https://ratgdo.github.io/homekit-ratgdo32/firmware/" + asset.name;
+        msg = "You have newest release";
+        if (serverStatus.firmwareVersion < latest.tag_name) {
+            // Newest version at GitHub is greater from that installed
+            msg = "Update available  (" + latest.tag_name + ")";
+        }
+    }
+    else {
+        console.log("No firmware found");
+        serverStatus.downloadURL = undefined;
+        msg = "No firmware found";
     }
     clearInterval(aniDots);
     spanDots.innerHTML = "";
     versionElem.innerHTML = msg;
-    versionElem2.innerHTML = latest.tag_name;
+    versionElem2.innerHTML = (latest?.tag_name) ? latest.tag_name : msg;
 }
 
 // repurposes the myModal <div> to display a countdown timer
@@ -491,7 +499,7 @@ async function showUpdateDialog() {
         modalFlashCRC.innerHTML = "Flash CRC okay.";
     } else {
         modalFlashCRC.style.color = 'red';
-        modalFlashCRC.innerHTML = "WARNING: Flash CRC check failed. You must flash new firmware by USB cable to recover, please consult <a href='https://github.com/ratgdo/homekit-ratgdo?tab=readme-ov-file#flash-crc-errors' style='color:red'>documentation.</a> RATGDO device may not restart if you reboot now.";
+        modalFlashCRC.innerHTML = "WARNING: Flash CRC check failed. You must flash new firmware by USB cable to recover, please consult <a href='https://github.com/ratgdo/homekit-ratgdo32?tab=readme-ov-file#flash-crc-errors' style='color:red'>documentation.</a> RATGDO device may not restart if you reboot now.";
     }
 }
 

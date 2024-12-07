@@ -413,15 +413,17 @@
         <br>
         <table style="border-collapse: collapse">
           <tr id="freeMemRow">
-            <td colspan="2" style="width: 30%; padding: 0px">
+            <td colspan="2" style="width: 45%; padding: 0px">
               freeHeap:&nbsp;<span id="freeHeap">0</span>&nbsp;
             </td>
-            <td colspan="2" style="width: 30%; padding: 0px; text-align: center;">
+            <td colspan="2" style="width: 45%; padding: 0px; text-align: center;">
               minHeap:&nbsp;<span id="minHeap">0</span>&nbsp;
             </td>
+            <!-- TODO show minimum stack sizes. Maybe? On ESP32 we are multi-thread so several stacks, and memory not an issue anymore? (adjust widths above if added back in)
             <td colspan="2" style="width: 30%; padding: 0px; text-align: right;">
               minStack:&nbsp;<span id="minStack">0</span>&nbsp;
             </td>
+             -->
           </tr>
         </table>
         <table style="border-collapse: collapse">
