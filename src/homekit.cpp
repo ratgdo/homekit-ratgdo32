@@ -61,6 +61,8 @@ void wifiCallbackAll(int count)
         setup_comms();
         setup_web();
     }
+    // beep on completing startup.
+    tone(BEEPER_PIN, 2000, 500);
 }
 
 void statusCallback(HS_STATUS status)
