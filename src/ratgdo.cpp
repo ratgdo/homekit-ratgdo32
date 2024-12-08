@@ -17,7 +17,7 @@
 // C/C++ language includes
 
 // ESP system includes
-#include "esp_core_dump.h"
+#include <esp_core_dump.h>
 
 // RATGDO project includes
 #include "ratgdo.h"
@@ -27,6 +27,7 @@
 #include "homekit.h"
 #include "web.h"
 #include "softAP.h"
+#include "led.h"
 
 // Logger tag
 static const char *TAG = "ratgdo";
@@ -72,6 +73,11 @@ void setup()
         }
         free(summary);
     }
+
+    // Beep on boot...
+    tone(BEEPER_PIN, 1300, 500);
+    laser.on();
+    led.on();
 
     load_all_config_settings();
 

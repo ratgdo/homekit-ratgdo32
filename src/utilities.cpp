@@ -144,7 +144,7 @@ void load_all_config_settings()
     // Set globals...
     strlcpy(device_name, userConfig->getDeviceName().c_str(), sizeof(device_name));
     make_rfc952(device_name_rfc952, device_name, sizeof(device_name_rfc952));
-    led->setIdleState(userConfig->getLEDidle());
+    led.setIdleState(userConfig->getLEDidle());
     motionTriggers.asInt = userConfig->getMotionTriggers();
     softAPmode = userConfig->getSoftAPmode();
     strlcpy(syslogIP, userConfig->getSyslogIP().c_str(), sizeof(syslogIP));

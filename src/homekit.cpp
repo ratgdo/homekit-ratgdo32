@@ -25,6 +25,7 @@
 #include "homekit.h"
 #include "web.h"
 #include "softAP.h"
+#include "led.h"
 
 // Logger tag
 static const char *TAG = "ratgdo-homekit";
@@ -61,6 +62,9 @@ void wifiCallbackAll(int count)
         setup_comms();
         setup_web();
     }
+    // beep on completing startup.
+    tone(BEEPER_PIN, 2000, 500);
+    laser.off();
 }
 
 void statusCallback(HS_STATUS status)
