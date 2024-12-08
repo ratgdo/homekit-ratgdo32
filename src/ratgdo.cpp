@@ -27,6 +27,7 @@
 #include "homekit.h"
 #include "web.h"
 #include "softAP.h"
+#include "led.h"
 
 // Logger tag
 static const char *TAG = "ratgdo";
@@ -75,6 +76,8 @@ void setup()
 
     // Beep on boot...
     tone(BEEPER_PIN, 1300, 500);
+    laser.on();
+    led.on();
 
     load_all_config_settings();
 

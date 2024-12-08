@@ -109,7 +109,7 @@ bool helperLEDidle(const std::string &key, const std::string &value, configSetti
 {
     // call fn to set LED object
     userConfig->set(key, value);
-    led->setIdleState(userConfig->getLEDidle());
+    led.setIdleState(userConfig->getLEDidle());
     return true;
 }
 

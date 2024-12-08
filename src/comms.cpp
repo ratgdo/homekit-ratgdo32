@@ -1042,7 +1042,7 @@ bool process_PacketAction(PacketAction &pkt_ac)
     bool success = false;
 
     // Use LED to signal activity
-    led->flash(FLASH_MS);
+    led.flash(FLASH_MS);
 
     if (secType == 1)
     {

@@ -488,7 +488,7 @@ void handle_status()
     ADD_INT(json, cfg_syslogPort, userConfig->getSyslogPort());
     ADD_INT(json, cfg_TTCseconds, userConfig->getTTCseconds());
     ADD_INT(json, cfg_motionTriggers, motionTriggers.asInt);
-    ADD_INT(json, cfg_LEDidle, led->getIdleState());
+    ADD_INT(json, cfg_LEDidle, led.getIdleState());
     // We send milliseconds relative to current time... ie updated X milliseconds ago
     ADD_INT(json, "lastDoorUpdateAt", (upTime - lastDoorUpdateAt));
     ADD_BOOL(json, "enableNTP", enableNTP);
@@ -973,7 +973,7 @@ void SSEBroadcastState(const char *data, BroadcastType type)
         return;
 
     // Flash LED to signal activity
-    led->flash(FLASH_MS);
+    led.flash(FLASH_MS);
 
     // if nothing subscribed, then return
     if (subscriptionCount == 0)

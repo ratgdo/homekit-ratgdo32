@@ -24,23 +24,22 @@
 class LED
 {
 private:
-    uint8_t activeState = 0;     // 0 == LED on, 1 == LED off
-    uint8_t idleState = 1;       // opposite of active
-    unsigned long resetTime = 0; // Stores time when LED should return to idle state
+    uint8_t pin;
+    uint8_t onState = 1;  // What pin state represents "on", can be zero (0) or one (1)
+    uint8_t offState = 0; // opposite of on
+    uint8_t activeState = 1;
+    uint8_t idleState = 0; // opposite of active
     Ticker LEDtimer;
-    static LED *instancePtr;
-    LED();
 
 public:
-    LED(const LED &obj) = delete;
-    static LED *getInstance() { return instancePtr; }
-
+    LED(uint8_t gpio_num, uint8_t state = 1);
     void on();
     void off();
     void idle();
-    void flash(unsigned long ms = 0);
+    void flash(unsigned long ms = FLASH_MS);
     void setIdleState(uint8_t state);
     uint8_t getIdleState() { return idleState; };
 };
 
-extern LED *led;
+extern LED led;
+extern LED laser;
