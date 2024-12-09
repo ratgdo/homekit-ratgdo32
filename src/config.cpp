@@ -26,6 +26,7 @@
 #include "softAP.h"
 #include "led.h"
 #include "homekit.h"
+#include "vehicle.h"
 
 // Logger tag
 static const char *TAG = "ratgdo-config";
@@ -158,6 +159,14 @@ bool helperSyslogEn(const std::string &key, const std::string &value, configSett
     return true;
 }
 
+bool helperVehicleThreshold(const std::string &key, const std::string &value, configSetting *action)
+{
+    userConfig->set(key, value);
+    // set globals so takes effect immediately
+    vehicleThresholdDistance = (uint16_t)std::stoi(value);
+    return true;
+}
+
 /****************************************************************************
  * User settings class
  */
@@ -200,6 +209,7 @@ userSettings::userSettings()
         {cfg_syslogEn, {false, false, false, helperSyslogEn}}, // call fn to set globals
         {cfg_syslogIP, {false, false, "0.0.0.0", NULL}},
         {cfg_syslogPort, {false, false, 514, NULL}},
+        {cfg_vehicleThreshold, {false, false, 100, helperVehicleThreshold}}, // call fn to set globals
     };
 }
 

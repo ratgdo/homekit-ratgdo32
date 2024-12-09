@@ -214,6 +214,11 @@ function setElementsFromStatus(status) {
                 document.getElementById(key).value = value;
                 document.getElementById("TTCsecondsValue").innerHTML = value;
                 break;
+            case "vehicleThreshold":
+                document.getElementById(key).value = value;
+                document.getElementById("vehicleThresholdCM").innerHTML = value;
+                document.getElementById("vehicleThresholdInch").innerHTML = Math.round(value / .254) / 10;
+                break;
             case "firmwareVersion":
                 document.getElementById(key).innerHTML = value;
                 document.getElementById("firmwareVersion2").innerHTML = value;
@@ -831,6 +836,9 @@ async function saveSettings() {
     let TTCseconds = Math.max(Math.min(parseInt(document.getElementById("TTCseconds").value), 60), 0);
     if (isNaN(TTCseconds)) TTCseconds = 0;
 
+    let vehicleThreshold = Math.max(Math.min(parseInt(document.getElementById("vehicleThreshold").value), 200), 5);
+    if (isNaN(vehicleThreshold)) vehicleThreshold = 0;
+
     const syslogEn = (document.getElementById("syslogEn").checked) ? '1' : '0';
     let syslogIP = document.getElementById("syslogIP").value.substring(0, 15);
     if (syslogIP.length == 0) syslogIP = serverStatus.syslogIP;
@@ -868,6 +876,7 @@ async function saveSettings() {
         "wifiPower", wifiPower,
         */
         "TTCseconds", TTCseconds,
+        "vehicleThreshold", vehicleThreshold,
         "motionTriggers", motionTriggers,
         "LEDidle", LEDidle,
         "staticIP", staticIP,

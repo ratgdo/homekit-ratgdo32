@@ -62,6 +62,7 @@ constexpr char cfg_softAPmode[] = "softAPmode";
 constexpr char cfg_syslogEn[] = "syslogEn";
 constexpr char cfg_syslogIP[] = "syslogIP";
 constexpr char cfg_syslogPort[] = "syslogPort";
+constexpr char cfg_vehicleThreshold[] = "vehicleThreshold";
 
 constexpr char nvram_messageLog[] = "messageLog";
 constexpr char nvram_id_code[] = "id_code";
@@ -130,6 +131,7 @@ public:
     bool getSyslogEn() { return std::get<bool>(get(cfg_syslogEn)); };
     std::string getSyslogIP() { return std::get<std::string>(get(cfg_syslogIP)); };
     int getSyslogPort() { return std::get<int>(get(cfg_syslogPort)); };
+    int getVehicleThreshold() { return std::get<int>(get(cfg_vehicleThreshold)); };
 };
 extern userSettings *userConfig;
 

@@ -39,6 +39,7 @@
 #include "softAP.h"
 #include "json.h"
 #include "led.h"
+#include "vehicle.h"
 
 // Logger tag
 static const char *TAG = "ratgdo-http";
@@ -201,6 +202,11 @@ void web_loop()
         // First time through, zero offset from upTime, which is when we last rebooted)
         ADD_INT(json, "lastDoorUpdateAt", (upTime - lastDoorUpdateAt));
     }
+    if (vehicleStatusChange)
+    {
+        vehicleStatusChange = false;
+        ADD_STR(json, "vehicleStatus", vehicleStatus);
+    }
     // Conditional macros, only add if value has changed
     ADD_BOOL_C(json, "paired", homekit_is_paired(), last_reported_paired);
     ADD_STR_C(json, "garageDoorState", DOOR_STATE(garage_door.current_state), garage_door.current_state, last_reported_garage_door.current_state);
@@ -217,14 +223,6 @@ void web_loop()
         SSEBroadcastState(json);
     }
     xSemaphoreGive(jsonMutex);
-    if ((userConfig->getRebootSeconds() != 0) && ((unsigned long)userConfig->getRebootSeconds() < millis() / 1000))
-    {
-        // Reboot the system if we have reached time...
-        RINFO(TAG, "Rebooting system as %i seconds expired", userConfig->getRebootSeconds());
-        server.stop();
-        sync_and_restart();
-        return;
-    }
     server.handleClient();
 }
 
@@ -487,6 +485,7 @@ void handle_status()
     ADD_STR(json, cfg_syslogIP, userConfig->getSyslogIP().c_str());
     ADD_INT(json, cfg_syslogPort, userConfig->getSyslogPort());
     ADD_INT(json, cfg_TTCseconds, userConfig->getTTCseconds());
+    ADD_INT(json, cfg_vehicleThreshold, userConfig->getVehicleThreshold());
     ADD_INT(json, cfg_motionTriggers, motionTriggers.asInt);
     ADD_INT(json, cfg_LEDidle, led.getIdleState());
     // We send milliseconds relative to current time... ie updated X milliseconds ago
@@ -501,6 +500,8 @@ void handle_status()
     }
     ADD_STR(json, cfg_timeZone, userConfig->getTimeZone().c_str());
     // TODO Add back flash CRC checking... ADD_BOOL(json, "checkFlashCRC", flashCRC);
+    ADD_STR(json, "vehicleStatus", vehicleStatus);
+    ADD_INT(json, "vehicleDist", vehicleDistance);
     END_JSON(json);
 
     // send JSON straight to serial port
@@ -758,6 +759,7 @@ void SSEheartbeat(SSESubscription *s)
     if (s->client.connected())
     {
         static int8_t lastRSSI = 0;
+        static int16_t lastVehicleDistance = 0;
         static int lastClientCount = 0;
         xSemaphoreTake(jsonMutex, portMAX_DELAY);
         START_JSON(json);
@@ -766,6 +768,11 @@ void SSEheartbeat(SSESubscription *s)
         ADD_INT(json, "minHeap", min_heap);
         // TODO monitor stack... ADD_INT(json, "minStack", ESP.getFreeContStack());
         // TODO Add back flash CRC checking... ADD_BOOL(json, "checkFlashCRC", flashCRC);
+        if (lastVehicleDistance != vehicleDistance)
+        {
+            lastVehicleDistance = vehicleDistance;
+            ADD_INT(json, "vehicleDist", vehicleDistance);
+        }
         if (lastRSSI != WiFi.RSSI())
         {
             lastRSSI = WiFi.RSSI();

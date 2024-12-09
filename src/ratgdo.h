@@ -49,6 +49,8 @@ const gpio_num_t BEEPER_PIN = GPIO_NUM_33;
 const gpio_num_t LASER_PIN = GPIO_NUM_23;
 const gpio_num_t SENSOR_PIN = GPIO_NUM_34;
 
+const gpio_num_t SHUTDOWN_PIN = GPIO_NUM_32;
+
 extern uint32_t free_heap;
 extern uint32_t min_heap;
 
@@ -82,6 +84,8 @@ enum LockTargetState : uint8_t
     TGT_UNLOCKED = Characteristic::LockTargetState::UNLOCK,
     TGT_LOCKED = Characteristic::LockTargetState::LOCK,
 };
+
+#define MOTION_TIMER_DURATION 5000      // how long to keep HomeKit motion sensor active for
 
 struct GarageDoor
 {

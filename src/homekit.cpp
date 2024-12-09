@@ -26,6 +26,7 @@
 #include "web.h"
 #include "softAP.h"
 #include "led.h"
+#include "vehicle.h"
 
 // Logger tag
 static const char *TAG = "ratgdo-homekit";
@@ -33,6 +34,9 @@ static const char *TAG = "ratgdo-homekit";
 static DEV_GarageDoor *door;
 static DEV_Light *light;
 static DEV_Motion *motion;
+static DEV_Motion *arriving;
+static DEV_Motion *departing;
+static DEV_Occupancy *vehicle;
 
 static bool isPaired = false;
 static bool rebooting = false;
@@ -59,6 +63,7 @@ void wifiCallbackAll(int count)
         {
             get_auto_timezone();
         }
+        setup_vehicle();
         setup_comms();
         setup_web();
     }
@@ -142,37 +147,79 @@ void setup_homekit()
     homeSpan.setWifiCallbackAll(wifiCallbackAll);
     homeSpan.setStatusCallback(statusCallback);
 
-    homeSpan.begin(Category::GarageDoorOpeners, device_name, device_name_rfc952, "ratgdo-ESP32");
+    homeSpan.begin(Category::Bridges, device_name, device_name_rfc952, "ratgdo-ESP32");
 
+    // Define a bridge (as more than 3 accessories)
     new SpanAccessory();
     new Service::AccessoryInformation();
     new Characteristic::Identify();
-    new Characteristic::Name("Garage Door");
+
+    // Define the Garage Door accessory...
+    new SpanAccessory();
+    new Service::AccessoryInformation();
+    new Characteristic::Identify();
+    new Characteristic::Name(device_name);
     new Characteristic::Manufacturer("Ratcloud llc");
-    new Characteristic::SerialNumber("123-ABC");
+    new Characteristic::SerialNumber(Network.macAddress().c_str());
     new Characteristic::Model("ratgdo-ESP32");
     new Characteristic::FirmwareRevision(AUTO_VERSION);
-
-    // We can set current lock state to unknown as HomeKit has value for that.
-    // But we can't do the same for door state as HomeKit has no value for that.
-    garage_door.current_lock = CURR_UNKNOWN;
-
     door = new DEV_GarageDoor();
-    light = new DEV_Light();
+
+    // Dry contact (security type 3) cannot control lights
+    if (userConfig->getGDOSecurityType() != 3)
+    {
+        // Define the Light accessory...
+        new SpanAccessory();
+        new Service::AccessoryInformation();
+        new Characteristic::Identify();
+        new Characteristic::Name("Light");
+        light = new DEV_Light();
+    }
+    else
+    {
+        RINFO(TAG, "Dry contact mode. Disabling light switch service");
+    }
+
     // only create motion if we know we have motion detection
     garage_door.has_motion_sensor = (bool)nvRam->read(nvram_has_motion);
     if (garage_door.has_motion_sensor || userConfig->getMotionTriggers() != 0)
     {
-        motion = new DEV_Motion();
+        // Define the Motion Sensor accessory...
+        new SpanAccessory();
+        new Service::AccessoryInformation();
+        new Characteristic::Identify();
+        new Characteristic::Name("Motion");
+        motion = new DEV_Motion("Motion");
     }
     else
     {
-        RINFO(TAG, "Motion Sensor not detected.  Disabling Service");
+        RINFO(TAG, "No motion sensor. Disabling motion Service");
     }
+
+    // Define Motion Sensor accessory for vehicle arriving
+    new SpanAccessory();
+    new Service::AccessoryInformation();
+    new Characteristic::Identify();
+    new Characteristic::Name("Arriving");
+    arriving = new DEV_Motion("Arriving");
+
+    // Define Motion Sensor accessory for vehicle departing
+    new SpanAccessory();
+    new Service::AccessoryInformation();
+    new Characteristic::Identify();
+    new Characteristic::Name("Departing");
+    departing = new DEV_Motion("Departing");
+
+    // Define Motion Sensor accessory for vehicle occupancy (parked or away)
+    new SpanAccessory();
+    new Service::AccessoryInformation();
+    new Characteristic::Identify();
+    new Characteristic::Name("Vehicle");
+    vehicle = new DEV_Occupancy();
 
     // Auto poll starts up a new FreeRTOS task to do the HomeKit comms
     // so no need to handle in our Arduino loop.
-    homeSpan.autoPoll((1024 * 12), 1, 1);
+    homeSpan.autoPoll((1024 * 32), 1, 0);
 }
 
 void queueSendHelper(QueueHandle_t q, GDOEvent e, const char *txt)
@@ -212,6 +259,12 @@ void notify_homekit_target_door_state_change()
 
 void notify_homekit_current_door_state_change()
 {
+    // Notify the vehicle presence code that door state is changing
+    if (garage_door.current_state == GarageDoorCurrentState::CURR_OPENING)
+        doorOpening();
+    if (garage_door.current_state == GarageDoorCurrentState::CURR_CLOSING)
+        doorClosing();
+
     if (!isPaired)
         return;
 
@@ -254,7 +307,7 @@ void notify_homekit_obstruction()
     queueSendHelper(door->event_q, e, "obstruction");
 }
 
-DEV_GarageDoor::DEV_GarageDoor()
+DEV_GarageDoor::DEV_GarageDoor() : Service::GarageDoorOpener()
 {
     RINFO(TAG, "Configuring HomeKit Garage Door Service");
     event_q = xQueueCreate(5, sizeof(GDOEvent));
@@ -263,6 +316,9 @@ DEV_GarageDoor::DEV_GarageDoor()
     obstruction = new Characteristic::ObstructionDetected(obstruction->NOT_DETECTED);
     lockCurrent = new Characteristic::LockCurrentState(lockCurrent->UNKNOWN);
     lockTarget = new Characteristic::LockTargetState(lockTarget->UNLOCK);
+    // We can set current lock state to unknown as HomeKit has value for that.
+    // But we can't do the same for door state as HomeKit has no value for that.
+    garage_door.current_lock = CURR_UNKNOWN;
 }
 
 boolean DEV_GarageDoor::update()
@@ -331,7 +387,7 @@ void notify_homekit_light()
     queueSendHelper(light->event_q, e, "light");
 }
 
-DEV_Light::DEV_Light()
+DEV_Light::DEV_Light() : Service::LightBulb()
 {
     RINFO(TAG, "Configuring HomeKit Light Service");
     event_q = xQueueCreate(5, sizeof(GDOEvent));
@@ -359,13 +415,16 @@ void DEV_Light::loop()
 /****************************************************************************
  * Motion Service Handler
  */
-
 void enable_service_homekit_motion()
 {
     nvRam->write(nvram_has_motion, 1);
     if (!motion)
     {
-        motion = new DEV_Motion();
+        new SpanAccessory();
+        new Service::AccessoryInformation();
+        new Characteristic::Identify();
+        new Characteristic::Name("Motion");
+        motion = new DEV_Motion("Motion");
     }
 }
 
@@ -379,10 +438,31 @@ void notify_homekit_motion()
     queueSendHelper(motion->event_q, e, "motion");
 }
 
-DEV_Motion::DEV_Motion()
+void notify_homekit_vehicle_arriving(bool vehicleArriving)
 {
-    RINFO(TAG, "Configuring HomeKit Motion Service");
+    if (!isPaired || !arriving)
+        return;
+
+    GDOEvent e;
+    e.value.b = vehicleArriving;
+    queueSendHelper(arriving->event_q, e, "arriving");
+}
+
+void notify_homekit_vehicle_departing(bool vehicleDeparting)
+{
+    if (!isPaired || !departing)
+        return;
+
+    GDOEvent e;
+    e.value.b = vehicleDeparting;
+    queueSendHelper(departing->event_q, e, "departing");
+}
+
+DEV_Motion::DEV_Motion(const char *name) : Service::MotionSensor()
+{
+    RINFO(TAG, "Configuring HomeKit Motion Service for %s", name);
     event_q = xQueueCreate(5, sizeof(GDOEvent));
+    strlcpy(this->name, name, sizeof(this->name));
     motion = new Characteristic::MotionDetected(motion->NOT_DETECTED);
 }
 
@@ -392,7 +472,38 @@ void DEV_Motion::loop()
     {
         GDOEvent e;
         xQueueReceive(event_q, &e, 0);
-        RINFO(TAG, "Motion %s", e.value.b ? "detected" : "reset");
+        RINFO(TAG, "%s %s", name, e.value.b ? "detected" : "reset");
         motion->setVal(e.value.b);
+    }
+}
+
+/****************************************************************************
+ * Occupancy Service Handler
+ */
+void notify_homekit_vehicle_occupancy(bool vehicleDetected)
+{
+    if (!isPaired || !vehicle)
+        return;
+
+    GDOEvent e;
+    e.value.b = vehicleDetected;
+    queueSendHelper(vehicle->event_q, e, "vehicle");
+}
+
+DEV_Occupancy::DEV_Occupancy() : Service::OccupancySensor()
+{
+    RINFO(TAG, "Configuring HomeKit Occupancy Service");
+    event_q = xQueueCreate(5, sizeof(GDOEvent));
+    occupied = new Characteristic::OccupancyDetected(occupied->NOT_DETECTED);
+}
+
+void DEV_Occupancy::loop()
+{
+    if (uxQueueMessagesWaiting(event_q) > 0)
+    {
+        GDOEvent e;
+        xQueueReceive(event_q, &e, 0);
+        RINFO(TAG, "Vehicle occupancy %s", e.value.b ? "detected" : "reset");
+        occupied->setVal(e.value.b);
     }
 }

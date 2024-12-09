@@ -36,6 +36,10 @@ extern void notify_homekit_light();
 extern void enable_service_homekit_motion();
 extern void notify_homekit_motion();
 
+extern void notify_homekit_vehicle_occupancy(bool vehicleDetected);
+extern void notify_homekit_vehicle_arriving(bool vehicleArriving);
+extern void notify_homekit_vehicle_departing(bool vehicleDeparting);
+
 extern void homekit_unpair();
 extern bool homekit_is_paired();
 
@@ -80,7 +84,18 @@ struct DEV_Motion : Service::MotionSensor
     Characteristic::MotionDetected *motion;
 
     QueueHandle_t event_q;
+    char name[16];
 
-    DEV_Motion();
+    DEV_Motion(const char *name);
+    void loop();
+};
+
+struct DEV_Occupancy : Service::OccupancySensor
+{
+    Characteristic::OccupancyDetected *occupied;
+
+    QueueHandle_t event_q;
+
+    DEV_Occupancy();
     void loop();
 };

@@ -179,6 +179,7 @@ void load_all_config_settings()
     RINFO(TAG, "   syslogEn:            %s", userConfig->getSyslogEn() ? "true" : "false");
     RINFO(TAG, "   syslogIP:            %s", userConfig->getSyslogIP().c_str());
     RINFO(TAG, "   syslogPort:          %d", userConfig->getSyslogPort());
+    RINFO(TAG, "   vehicleThreshold:    %d", userConfig->getVehicleThreshold());
     RINFO(TAG, "RFC952 device hostname: %s", device_name_rfc952);
 
 #ifdef NTP_CLIENT

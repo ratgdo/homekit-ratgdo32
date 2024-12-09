@@ -28,6 +28,7 @@
 #include "web.h"
 #include "softAP.h"
 #include "led.h"
+#include "vehicle.h"
 
 // Logger tag
 static const char *TAG = "ratgdo";
@@ -103,6 +104,7 @@ void loop()
     comms_loop();
     web_loop();
     soft_ap_loop();
+    vehicle_loop();
     service_timer_loop();
 }
 
@@ -128,14 +130,6 @@ void service_timer_loop()
         RINFO(TAG, "System boot time: %s", timeString(lastRebootAt));
     }
 #endif
-
-    // Motion Clear Timer
-    if (garage_door.motion && (current_millis > garage_door.motion_timer))
-    {
-        RINFO(TAG, "Motion Cleared");
-        garage_door.motion = false;
-        notify_homekit_motion();
-    }
 
     // Check heap
     if (current_millis > next_heap_check)
