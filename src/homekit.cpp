@@ -26,6 +26,7 @@
 #include "web.h"
 #include "softAP.h"
 #include "led.h"
+#include "distance.h"
 
 // Logger tag
 static const char *TAG = "ratgdo-homekit";
@@ -59,6 +60,7 @@ void wifiCallbackAll(int count)
         {
             get_auto_timezone();
         }
+        setup_distance();
         setup_comms();
         setup_web();
     }

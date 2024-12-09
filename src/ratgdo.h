@@ -49,6 +49,8 @@ const gpio_num_t BEEPER_PIN = GPIO_NUM_33;
 const gpio_num_t LASER_PIN = GPIO_NUM_23;
 const gpio_num_t SENSOR_PIN = GPIO_NUM_34;
 
+const gpio_num_t SHUTDOWN_PIN = GPIO_NUM_32;
+
 extern uint32_t free_heap;
 extern uint32_t min_heap;
 

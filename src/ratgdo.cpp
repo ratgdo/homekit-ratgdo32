@@ -28,6 +28,7 @@
 #include "web.h"
 #include "softAP.h"
 #include "led.h"
+#include "distance.h"
 
 // Logger tag
 static const char *TAG = "ratgdo";
@@ -103,6 +104,7 @@ void loop()
     comms_loop();
     web_loop();
     soft_ap_loop();
+    distance_loop();
     service_timer_loop();
 }
 

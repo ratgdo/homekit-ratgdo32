@@ -39,6 +39,7 @@
 #include "softAP.h"
 #include "json.h"
 #include "led.h"
+#include "distance.h"
 
 // Logger tag
 static const char *TAG = "ratgdo-http";
@@ -501,6 +502,7 @@ void handle_status()
     }
     ADD_STR(json, cfg_timeZone, userConfig->getTimeZone().c_str());
     // TODO Add back flash CRC checking... ADD_BOOL(json, "checkFlashCRC", flashCRC);
+    ADD_INT(json, "vehicleDist", vehicleDistance);
     END_JSON(json);
 
     // send JSON straight to serial port
@@ -758,6 +760,7 @@ void SSEheartbeat(SSESubscription *s)
     if (s->client.connected())
     {
         static int8_t lastRSSI = 0;
+        static int16_t lastVehicleDistance = 0;
         static int lastClientCount = 0;
         xSemaphoreTake(jsonMutex, portMAX_DELAY);
         START_JSON(json);
@@ -766,6 +769,10 @@ void SSEheartbeat(SSESubscription *s)
         ADD_INT(json, "minHeap", min_heap);
         // TODO monitor stack... ADD_INT(json, "minStack", ESP.getFreeContStack());
         // TODO Add back flash CRC checking... ADD_BOOL(json, "checkFlashCRC", flashCRC);
+        if (lastVehicleDistance != vehicleDistance)
+        {
+            ADD_INT(json, "vehicleDist", vehicleDistance);
+        }
         if (lastRSSI != WiFi.RSSI())
         {
             lastRSSI = WiFi.RSSI();
