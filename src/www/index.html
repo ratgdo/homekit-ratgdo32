@@ -132,6 +132,12 @@
               <td>Motion:</td>
               <td id="garageMotion"></td>
             </tr>
+            <tr>
+              <td>Vehicle Distance:</td>
+              <td><span id="vehicleDist"></span> mm</td>
+              <td></td>
+              <td></td>
+            </tr>
           </table>
         </div>
         <div id="GDOcontrols" class="fullwidth"
@@ -212,9 +218,9 @@
                 <td class="label">LED activity:</td>
                 <td>&nbsp;
                   <input type="radio" id="LEDidle0" name="LEDidle" value="0">
-                  <label for="LEDidle0">Idle on</label>
+                  <label for="LEDidle0">Off when idle</label>
                   <input type="radio" id="LEDidle1" name="LEDidle" value="1">
-                  <label for="LEDidle1">Flash on</label>
+                  <label for="LEDidle1">On when idle</label>
                   <input type="radio" id="LEDidle2" name="LEDidle" value="2">
                   <label for="LEDidle2">Disable</label>
                 </td>
@@ -391,11 +397,12 @@
             </table>
           </div>
         </div>
-        <div class="fullwidth" style="padding-left: 20px;padding-right: 20px; display: flex; justify-content: space-evenly;">
-            <input type="button" value="Reset Door" onclick="resetDoor()">
-            <input type="button" value="Set WiFi SSID" onclick="setSSID()">
-            <input type="button" value="Boot Soft AP" onclick="bootSoftAP()">
-            <input type="button" value="Factory Reset" onclick="factoryReset()">
+        <div class="fullwidth"
+          style="padding-left: 20px;padding-right: 20px; display: flex; justify-content: space-evenly;">
+          <input type="button" value="Reset Door" onclick="resetDoor()">
+          <input type="button" value="Set WiFi SSID" onclick="setSSID()">
+          <input type="button" value="Boot Soft AP" onclick="bootSoftAP()">
+          <input type="button" value="Factory Reset" onclick="factoryReset()">
         </div>
       </div>
     </main>
@@ -413,15 +420,17 @@
         <br>
         <table style="border-collapse: collapse">
           <tr id="freeMemRow">
-            <td colspan="2" style="width: 30%; padding: 0px">
+            <td colspan="2" style="width: 45%; padding: 0px">
               freeHeap:&nbsp;<span id="freeHeap">0</span>&nbsp;
             </td>
-            <td colspan="2" style="width: 30%; padding: 0px; text-align: center;">
+            <td colspan="2" style="width: 45%; padding: 0px; text-align: center;">
               minHeap:&nbsp;<span id="minHeap">0</span>&nbsp;
             </td>
+            <!-- TODO show minimum stack sizes. Maybe? On ESP32 we are multi-thread so several stacks, and memory not an issue anymore? (adjust widths above if added back in)
             <td colspan="2" style="width: 30%; padding: 0px; text-align: right;">
               minStack:&nbsp;<span id="minStack">0</span>&nbsp;
             </td>
+             -->
           </tr>
         </table>
         <table style="border-collapse: collapse">
@@ -437,11 +446,13 @@
         <p style="margin:0px;">
           <a href="logs.html" target="_blank">Show system logs</a>&nbsp;(crashCount:&nbsp;<span id="crashCount"></span>)
         </p>
+        <!-- TODO Add back flash CRC checking?
         <p style="margin:0px; color:red;">
           <span id="checkFlashCRC" style="display:none;">
             checkFlashCRC() failed. Flash new firmware by USB cable to recover.
           </span>
         </p>
+        -->
       </div>
     </footer>
   </div>
@@ -453,7 +464,9 @@
         onclick="document.getElementById('myModal').style.display = 'none'">&times;</span>
       <span id="modalTitle">Installed Firmware:&nbsp;<span id="firmwareVersion2">xxx</span><br></span><br>
       <div id="updateDialog" style="float: none; padding:0px">
+        <!-- TODO Add back flash CRC checking for OTA update dialog?
         <span id="modalFlashCRC" style="font-size: 0.8em; display: block">xxx</span><br>
+         -->
         <fieldset>
           <legend>Update from GitHub</legend>
           <table>

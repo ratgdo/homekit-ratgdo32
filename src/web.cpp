@@ -39,6 +39,7 @@
 #include "softAP.h"
 #include "json.h"
 #include "led.h"
+#include "distance.h"
 
 // Logger tag
 static const char *TAG = "ratgdo-http";
@@ -74,7 +75,7 @@ void handle_crash_oom();
 void *crashptr;
 char *test_str = NULL;
 #endif
-void handle_checkflash();
+// TODO Add back flash CRC checking? void handle_checkflash();
 void handle_update();
 void handle_firmware_upload();
 void SSEHandler(uint8_t channel);
@@ -90,7 +91,7 @@ const std::unordered_map<std::string, std::pair<const HTTPMethod, void (*)()>> b
     {"/auth", {HTTP_GET, handle_auth}},
     {"/showlog", {HTTP_GET, handle_showlog}},
     {"/showrebootlog", {HTTP_GET, handle_showrebootlog}},
-    {"/checkflash", {HTTP_GET, handle_checkflash}},
+    // TODO Add back flash CRC checking? {"/checkflash", {HTTP_GET, handle_checkflash}},
     {"/wifiap", {HTTP_POST, handle_wifiap}},
     {"/wifinets", {HTTP_GET, handle_wifinets}},
     {"/setssid", {HTTP_POST, handle_setssid}},
@@ -121,7 +122,7 @@ std::string _updaterError;
 bool _authenticatedUpdate;
 char firmwareMD5[36] = "";
 size_t firmwareSize = 0;
-bool flashCRC = true;
+// TODO Add back flash CRC checking? bool flashCRC = true;
 
 // Common HTTP responses
 const char response400missing[] = "400: Bad Request, missing argument\n";
@@ -344,6 +345,7 @@ void handle_reboot()
     return;
 }
 
+/* TODO Add back flash CRC checking?
 void handle_checkflash()
 {
     // TODO check flash CRC... flashCRC = ESP.checkFlashCRC();
@@ -352,6 +354,7 @@ void handle_checkflash()
     server.send_P(200, type_txt, flashCRC ? "true\n" : "false\n");
     return;
 }
+*/
 
 void load_page(const char *page)
 {
@@ -381,36 +384,6 @@ void load_page(const char *page)
     HTTPMethod method = server.method();
     if (strcmp(crc32, matchHdr))
     {
-#if defined(CHUNK_WEB_PAGES)
-        WiFiClient client = server.client();
-        client.print("HTTP/1.1 200 OK\n");
-        client.print("Content-Type: ");
-        client.print(type);
-        client.print("\n");
-        client.print("Content-Encoding: gzip\n");
-        client.print("Cache-Control: ");
-        client.print(cacheHdr);
-        client.print("\n");
-        if (cache)
-        {
-            client.print("ETag: ");
-            client.print(crc32);
-            client.print("\n");
-        }
-        client.print("Connection: close\n");
-        client.print("\n");
-        client.clear();
-#define CHUNK_SIZE 536
-        while (length > 0)
-        {
-            uint32_t sent;
-            uint32_t tx_size = min(CHUNK_SIZE, length);
-            sent = client.write_P(data, tx_size);
-            length -= sent;
-            data += sent;
-        }
-        client.stop();
-#else
         server.sendHeader(F("Content-Encoding"), F("gzip"));
         server.sendHeader(F("Cache-Control"), cacheHdr);
         if (cache)
@@ -425,7 +398,6 @@ void load_page(const char *page)
             RINFO(TAG, "Client %s requesting: %s (HTTP_GET, type: %s, length: %i)", server.client().remoteIP().toString().c_str(), page, type, length);
             server.send_P(200, type, data, length);
         }
-#endif
     }
     else
     {
@@ -517,7 +489,7 @@ void handle_status()
     ADD_INT(json, cfg_syslogPort, userConfig->getSyslogPort());
     ADD_INT(json, cfg_TTCseconds, userConfig->getTTCseconds());
     ADD_INT(json, cfg_motionTriggers, motionTriggers.asInt);
-    ADD_INT(json, cfg_LEDidle, led->getIdleState());
+    ADD_INT(json, cfg_LEDidle, led.getIdleState());
     // We send milliseconds relative to current time... ie updated X milliseconds ago
     ADD_INT(json, "lastDoorUpdateAt", (upTime - lastDoorUpdateAt));
     ADD_BOOL(json, "enableNTP", enableNTP);
@@ -529,7 +501,8 @@ void handle_status()
         }
     }
     ADD_STR(json, cfg_timeZone, userConfig->getTimeZone().c_str());
-    ADD_BOOL(json, "checkFlashCRC", flashCRC);
+    // TODO Add back flash CRC checking... ADD_BOOL(json, "checkFlashCRC", flashCRC);
+    ADD_INT(json, "vehicleDist", vehicleDistance);
     END_JSON(json);
 
     // send JSON straight to serial port
@@ -787,6 +760,7 @@ void SSEheartbeat(SSESubscription *s)
     if (s->client.connected())
     {
         static int8_t lastRSSI = 0;
+        static int16_t lastVehicleDistance = 0;
         static int lastClientCount = 0;
         xSemaphoreTake(jsonMutex, portMAX_DELAY);
         START_JSON(json);
@@ -794,7 +768,11 @@ void SSEheartbeat(SSESubscription *s)
         ADD_INT(json, "freeHeap", free_heap);
         ADD_INT(json, "minHeap", min_heap);
         // TODO monitor stack... ADD_INT(json, "minStack", ESP.getFreeContStack());
-        ADD_BOOL(json, "checkFlashCRC", flashCRC);
+        // TODO Add back flash CRC checking... ADD_BOOL(json, "checkFlashCRC", flashCRC);
+        if (lastVehicleDistance != vehicleDistance)
+        {
+            ADD_INT(json, "vehicleDist", vehicleDistance);
+        }
         if (lastRSSI != WiFi.RSSI())
         {
             lastRSSI = WiFi.RSSI();
@@ -1002,7 +980,7 @@ void SSEBroadcastState(const char *data, BroadcastType type)
         return;
 
     // Flash LED to signal activity
-    led->flash(FLASH_MS);
+    led.flash(FLASH_MS);
 
     // if nothing subscribed, then return
     if (subscriptionCount == 0)
