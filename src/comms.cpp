@@ -372,7 +372,7 @@ void comms_loop_sec1()
             manual_recovery();
             if (motionTriggers.bit.doorKey)
             {
-                garage_door.motion_timer = millis() + 5000;
+                garage_door.motion_timer = millis() + MOTION_TIMER_DURATION;
                 garage_door.motion = true;
                 notify_homekit_motion();
             }
@@ -588,7 +588,7 @@ void comms_loop_sec1()
                     notify_homekit_light();
                     if (motionTriggers.bit.lightKey)
                     {
-                        garage_door.motion_timer = millis() + 5000;
+                        garage_door.motion_timer = millis() + MOTION_TIMER_DURATION;
                         garage_door.motion = true;
                         notify_homekit_motion();
                     }
@@ -616,7 +616,7 @@ void comms_loop_sec1()
                     notify_homekit_current_lock();
                     if (motionTriggers.bit.lockKey)
                     {
-                        garage_door.motion_timer = millis() + 5000;
+                        garage_door.motion_timer = millis() + MOTION_TIMER_DURATION;
                         garage_door.motion = true;
                         notify_homekit_motion();
                     }
@@ -842,7 +842,7 @@ void comms_loop_sec2()
                     notify_homekit_target_lock();
                     if (motionTriggers.bit.lockKey)
                     {
-                        garage_door.motion_timer = millis() + 5000;
+                        garage_door.motion_timer = millis() + MOTION_TIMER_DURATION;
                         garage_door.motion = true;
                         notify_homekit_motion();
                     }
@@ -876,7 +876,7 @@ void comms_loop_sec2()
                     notify_homekit_light();
                     if (motionTriggers.bit.lightKey)
                     {
-                        garage_door.motion_timer = millis() + 5000;
+                        garage_door.motion_timer = millis() + MOTION_TIMER_DURATION;
                         garage_door.motion = true;
                         notify_homekit_motion();
                     }
@@ -905,7 +905,7 @@ void comms_loop_sec2()
                 /* When we get the motion detect message, notify HomeKit. Motion sensor
                     will continue to send motion messages every 5s until motion stops.
                     set a timer for 5 seconds to disable motion after the last message */
-                garage_door.motion_timer = millis() + 5000;
+                garage_door.motion_timer = millis() + MOTION_TIMER_DURATION;
                 if (!garage_door.motion)
                 {
                     garage_door.motion = true;
@@ -925,7 +925,7 @@ void comms_loop_sec2()
                 }
                 if (pkt.m_data.value.door_action.pressed && motionTriggers.bit.doorKey)
                 {
-                    garage_door.motion_timer = millis() + 5000;
+                    garage_door.motion_timer = millis() + MOTION_TIMER_DURATION;
                     garage_door.motion = true;
                     notify_homekit_motion();
                 }
@@ -955,6 +955,14 @@ void comms_loop()
         comms_loop_sec1();
     else
         comms_loop_sec2();
+
+    // Motion Clear Timer
+    if (garage_door.motion && (millis() > garage_door.motion_timer))
+    {
+        RINFO(TAG, "Motion Cleared");
+        garage_door.motion = false;
+        notify_homekit_motion();
+    }
 
     // Service the Obstruction Timer
     obstruction_timer();

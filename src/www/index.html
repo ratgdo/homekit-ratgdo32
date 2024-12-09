@@ -113,12 +113,12 @@
           </div>
         </div>
         <div class="fullwidth">
-          <table>
+          <table style="width: 95%">
             <tr>
-              <td style="width: 35%;">Door State:</td>
+              <td style="width: 30%;">Door State:</td>
               <td style="width: 20%;" id="garageDoorState"></td>
-              <td style="width: 35%;">Light On:</td>
-              <td style="width: 10%;" id="garageLightOn"></td>
+              <td style="width: 30%;">Light On:</td>
+              <td style="width: 20%;" id="garageLightOn"></td>
             </tr>
             <tr>
               <td>Lock State:</td>
@@ -131,6 +131,12 @@
               <td id="GDOSecurityType"></td>
               <td>Motion:</td>
               <td id="garageMotion"></td>
+            </tr>
+            <tr>
+              <td>Vehicle:</td>
+              <td id="vehicleStatus"></td>
+              <td>Distance:</td>
+              <td><span id="vehicleDist"></span>&nbsp;cm</td>
             </tr>
           </table>
         </div>
@@ -180,7 +186,7 @@
           </div>
         </div>
         <div class="fullwidth" style="padding-top: 0px; padding-bottom: 0px;">
-          <div>
+          <div style="padding-left: 0; padding-right: 0;">
             <table class="settings">
               <tr>
                 <td style="font-size: 0.65em;"><u>No reboot required:</u></td>
@@ -197,8 +203,8 @@
                 <td>&nbsp;
                   <input type="range" min="0" max="60" value="0" id="TTCseconds" name="TTCseconds" class="slider"
                     style="width:150px;">
-                  <span style="vertical-align: middle; font-size: 0.8em"><span id="TTCsecondsValue"></span>
-                    Seconds</span>
+                  <span style="vertical-align: middle; font-size: 0.8em"><span
+                      id="TTCsecondsValue"></span>&nbsp;Seconds</span>
                 </td>
               </tr>
               <tr>
@@ -265,6 +271,16 @@
                   -->
                   <input type="checkbox" id="motionWallPanel" name="motionWallPanel" value="no">
                   <label for="motionWallPanel">Wall Panel</label>
+                </td>
+              </tr>
+              <tr>
+                <td class="label">Vehicle Distance:</td>
+                <td>&nbsp;
+                  <input type="range" min="5" max="200" value="100" id="vehicleThreshold" name="vehicleThreshold"
+                    class="slider" style="width:150px;">
+                  <span style="vertical-align: middle; font-size: 0.8em"><span
+                      id="vehicleThresholdCM"></span>&nbsp;cm&nbsp;(<span
+                      id="vehicleThresholdInch"></span>&nbsp;inch)</span>
                 </td>
               </tr>
               <tr>
@@ -621,6 +637,16 @@
     TTCtext.innerHTML = TTCslider.value;
     TTCslider.oninput = function () {
       TTCtext.innerHTML = this.value;
+    };
+
+    vDistSlider = document.getElementById("vehicleThreshold");
+    vDistText1 = document.getElementById("vehicleThresholdCM");
+    vDistText2 = document.getElementById("vehicleThresholdInch");
+    vDistText1.innerHTML = vDistSlider.value;
+    vDistText2.innerHTML = Math.round(vDistSlider.value / .254) / 10;
+    vDistSlider.oninput = function () {
+      vDistText1.innerHTML = this.value;
+      vDistText2.innerHTML = Math.round(this.value / .254) / 10;
     }
   </script>
 </body>
