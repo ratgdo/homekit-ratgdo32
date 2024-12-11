@@ -26,6 +26,7 @@
 #include "softAP.h"
 #include "led.h"
 #include "homekit.h"
+#include "vehicle.h"
 
 // Logger tag
 static const char *TAG = "ratgdo-config";
@@ -109,7 +110,7 @@ bool helperLEDidle(const std::string &key, const std::string &value, configSetti
 {
     // call fn to set LED object
     userConfig->set(key, value);
-    led->setIdleState(userConfig->getLEDidle());
+    led.setIdleState(userConfig->getLEDidle());
     return true;
 }
 
@@ -158,6 +159,14 @@ bool helperSyslogEn(const std::string &key, const std::string &value, configSett
     return true;
 }
 
+bool helperVehicleThreshold(const std::string &key, const std::string &value, configSetting *action)
+{
+    userConfig->set(key, value);
+    // set globals so takes effect immediately
+    vehicleThresholdDistance = (uint16_t)std::stoi(value);
+    return true;
+}
+
 /****************************************************************************
  * User settings class
  */
@@ -168,6 +177,7 @@ userSettings::userSettings()
     uint8_t mac[6];
     Network.macAddress(mac);
     snprintf(default_device_name, sizeof(default_device_name), "Garage Door %02X%02X%02X", mac[3], mac[4], mac[5]);
+    strlcpy(device_name, default_device_name, sizeof(device_name));
     make_rfc952(device_name_rfc952, default_device_name, sizeof(device_name_rfc952));
     // key, {reboot, wifiChanged, value, fn to call}
     settings = {
@@ -199,6 +209,7 @@ userSettings::userSettings()
         {cfg_syslogEn, {false, false, false, helperSyslogEn}}, // call fn to set globals
         {cfg_syslogIP, {false, false, "0.0.0.0", NULL}},
         {cfg_syslogPort, {false, false, 514, NULL}},
+        {cfg_vehicleThreshold, {false, false, 100, helperVehicleThreshold}}, // call fn to set globals
     };
 }
 

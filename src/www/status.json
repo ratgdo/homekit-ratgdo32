@@ -38,5 +38,7 @@
   "enableNTP": true,
   "lastDoorUpdateAt": 847155,
   "timeZone": "America/New_York;EST5EDT,M3.2.0,M11.1.0",
-  "checkFlashCRC": false
+  "checkFlashCRC": false,
+  "vehicleStatus" : "Away",
+  "vehicleDist" : 100
 }

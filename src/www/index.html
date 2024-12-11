@@ -113,12 +113,12 @@
           </div>
         </div>
         <div class="fullwidth">
-          <table>
+          <table style="width: 95%">
             <tr>
-              <td style="width: 35%;">Door State:</td>
+              <td style="width: 30%;">Door State:</td>
               <td style="width: 20%;" id="garageDoorState"></td>
-              <td style="width: 35%;">Light On:</td>
-              <td style="width: 10%;" id="garageLightOn"></td>
+              <td style="width: 30%;">Light On:</td>
+              <td style="width: 20%;" id="garageLightOn"></td>
             </tr>
             <tr>
               <td>Lock State:</td>
@@ -131,6 +131,12 @@
               <td id="GDOSecurityType"></td>
               <td>Motion:</td>
               <td id="garageMotion"></td>
+            </tr>
+            <tr>
+              <td>Vehicle:</td>
+              <td id="vehicleStatus"></td>
+              <td>Distance:</td>
+              <td><span id="vehicleDist"></span>&nbsp;cm</td>
             </tr>
           </table>
         </div>
@@ -180,7 +186,7 @@
           </div>
         </div>
         <div class="fullwidth" style="padding-top: 0px; padding-bottom: 0px;">
-          <div>
+          <div style="padding-left: 0; padding-right: 0;">
             <table class="settings">
               <tr>
                 <td style="font-size: 0.65em;"><u>No reboot required:</u></td>
@@ -197,8 +203,8 @@
                 <td>&nbsp;
                   <input type="range" min="0" max="60" value="0" id="TTCseconds" name="TTCseconds" class="slider"
                     style="width:150px;">
-                  <span style="vertical-align: middle; font-size: 0.8em"><span id="TTCsecondsValue"></span>
-                    Seconds</span>
+                  <span style="vertical-align: middle; font-size: 0.8em"><span
+                      id="TTCsecondsValue"></span>&nbsp;Seconds</span>
                 </td>
               </tr>
               <tr>
@@ -212,9 +218,9 @@
                 <td class="label">LED activity:</td>
                 <td>&nbsp;
                   <input type="radio" id="LEDidle0" name="LEDidle" value="0">
-                  <label for="LEDidle0">Idle on</label>
+                  <label for="LEDidle0">Off when idle</label>
                   <input type="radio" id="LEDidle1" name="LEDidle" value="1">
-                  <label for="LEDidle1">Flash on</label>
+                  <label for="LEDidle1">On when idle</label>
                   <input type="radio" id="LEDidle2" name="LEDidle" value="2">
                   <label for="LEDidle2">Disable</label>
                 </td>
@@ -265,6 +271,16 @@
                   -->
                   <input type="checkbox" id="motionWallPanel" name="motionWallPanel" value="no">
                   <label for="motionWallPanel">Wall Panel</label>
+                </td>
+              </tr>
+              <tr>
+                <td class="label">Vehicle Distance:</td>
+                <td>&nbsp;
+                  <input type="range" min="5" max="200" value="100" id="vehicleThreshold" name="vehicleThreshold"
+                    class="slider" style="width:150px;">
+                  <span style="vertical-align: middle; font-size: 0.8em"><span
+                      id="vehicleThresholdCM"></span>&nbsp;cm&nbsp;(<span
+                      id="vehicleThresholdInch"></span>&nbsp;inch)</span>
                 </td>
               </tr>
               <tr>
@@ -391,11 +407,12 @@
             </table>
           </div>
         </div>
-        <div class="fullwidth" style="padding-left: 20px;padding-right: 20px; display: flex; justify-content: space-evenly;">
-            <input type="button" value="Reset Door" onclick="resetDoor()">
-            <input type="button" value="Set WiFi SSID" onclick="setSSID()">
-            <input type="button" value="Boot Soft AP" onclick="bootSoftAP()">
-            <input type="button" value="Factory Reset" onclick="factoryReset()">
+        <div class="fullwidth"
+          style="padding-left: 20px;padding-right: 20px; display: flex; justify-content: space-evenly;">
+          <input type="button" value="Reset Door" onclick="resetDoor()">
+          <input type="button" value="Set WiFi SSID" onclick="setSSID()">
+          <input type="button" value="Boot Soft AP" onclick="bootSoftAP()">
+          <input type="button" value="Factory Reset" onclick="factoryReset()">
         </div>
       </div>
     </main>
@@ -413,15 +430,17 @@
         <br>
         <table style="border-collapse: collapse">
           <tr id="freeMemRow">
-            <td colspan="2" style="width: 30%; padding: 0px">
+            <td colspan="2" style="width: 45%; padding: 0px">
               freeHeap:&nbsp;<span id="freeHeap">0</span>&nbsp;
             </td>
-            <td colspan="2" style="width: 30%; padding: 0px; text-align: center;">
+            <td colspan="2" style="width: 45%; padding: 0px; text-align: center;">
               minHeap:&nbsp;<span id="minHeap">0</span>&nbsp;
             </td>
+            <!-- TODO show minimum stack sizes. Maybe? On ESP32 we are multi-thread so several stacks, and memory not an issue anymore? (adjust widths above if added back in)
             <td colspan="2" style="width: 30%; padding: 0px; text-align: right;">
               minStack:&nbsp;<span id="minStack">0</span>&nbsp;
             </td>
+             -->
           </tr>
         </table>
         <table style="border-collapse: collapse">
@@ -437,11 +456,13 @@
         <p style="margin:0px;">
           <a href="logs.html" target="_blank">Show system logs</a>&nbsp;(crashCount:&nbsp;<span id="crashCount"></span>)
         </p>
+        <!-- TODO Add back flash CRC checking?
         <p style="margin:0px; color:red;">
           <span id="checkFlashCRC" style="display:none;">
             checkFlashCRC() failed. Flash new firmware by USB cable to recover.
           </span>
         </p>
+        -->
       </div>
     </footer>
   </div>
@@ -453,7 +474,9 @@
         onclick="document.getElementById('myModal').style.display = 'none'">&times;</span>
       <span id="modalTitle">Installed Firmware:&nbsp;<span id="firmwareVersion2">xxx</span><br></span><br>
       <div id="updateDialog" style="float: none; padding:0px">
+        <!-- TODO Add back flash CRC checking for OTA update dialog?
         <span id="modalFlashCRC" style="font-size: 0.8em; display: block">xxx</span><br>
+         -->
         <fieldset>
           <legend>Update from GitHub</legend>
           <table>
@@ -614,6 +637,16 @@
     TTCtext.innerHTML = TTCslider.value;
     TTCslider.oninput = function () {
       TTCtext.innerHTML = this.value;
+    };
+
+    vDistSlider = document.getElementById("vehicleThreshold");
+    vDistText1 = document.getElementById("vehicleThresholdCM");
+    vDistText2 = document.getElementById("vehicleThresholdInch");
+    vDistText1.innerHTML = vDistSlider.value;
+    vDistText2.innerHTML = Math.round(vDistSlider.value / .254) / 10;
+    vDistSlider.oninput = function () {
+      vDistText1.innerHTML = this.value;
+      vDistText2.innerHTML = Math.round(this.value / .254) / 10;
     }
   </script>
 </body>

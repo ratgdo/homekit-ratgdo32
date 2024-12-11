@@ -20,8 +20,8 @@
 static const char *TAG = "ratgdo-led";
 
 // Construct the singleton object for LED access
-LED *LED::instancePtr = new LED();
-LED *led = LED::getInstance();
+LED led(LED_BUILTIN);
+LED laser(LASER_PIN);
 
 void LEDtimerCallback(LED *led)
 {
@@ -29,50 +29,51 @@ void LEDtimerCallback(LED *led)
 }
 
 // Constructor for LED class
-LED::LED()
+LED::LED(uint8_t gpio_num, uint8_t state)
 {
-    resetTime = 500;
-    pinMode(LED_BUILTIN, OUTPUT);
+    pin = gpio_num;
+    activeState = onState = state;
+    // off is opposite of on, which can be zero or one.
+    offState = (onState == 1) ? 0 : 1;
+    idleState = (activeState == 1) ? 0 : 1;
+    LEDtimer = Ticker();
+    pinMode(pin, OUTPUT);
 }
 
 void LED::on()
 {
-    digitalWrite(LED_BUILTIN, 0);
+    digitalWrite(pin, onState);
 }
 
 void LED::off()
 {
-    digitalWrite(LED_BUILTIN, 1);
+    digitalWrite(pin, offState);
 }
 
 void LED::idle()
 {
-    digitalWrite(LED_BUILTIN, idleState);
+    digitalWrite(pin, idleState);
 }
 
 void LED::setIdleState(uint8_t state)
 {
-    // 0 = LED flashes off (idle is on)
-    // 1 = LED flashes on (idle is off)
-    // 3 = LED disabled (active and idle both off)
+    // 0 = LED flashes on (off when idle)
+    // 1 = LED flashes off (on when idle)
+    // 2 = LED disabled (active and idle both off)
     if (state == 2)
     {
-        idleState = activeState = 1;
+        idleState = activeState = offState;
     }
     else
     {
         idleState = state;
-        activeState = (state == 1) ? 0 : 1;
+        // active state is opposite of idle state which can be zero or one.
+        activeState = (idleState == 1) ? 0 : 1;
     }
 }
 
 void LED::flash(unsigned long ms)
 {
-    digitalWrite(LED_BUILTIN, activeState);
-    if (ms > 0 && ms != resetTime)
-    {
-        resetTime = ms;
-        LEDtimer.once_ms(ms, LEDtimerCallback, this);
-    }
-
+    digitalWrite(pin, activeState);
+    LEDtimer.once_ms(ms, LEDtimerCallback, this);
 }

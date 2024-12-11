@@ -25,6 +25,8 @@
 #include "homekit.h"
 #include "web.h"
 #include "softAP.h"
+#include "led.h"
+#include "vehicle.h"
 
 // Logger tag
 static const char *TAG = "ratgdo-homekit";
@@ -58,9 +60,13 @@ void wifiCallbackAll(int count)
         {
             get_auto_timezone();
         }
+        setup_vehicle();
         setup_comms();
         setup_web();
     }
+    // beep on completing startup.
+    tone(BEEPER_PIN, 2000, 500);
+    laser.off();
 }
 
 void statusCallback(HS_STATUS status)
@@ -208,6 +214,12 @@ void notify_homekit_target_door_state_change()
 
 void notify_homekit_current_door_state_change()
 {
+    // Notify the vehicle presence code that door state is changing
+    if (garage_door.current_state == GarageDoorCurrentState::CURR_OPENING)
+        doorOpening();
+    if (garage_door.current_state == GarageDoorCurrentState::CURR_CLOSING)
+        doorClosing();
+
     if (!isPaired)
         return;
 
