@@ -214,6 +214,10 @@ function setElementsFromStatus(status) {
                 document.getElementById(key).value = value;
                 document.getElementById("TTCsecondsValue").innerHTML = value;
                 break;
+            case "distanceSensor":
+                document.getElementById("vehicleRow").style.display = (value) ? "table-row" : "none";
+                document.getElementById("vehicleSetting").style.display = (value) ? "table-row" : "none";
+                break;
             case "vehicleThreshold":
                 document.getElementById(key).value = value;
                 document.getElementById("vehicleThresholdCM").innerHTML = value;

@@ -69,6 +69,7 @@ constexpr char nvram_id_code[] = "id_code";
 constexpr char nvram_rolling[] = "rolling";
 constexpr char nvram_has_motion[] = "has_motion";
 constexpr char nvram_ratgdo_pw[] = "ratgdo_pw";
+constexpr char nvram_has_distance[] = "has_distance";
 
 struct configSetting
 {
@@ -85,11 +86,7 @@ private:
     std::string configFile;
     static userSettings *instancePtr;
     userSettings();
-#ifdef ARDUINO
     void toFile(Print &file);
-#else
-    void toFile(std::ofstream &stream);
-#endif
     SemaphoreHandle_t mutex;
 
 public:

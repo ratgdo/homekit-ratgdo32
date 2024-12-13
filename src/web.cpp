@@ -202,7 +202,7 @@ void web_loop()
         // First time through, zero offset from upTime, which is when we last rebooted)
         ADD_INT(json, "lastDoorUpdateAt", (upTime - lastDoorUpdateAt));
     }
-    if (vehicleStatusChange)
+    if (garage_door.has_distance_sensor && vehicleStatusChange)
     {
         vehicleStatusChange = false;
         ADD_STR(json, "vehicleStatus", vehicleStatus);
@@ -500,8 +500,12 @@ void handle_status()
     }
     ADD_STR(json, cfg_timeZone, userConfig->getTimeZone().c_str());
     // TODO Add back flash CRC checking... ADD_BOOL(json, "checkFlashCRC", flashCRC);
-    ADD_STR(json, "vehicleStatus", vehicleStatus);
-    ADD_INT(json, "vehicleDist", vehicleDistance);
+    ADD_BOOL(json, "distanceSensor", garage_door.has_distance_sensor);
+    if (garage_door.has_distance_sensor)
+    {
+        ADD_STR(json, "vehicleStatus", vehicleStatus);
+        ADD_INT(json, "vehicleDist", vehicleDistance);
+    }
     END_JSON(json);
 
     // send JSON straight to serial port
@@ -768,7 +772,7 @@ void SSEheartbeat(SSESubscription *s)
         ADD_INT(json, "minHeap", min_heap);
         // TODO monitor stack... ADD_INT(json, "minStack", ESP.getFreeContStack());
         // TODO Add back flash CRC checking... ADD_BOOL(json, "checkFlashCRC", flashCRC);
-        if (lastVehicleDistance != vehicleDistance)
+        if (garage_door.has_distance_sensor && (lastVehicleDistance != vehicleDistance))
         {
             lastVehicleDistance = vehicleDistance;
             ADD_INT(json, "vehicleDist", vehicleDistance);

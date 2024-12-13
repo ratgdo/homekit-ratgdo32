@@ -48,14 +48,20 @@ void calculatePresence(int16_t distance);
 
 void setup_vehicle()
 {
-    RINFO(TAG, "=== Starting VL5314CX time-of-flight sensor ===");
+    VL53L4CX_Error rc = VL53L4CX_ERROR_NONE;
+    RINFO(TAG, "=== Setup VL5314CX time-of-flight sensor ===");
 
     Wire.begin(19, 18);
     distanceSensor.begin();
-    distanceSensor.InitSensor(0x59);
-    distanceSensor.VL53L4CX_SetDistanceMode(VL53L4CX_DISTANCEMODE_LONG);
-    distanceSensor.VL53L4CX_StartMeasurement();
-
+    rc = distanceSensor.InitSensor(0x59);
+    rc |= distanceSensor.VL53L4CX_SetDistanceMode(VL53L4CX_DISTANCEMODE_LONG);
+    rc |= distanceSensor.VL53L4CX_StartMeasurement();
+    if (rc != VL53L4CX_ERROR_NONE)
+    {
+        RERROR(TAG, "VL5314CX failed to start");
+        return;
+    }
+    enable_service_homekit_vehicle();
     vehicle_setup_done = true;
 }
 

@@ -125,7 +125,7 @@ void statusCallback(HS_STATUS status)
     }
 }
 
-#ifdef FREETROS_TASK_INFO
+#ifdef CONFIG_FREERTOS_USE_TRACE_FACILITY
 void printTaskInfo(const char *buf)
 {
     int count = uxTaskGetNumberOfTasks();
@@ -149,8 +149,65 @@ void printTaskInfo(const char *buf)
 /****************************************************************************
  * Initialize HomeKit (with HomeSpan)
  */
+
+void createMotionAccessories()
+{
+
+    // Exit if already setup
+    if (motion)
+        return;
+
+    // Define the Motion Sensor accessory...
+    new SpanAccessory();
+    new Service::AccessoryInformation();
+    new Characteristic::Identify();
+    new Characteristic::Name("Motion");
+    motion = new DEV_Motion("Motion");
+}
+
+void createVehicleAccessories()
+{
+    // Exit if already setup
+    if (arriving)
+        return;
+
+    // Define Motion Sensor accessory for vehicle arriving
+    new SpanAccessory();
+    new Service::AccessoryInformation();
+    new Characteristic::Identify();
+    new Characteristic::Name("Arriving");
+    arriving = new DEV_Motion("Arriving");
+
+    // Define Motion Sensor accessory for vehicle departing
+    new SpanAccessory();
+    new Service::AccessoryInformation();
+    new Characteristic::Identify();
+    new Characteristic::Name("Departing");
+    departing = new DEV_Motion("Departing");
+
+    // Define Motion Sensor accessory for vehicle occupancy (parked or away)
+    new SpanAccessory();
+    new Service::AccessoryInformation();
+    new Characteristic::Identify();
+    new Characteristic::Name("Vehicle");
+    vehicle = new DEV_Occupancy();
+}
+
+void enable_service_homekit_vehicle()
+{
+    // only create if not already created
+    if (!garage_door.has_distance_sensor)
+    {
+        nvRam->write(nvram_has_distance, 1);
+        garage_door.has_distance_sensor = true;
+        createVehicleAccessories();
+    }
+}
+
 void setup_homekit()
 {
+    RINFO(TAG, "=== Setup HomeKit accessories and services ===");
+
     homeSpan.setLogLevel(0);
     homeSpan.setSketchVersion(AUTO_VERSION);
     homeSpan.setHostNameSuffix("");
@@ -170,7 +227,7 @@ void setup_homekit()
 
     homeSpan.begin(Category::Bridges, device_name, device_name_rfc952, "ratgdo-ESP32");
 
-#ifdef FREETROS_TASK_INFO
+#ifdef CONFIG_FREERTOS_USE_TRACE_FACILITY
     new SpanUserCommand('t', "print FreeRTOS task info", printTaskInfo);
 #endif
     // Define a bridge (as more than 3 accessories)
@@ -204,42 +261,27 @@ void setup_homekit()
         RINFO(TAG, "Dry contact mode. Disabling light switch service");
     }
 
-    // only create motion if we know we have motion detection
+    // only create motion if we know we have motion sensor(s)
     garage_door.has_motion_sensor = (bool)nvRam->read(nvram_has_motion);
     if (garage_door.has_motion_sensor || userConfig->getMotionTriggers() != 0)
     {
-        // Define the Motion Sensor accessory...
-        new SpanAccessory();
-        new Service::AccessoryInformation();
-        new Characteristic::Identify();
-        new Characteristic::Name("Motion");
-        motion = new DEV_Motion("Motion");
+        createMotionAccessories();
     }
     else
     {
-        RINFO(TAG, "No motion sensor. Disabling motion Service");
+        RINFO(TAG, "No motion sensor. Skipping motion service");
     }
 
-    // Define Motion Sensor accessory for vehicle arriving
-    new SpanAccessory();
-    new Service::AccessoryInformation();
-    new Characteristic::Identify();
-    new Characteristic::Name("Arriving");
-    arriving = new DEV_Motion("Arriving");
-
-    // Define Motion Sensor accessory for vehicle departing
-    new SpanAccessory();
-    new Service::AccessoryInformation();
-    new Characteristic::Identify();
-    new Characteristic::Name("Departing");
-    departing = new DEV_Motion("Departing");
-
-    // Define Motion Sensor accessory for vehicle occupancy (parked or away)
-    new SpanAccessory();
-    new Service::AccessoryInformation();
-    new Characteristic::Identify();
-    new Characteristic::Name("Vehicle");
-    vehicle = new DEV_Occupancy();
+    // only create sensors if we know we have time-of-flight distance sensor
+    garage_door.has_distance_sensor = (bool)nvRam->read(nvram_has_distance);
+    if (garage_door.has_distance_sensor)
+    {
+        createVehicleAccessories();
+    }
+    else
+    {
+        RINFO(TAG, "No vehicle presence sensor. Skipping motion and occupancy services");
+    }
 
     // Auto poll starts up a new FreeRTOS task to do the HomeKit comms
     // so no need to handle in our Arduino loop.
@@ -441,14 +483,12 @@ void DEV_Light::loop()
  */
 void enable_service_homekit_motion()
 {
-    nvRam->write(nvram_has_motion, 1);
-    if (!motion)
+    // only create if not already created
+    if (!garage_door.has_motion_sensor)
     {
-        new SpanAccessory();
-        new Service::AccessoryInformation();
-        new Characteristic::Identify();
-        new Characteristic::Name("Motion");
-        motion = new DEV_Motion("Motion");
+        nvRam->write(nvram_has_motion, 1);
+        garage_door.has_motion_sensor = true;
+        createMotionAccessories();
     }
 }
 

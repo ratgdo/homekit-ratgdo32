@@ -39,6 +39,7 @@ extern void notify_homekit_motion();
 extern void notify_homekit_vehicle_occupancy(bool vehicleDetected);
 extern void notify_homekit_vehicle_arriving(bool vehicleArriving);
 extern void notify_homekit_vehicle_departing(bool vehicleDeparting);
+extern void enable_service_homekit_vehicle();
 
 extern void homekit_unpair();
 extern bool homekit_is_paired();
