@@ -12,3 +12,8 @@ __pycache__
 .vscode
 src/www/build
 .vscode/*
+CMakeLists.txt
+dependencies.lock
+managed_components/
+sdkconfig.ratgdo_esp32dev
+src/CMakeLists.txt

@@ -125,6 +125,27 @@ void statusCallback(HS_STATUS status)
     }
 }
 
+#ifdef FREETROS_TASK_INFO
+void printTaskInfo(const char *buf)
+{
+    int count = uxTaskGetNumberOfTasks();
+    TaskStatus_t *tasks = (TaskStatus_t *)pvPortMalloc(sizeof(TaskStatus_t) * count);
+    if (tasks != NULL)
+    {
+        uxTaskGetSystemState(tasks, count, NULL);
+        Serial.printf("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
+        for (size_t i = 0; i < count; i++)
+        {
+            Serial.printf("%s\t%s\t%d\t\t%d\n", (char *)tasks[i].pcTaskName,
+                          strlen((char *)tasks[i].pcTaskName) > 7 ? "" : "\t",
+                          (int)tasks[i].uxBasePriority, (int)tasks[i].usStackHighWaterMark);
+        }
+        Serial.printf("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n\n");
+    }
+    vPortFree(tasks);
+};
+#endif
+
 /****************************************************************************
  * Initialize HomeKit (with HomeSpan)
  */
@@ -149,6 +170,9 @@ void setup_homekit()
 
     homeSpan.begin(Category::Bridges, device_name, device_name_rfc952, "ratgdo-ESP32");
 
+#ifdef FREETROS_TASK_INFO
+    new SpanUserCommand('t', "print FreeRTOS task info", printTaskInfo);
+#endif
     // Define a bridge (as more than 3 accessories)
     new SpanAccessory();
     new Service::AccessoryInformation();
@@ -219,7 +243,7 @@ void setup_homekit()
 
     // Auto poll starts up a new FreeRTOS task to do the HomeKit comms
     // so no need to handle in our Arduino loop.
-    homeSpan.autoPoll((1024 * 32), 1, 0);
+    homeSpan.autoPoll((1024 * 16), 1, 0);
 }
 
 void queueSendHelper(QueueHandle_t q, GDOEvent e, const char *txt)
