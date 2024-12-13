@@ -8,6 +8,7 @@ All notable changes to `homekit-ratgdo` will be documented in this file. This pr
 
 * Feature: Beeps during time-to-close delay
 * Feature: Vehicle presence, arriving, departing sensing, and parking assist laser
+* Bugfix: Web-based flash installer now working
 * Bugfix: OTA update from GitHub now working
 * Bugfix: Blue LED was not blinking
 * Bugfix: Device name not initialized to default on startup

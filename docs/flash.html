@@ -1,42 +1,50 @@
 <!DOCTYPE html>
 <html>
+
 <body>
-    <h1>ratgdo web installer for homekit integrations</h1>
-    <script
-      type="module"
-      src="https://unpkg.com/esp-web-tools@9/dist/web/install-button.js?module"
-    ></script>
-	<style type="text/css">
-		* {
-			font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
-		}
-	</style>
+    <h1>RATGDO DISCO web installer for HomeKit integrations</h1>
+    <script type="module" src="https://unpkg.com/esp-web-tools@9/dist/web/install-button.js?module"></script>
+    <style type="text/css">
+        * {
+            font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+        }
+    </style>
+    <h4>HomeKit:</h4>
+    <p>This installer is for the ESP32-based RATGDO-DISCO board. It will not work with the original ESP8266-based RATGDO
+        board, for that you need to use the original
+        <a href="https://ratgdo.github.io/homekit-ratgdo/flash.html">ratgdo installer</a>
+    </p>
+    <p>Set WiFi network SSID and Password after installation by connecting a device to the RATGDO's hotspot, named
+        <i>Garage Door ABCDEF</i> (where last six characters are unique) and connect a browser to IP address
+        http://192.168.4.1
+    </p>
+    <h4>MQTT:</h4>
+    <p>If you want to use <b>MQTT</b> instead of HomeKit, check out the <a href="https://paulwieland.github.io/ratgdo/"
+            target="_blank">MQTT port</a> & <a href="https://github.com/PaulWieland/ratgdo">GitHub Repo</a>.</p>
+    <h4>ESP Home:</h4>
+    <p>If you want to use <b>ESPHome</b> with Home Assistant instead of HomeKit, check out the <a
+            href="https://ratgdo.github.io/esphome-ratgdo/" target="_blank">ESPHome port</a> & <a
+            href="https://github.com/ratgdo/esphome-ratgdo">GitHub Repo</a>.</p>
 
-    <p>Write some expository text here. What do people need to know? Perhaps some pretty pictures
-    would be nice. People love pictures of things.</p>
+    <p>For a comparison of available features for the different firmware options, please refer to the <a
+            href="https://paulwieland.github.io/ratgdo/01_features.html">feature matrix</a>.</p>
 
-	<h4>MQTT:</h4>
-    <p>If you want to use <b>MQTT</b> instead of HomeKit, check out the <a href="https://paulwieland.github.io/ratgdo/" target="_blank">MQTT port</a> & <a href="https://github.com/PaulWieland/ratgdo">GitHub Repo</a>.</p>
-	<h4>ESP Home:</h4>
-    <p>If you want to use <b>ESPHome</b> with Home Assistant instead of HomeKit, check out the <a href="https://ratgdo.github.io/esphome-ratgdo/" target="_blank">ESPHome port</a> & <a href="https://github.com/ratgdo/esphome-ratgdo">GitHub Repo</a>.</p>
-
-	<p>For a comparison of available features for the different firmware options, please refer to the <a href="https://paulwieland.github.io/ratgdo/01_features.html">feature matrix</a>.</p>
-
-	<h4>Drivers</h4>
-	<p>If you can't connect to your ratgdo board make sure you have the right driver installed for the type of board you have.</p>
-	<ul>
-		<li>ratgdo v2.5i uses a CH340 USB to Serial chipset. [<a href="https://www.wch-ic.com/downloads/CH341SER_EXE.html" target="_blank">driver download</a>]</li>
-		<li>Most D1 Minis use an FTDI USB to Serial chipset. [<a href="https://ftdichip.com/drivers/vcp-drivers/" target="_blank">driver download</a>]</li>
-	</ul>
+    <h4>Drivers</h4>
+    <p>If you can't connect to your ratgdo board make sure you have the right driver installed for the type of board you
+        have.</p>
+    <ul>
+        <li>ratgdo v2.5i uses a CH340 USB to Serial chipset. [<a
+                href="https://www.wch-ic.com/downloads/CH341SER_EXE.html" target="_blank">driver download</a>]</li>
+        <li>Most D1 Minis use an FTDI USB to Serial chipset. [<a href="https://ftdichip.com/drivers/vcp-drivers/"
+                target="_blank">driver download</a>]</li>
+    </ul>
 
     <h3>This may take a while!</h3>
     <p>The setup process may take as long as a full minute, so please be patient.</p>
 
-    <esp-web-install-button
-        manifest="manifest.json"
-    ></esp-web-install-button>
+    <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
     <script>
-      const button = document.querySelector('esp-web-install-button');
+        const button = document.querySelector('esp-web-install-button');
         button.overrides = {
             checkSameFirmware(manifest, improvInfo) {
                 const manifestFirmware = manifest.name.toLowerCase();
@@ -46,4 +54,5 @@
         };
     </script>
 </body>
+
 </html>

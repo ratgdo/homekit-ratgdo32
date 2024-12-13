@@ -441,7 +441,7 @@ async function checkVersion(progress) {
     if (latest) {
         console.log("Newest version: " + latest.tag_name);
         const asset = latest.assets.find((obj) => {
-            return (obj.content_type === "application/octet-stream") && (obj.name.startsWith("homekit-ratgdo"));
+            return (obj.content_type === "application/octet-stream") && obj.name.startsWith("homekit-ratgdo32") && obj.name.includes("firmware");
         });
         serverStatus.downloadURL = "https://ratgdo.github.io/homekit-ratgdo32/firmware/" + asset.name;
         msg = "You have newest release";
@@ -631,7 +631,7 @@ async function firmwareUpdate(github = true) {
         clearInterval(aniDots);
         if (showRebootMsg) {
             // Additional 10 seconds for new firmware copy on first boot.
-            countdown(rebootSeconds + 10, rebootMsg + "<br>RATGDO device rebooting...&nbsp;");
+            countdown(rebootSeconds, rebootMsg + "<br>RATGDO device rebooting...&nbsp;");
         } else {
             document.getElementById("updateDotDot").style.display = "none";
             document.getElementById("updateDialog").style.display = "block";

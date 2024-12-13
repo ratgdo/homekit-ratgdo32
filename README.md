@@ -1,5 +1,6 @@
 > [!IMPORTANT]
-> This firmware is for the new ESP32-based RATGDO v32 (disco) series device. It does not work on the original ESP8266-based RATGDO v2.5 devices.
+> This firmware is for the new ESP32-based RATGDO DISCO series device. It does not work on the original ESP8266-based RATGDO v2.5 devices.
+> Information for the original devices can be found [here](https://github.com/ratgdo/homekit-ratgdo)
 >
 > **THIS IS EARLY FIRMWARE still under test.
 > Future updates MAY include breaking changes reqiring a flash erase and re-upload.**
@@ -39,18 +40,17 @@ planned features, or to suggest your own.
 
 ## How do I install it?
 
+Connect your RATDGO-DISCO to a computer with a USB cable and use the [online browser-based flash tool](https://ratgdo.github.io/homekit-ratgdo32/flash.html) to install the firmware.
+
 > [!NOTE]
-> The installation process is still being improved. You may need to reload the flasher tool page
-> after each of the following steps in order to proceed.
+> The browser must be able to access a USB serial device. Some browsers block USB access. The Google Chrome browser is known to work and is recommended.
 
-For each of the following steps, use the [online browser-based flash tool](https://ratgdo.github.io/homekit-ratgdo32/flash.html):
+After installing you must set the WiFi network and password. Using a laptop, phone or tablet search for WiFi network named _Garage Door ABCDEF_ where the last six characters are a unique identifier.  Once connected use a browser to access http://192.168.4.1 and wait for it to display a list of WiFi networks to join.
 
-* Install the HomeKit-RATGDO firmware, and then *wait 20 seconds*.
-* Connect the RATGDO to WiFi
-* Click "Visit Device", and then begin the process of adding a device to HomeKit. Scan the QR code,
-  or manually enter the setup code `2510-2023`.
+After selecting the WiFi network the device will reboot and you can connect to it using a browser on your network at the address http://Garage-Door-ABCDEF.
+Once the device is running you can change the name and add it to HomeKit by scanning the QR code.
 
-That's it!
+> [!NOTE] The manual setup code is `2510-2023`.
 
 > [!IMPORTANT]
 > If you experience very slow or poor connection accessing the ratgdo device web page then try moving the device further away from the garage door opener.  Several users have reported that this can improve reliability of the connection. We do not know why this is the case but may suggest some RF interference between the door opener and the ratgdo device.
@@ -242,19 +242,10 @@ If you encounter a flash CRC error then please [open an issue](https://github.co
 
 ### esptool
 
-[Espressif](https://www.espressif.com) publishes [esptool](https://docs.espressif.com/projects/esptool/en/latest/esp8266/index.html), a command line utility built with python.  Esptool requires that you connect a USB serial cable to the ratgdo device. If you are able to install and run this tool then the following commands may be useful...
+[Espressif](https://www.espressif.com) publishes [esptool](https://docs.espressif.com/projects/esptool/en/latest/esp8266/index.html), a command line utility built with python.  Esptool requires that you connect a USB serial cable to the ratgdo device.
 
-```
-sudo python3 -m esptool -b 115200 -p <serial_device> verify_flash --diff yes 0x0000 <firmware.bin>
-```
-The above command verifies that the flash memory on the ratgdo has an exact image of the contents of the provided firmware binary file. If a flash CRC error was reported then this command will fail and list out the memory locations that are corrupt. This information will be useful to the developers to assist with debugging. Please copy it into the GitHub issue.
-
-```
-sudo python3 -m esptool -b 115200 -p <serial_device> write_flash 0x0000 <firmware.bin>
-```
-The above command will upload a new firmware binary file to the ratgdo device which will recover from the flash CRC error. This is an alternative to using the [online browser-based flash tool](https://ratgdo.github.io/homekit-ratgdo/flash.html) described above.
-
-Replace _<serial_device>_ with the identifier of the USB serial port.  On Apple MacOS this will be something like _/dev/cu.usbserial-10_ and on Linux will be like _/dev/ttyUSB0_. You should not use a baud rate higher than 115200 as that may introduce serial communication errrors.
+> [!NOTE]
+> The ESP32-based ratgdo firmware comprises multiple files. It is strongly recommended to use the [online browser-based flash tool](https://ratgdo.github.io/homekit-ratgdo32/flash.html) described above rather than use this command directly
 
 ## Command Line Interface
 
@@ -342,8 +333,7 @@ Uploads a new firmware binary file to the device and reboots.  It can take some 
 
 ### How can I tell if the ratgdo is paired to HomeKit?
 
-Use the [online browser-based flash tool](https://ratgdo.github.io/homekit-ratgdo/flash.html), and follow the
-"Visit Device" link. If you see a big QR code, the ratgdo is _not_ paired.
+Connect a browser to your device at its IP address or host name (e.g. http://Garage-Door-ABCDEF). If you see a big QR code, the ratgdo is _not_ paired.
 
 ### I added my garage door in the Home app but can't find it
 
@@ -361,8 +351,7 @@ more details in the issue thread, but the short story is to consider changing th
 
 ### How do I re-pair my ratgdo?
 
-Use the [online browser-based flash tool](https://ratgdo.github.io/homekit-ratgdo/flash.html), and follow the
-"Visit Device" link. If you see a big QR code, the ratgdo is *not* paired. Click the _Reset HomeKit_ or _Un-pair
+From the ratgdo device home page click the _Reset HomeKit_ or _Un-pair
 HomeKit_ button, and then delete the garage door from within the HomeKit app (or vice versa, order
 does not matter). Reseting or Un-pairing HomeKit will cause the ratgdo device to reboot.  You can then re-pair the
 device by adding it again as normal.
@@ -404,18 +393,10 @@ If you enable NTP time server then the actual UTC/GMT time of system logs is sho
 HomeKit-RATGDO uses [PlatformIO](https://platformio.org/platformio-ide) for builds. You'll want to
 install PlatformIO first.
 
-After you've checked out this repo:
+Check out this repo:
 
 ```
-git clone git@github.com:ratgdo/homekit-ratgdo.git
-```
-
-Initialize the submodules from the root of the repo:
-
-```
-cd homekit-ratgdo
-git submodule init lib/secplus/
-git submodule update
+git clone --recurse-submodules  https://github.com/ratgdo/homekit-ratgdo32.git
 ```
 
 The [`x.sh`](https://github.com/ratgdo/homekit-ratgdo32/blob/main/x.sh) script is my lazy way of not
@@ -424,11 +405,8 @@ having to remember PlatformIO-specific `pio` commands. The important ones are `r
 
 ## Who wrote this?
 
-This firmware was written by [Brandon Matthews](https://github.com/thenewwazoo), with lots of
-inspiration from the [esphome-ratgdo](https://github.com/ratgdo/esphome-ratgdo) project and critical
-dependence on the [secplus decoder library](https://github.com/argilo/secplus).
-
-Ongoing reliability improvements by [Jonathan Stroud](https://github.com/jgstroud/), and webpage design and implementation by [David Kerr](https://github.com/dkerr64)
+This firmware was written by [David Kerr](https://github.com/dkerr64), with lots of help from contributors:
+[Jonathan Stroud](https://github.com/jgstroud/) and [Donavan Becker](https://github.com/donavanbecker)
 
 Special credit goes to the Chamberlain Group, without whose irredeemably stupid decision to [close their API to third parties](https://chamberlaingroup.com/press/a-message-about-our-decision-to-prevent-unauthorized-usage-of-myq),
 this firmware would never have been necessary.
