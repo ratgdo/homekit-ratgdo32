@@ -29,6 +29,7 @@
 #include "softAP.h"
 #include "led.h"
 #include "vehicle.h"
+#include "drycontact.h"
 
 // Logger tag
 static const char *TAG = "ratgdo";
@@ -102,6 +103,7 @@ void setup()
 void loop()
 {
     comms_loop();
+    drycontact_loop();
     web_loop();
     soft_ap_loop();
     vehicle_loop();

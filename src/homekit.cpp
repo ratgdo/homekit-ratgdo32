@@ -27,6 +27,7 @@
 #include "softAP.h"
 #include "led.h"
 #include "vehicle.h"
+#include "drycontact.h"
 
 // Logger tag
 static const char *TAG = "ratgdo-homekit";
@@ -65,6 +66,7 @@ void wifiCallbackAll(int count)
         }
         setup_vehicle();
         setup_comms();
+        setup_drycontact();
         setup_web();
     }
     // beep on completing startup.
@@ -380,8 +382,17 @@ DEV_GarageDoor::DEV_GarageDoor() : Service::GarageDoorOpener()
     current = new Characteristic::CurrentDoorState(current->CLOSED);
     target = new Characteristic::TargetDoorState(target->CLOSED);
     obstruction = new Characteristic::ObstructionDetected(obstruction->NOT_DETECTED);
-    lockCurrent = new Characteristic::LockCurrentState(lockCurrent->UNKNOWN);
-    lockTarget = new Characteristic::LockTargetState(lockTarget->UNLOCK);
+    if (userConfig->getGDOSecurityType() != 3)
+    {
+        // Dry contact cannot control lock ?
+        lockCurrent = new Characteristic::LockCurrentState(lockCurrent->UNKNOWN);
+        lockTarget = new Characteristic::LockTargetState(lockTarget->UNLOCK);
+    }
+    else
+    {
+        lockCurrent = nullptr;
+        lockTarget = nullptr;
+    }
     // We can set current lock state to unknown as HomeKit has value for that.
     // But we can't do the same for door state as HomeKit has no value for that.
     garage_door.current_lock = CURR_UNKNOWN;
@@ -404,17 +415,20 @@ boolean DEV_GarageDoor::update()
         close_door();
     }
 
-    if (lockTarget->getNewVal() == lockTarget->LOCK)
+    if (userConfig->getGDOSecurityType() != 3)
     {
-        RINFO(TAG, "Locking Garage Door Remotes");
-        set_lock(lockTarget->LOCK);
+        // Dry contact cannot control lock ?
+        if (lockTarget->getNewVal() == lockTarget->LOCK)
+        {
+            RINFO(TAG, "Locking Garage Door Remotes");
+            set_lock(lockTarget->LOCK);
+        }
+        else
+        {
+            RINFO(TAG, "Unlocking Garage Door Remotes");
+            set_lock(lockTarget->UNLOCK);
+        }
     }
-    else
-    {
-        RINFO(TAG, "Unlocking Garage Door Remotes");
-        set_lock(lockTarget->UNLOCK);
-    }
-
     return true;
 }
 

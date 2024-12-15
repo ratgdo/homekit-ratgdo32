@@ -43,7 +43,6 @@ const gpio_num_t STATUS_DOOR_PIN = GPIO_NUM_26;       // output door status, HIG
 const gpio_num_t STATUS_OBST_PIN = GPIO_NUM_25;       // output for obstruction status, HIGH for obstructed, LOW for clear
 const gpio_num_t DRY_CONTACT_OPEN_PIN = GPIO_NUM_13;  // dry contact for opening door
 const gpio_num_t DRY_CONTACT_CLOSE_PIN = GPIO_NUM_14; // dry contact for closing door
-const gpio_num_t DRY_CONTACT_LIGHT_PIN = GPIO_NUM_27; // dry contact for triggering light (no discrete light commands, so toggle only)
 
 const gpio_num_t BEEPER_PIN = GPIO_NUM_33;
 const gpio_num_t LASER_PIN = GPIO_NUM_23;

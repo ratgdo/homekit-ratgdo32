@@ -25,12 +25,11 @@
 #include "homekit.h"
 #include "Reader.h"
 #include "secplus2.h"
-#include "Packet.h"
 #include "utilities.h"
 #include "comms.h"
 #include "config.h"
 #include "led.h"
-// #include "web.h"
+#include "drycontact.h"
 
 static const char *TAG = "ratgdo-comms";
 
@@ -50,7 +49,8 @@ SoftwareSerial sw_serial;
 
 extern struct GarageDoor garage_door;
 extern bool status_done;
-uint32_t secType = 2;
+
+uint32_t doorControlType = 0;
 
 // For Time-to-close control
 Ticker TTCtimer = Ticker();
@@ -88,6 +88,8 @@ static const uint8_t RX_LENGTH = 2;
 typedef uint8_t RxPacket[RX_LENGTH * 4];
 unsigned long last_rx;
 unsigned long last_tx;
+
+#define MAX_COMMS_RETRY 10
 
 bool wallplateBooting = false;
 bool wallPanelDetected = false;
@@ -140,11 +142,11 @@ void setup_comms()
     // Create packet queue
     pkt_q = xQueueCreate(5, sizeof(PacketAction));
 
-    secType = userConfig->getGDOSecurityType();
+    if (doorControlType == 0)
+        doorControlType = userConfig->getGDOSecurityType();
 
-    if (secType == 1)
+    if (doorControlType == 1)
     {
-
         RINFO(TAG, "=== Setting up comms for Secuirty+1.0 protocol");
 
         sw_serial.begin(1200, SWSERIAL_8E1, UART_RX_PIN, UART_TX_PIN, true);
@@ -155,7 +157,7 @@ void setup_comms()
         lightState = 2;
         lockState = 2;
     }
-    else
+    else if (doorControlType == 2)
     {
         RINFO(TAG, "=== Setting up comms for Secuirty+2.0 protocol");
 
@@ -188,6 +190,11 @@ void setup_comms()
             send_get_status();
         }
         force_recover.push_count = 0;
+    }
+    else
+    {
+        RINFO(TAG, "=== Setting up comms for dry contact protocol");
+        pinMode(UART_TX_PIN, OUTPUT);
     }
 
     /* pin-based obstruction detection
@@ -634,6 +641,7 @@ void comms_loop_sec1()
     static unsigned long cmdDelay = 0;
     unsigned long now;
     bool okToSend = false;
+    static uint16_t retryCount = 0;
 
     if (uxQueueMessagesWaiting(pkt_q) > 0)
     {
@@ -673,8 +681,16 @@ void comms_loop_sec1()
                 else
                 {
                     cmdDelay = 0;
-                    RERROR(TAG, "transmit failed, will retry");
-                    xQueueSendToFront(pkt_q, &pkt_ac, 0); // ignore errors
+                    if (retryCount++ < MAX_COMMS_RETRY)
+                    {
+                        RERROR(TAG, "transmit failed, will retry");
+                        xQueueSendToFront(pkt_q, &pkt_ac, 0); // ignore errors
+                    }
+                    else
+                    {
+                        RERROR(TAG, "transmit failed, exceeded max retry, aborting");
+                        retryCount = 0;
+                    }
                 }
             }
         }
@@ -689,6 +705,8 @@ void comms_loop_sec1()
  */
 void comms_loop_sec2()
 {
+    static uint16_t retryCount = 0;
+
     // no incoming data, check if we have command queued
     if (!sw_serial.available())
     {
@@ -700,8 +718,17 @@ void comms_loop_sec2()
             xQueueReceive(pkt_q, &pkt_ac, 0); // ignore errors
             if (!process_PacketAction(pkt_ac))
             {
-                RERROR(TAG, "transmit failed, will retry");
-                xQueueSendToFront(pkt_q, &pkt_ac, 0); // ignore errors
+
+                if (retryCount++ < MAX_COMMS_RETRY)
+                {
+                    RERROR(TAG, "transmit failed, will retry");
+                    xQueueSendToFront(pkt_q, &pkt_ac, 0); // ignore errors
+                }
+                else
+                {
+                    RERROR(TAG, "transmit failed, exceeded max retry, aborting");
+                    retryCount = 0;
+                }
             }
         }
     }
@@ -946,15 +973,57 @@ void comms_loop_sec2()
     }
 }
 
+void comms_loop_drycontact()
+{
+    static DoorState previousDoorState = DoorState::Unknown;
+
+    // Notify HomeKit when the door state changes
+    if (doorState != previousDoorState)
+    {
+        switch (doorState)
+        {
+        case DoorState::Open:
+            garage_door.current_state = GarageDoorCurrentState::CURR_OPEN;
+            garage_door.target_state = GarageDoorTargetState::TGT_OPEN;
+            break;
+        case DoorState::Closed:
+            garage_door.current_state = GarageDoorCurrentState::CURR_CLOSED;
+            garage_door.target_state = GarageDoorTargetState::TGT_CLOSED;
+            break;
+        case DoorState::Opening:
+            garage_door.current_state = GarageDoorCurrentState::CURR_OPENING;
+            garage_door.target_state = GarageDoorTargetState::TGT_OPEN;
+            break;
+        case DoorState::Closing:
+            garage_door.current_state = GarageDoorCurrentState::CURR_CLOSING;
+            garage_door.target_state = GarageDoorTargetState::TGT_CLOSED;
+            break;
+        default:
+            garage_door.current_state = GarageDoorCurrentState::CURR_STOPPED;
+            break;
+        }
+
+        notify_homekit_current_door_state_change();
+        notify_homekit_target_door_state_change();
+
+        previousDoorState = doorState;
+
+        // Log the state change for debugging
+        RINFO(TAG, "Door state updated: Current: %d, Target: %d", garage_door.current_state, garage_door.target_state);
+    }
+}
+
 void comms_loop()
 {
     if (!comms_setup_done)
         return;
 
-    if (secType == 1)
+    if (doorControlType == 1)
         comms_loop_sec1();
-    else
+    else if (doorControlType == 2)
         comms_loop_sec2();
+    else
+        comms_loop_drycontact();
 
     // Motion Clear Timer
     if (garage_door.motion && (millis() > garage_door.motion_timer))
@@ -1052,7 +1121,7 @@ bool process_PacketAction(PacketAction &pkt_ac)
     // Use LED to signal activity
     led.flash(FLASH_MS);
 
-    if (secType == 1)
+    if (doorControlType == 1)
     {
         // check which action
         switch (pkt_ac.pkt.m_data.type)
@@ -1179,40 +1248,51 @@ void sync()
 
 void door_command(DoorAction action)
 {
-
-    PacketData data;
-    data.type = PacketDataType::DoorAction;
-    data.value.door_action.action = action;
-    data.value.door_action.pressed = true;
-    data.value.door_action.id = 1;
-
-    Packet pkt = Packet(PacketCommand::DoorAction, data, id_code);
-    PacketAction pkt_ac = {pkt, false, 250}; // 250ms delay for SECURITY1.0
-
-    if (xQueueSendToBack(pkt_q, &pkt_ac, 0) == errQUEUE_FULL)
+    if (doorControlType != 3)
     {
-        RERROR(TAG, "packet queue full, dropping door command pressed pkt");
-    }
+        // SECURITY1.0/2.0 commands
+        PacketData data;
+        data.type = PacketDataType::DoorAction;
+        data.value.door_action.action = action;
+        data.value.door_action.pressed = true;
+        data.value.door_action.id = 1;
 
-    // do button release
-    pkt_ac.pkt.m_data.value.door_action.pressed = false;
-    pkt_ac.inc_counter = true;
-    pkt_ac.delay = 40; // 40ms delay for SECURITY1.0
+        Packet pkt = Packet(PacketCommand::DoorAction, data, id_code);
+        PacketAction pkt_ac = {pkt, false, 250}; // 250ms delay for SECURITY1.0
 
-    if (xQueueSendToBack(pkt_q, &pkt_ac, 0) == errQUEUE_FULL)
-    {
-        RERROR(TAG, "packet queue full, dropping door command release pkt");
-    }
-    // when observing wall panel 2 releases happen, so we do the same
-    if (secType == 1)
-    {
+        if (xQueueSendToBack(pkt_q, &pkt_ac, 0) == errQUEUE_FULL)
+        {
+            RERROR(TAG, "packet queue full, dropping door command pressed pkt");
+        }
+
+        // do button release
+        pkt_ac.pkt.m_data.value.door_action.pressed = false;
+        pkt_ac.inc_counter = true;
+        pkt_ac.delay = 40; // 40ms delay for SECURITY1.0
+
         if (xQueueSendToBack(pkt_q, &pkt_ac, 0) == errQUEUE_FULL)
         {
             RERROR(TAG, "packet queue full, dropping door command release pkt");
         }
-    }
+        // when observing wall panel 2 releases happen, so we do the same
+        if (doorControlType == 1)
+        {
+            if (xQueueSendToBack(pkt_q, &pkt_ac, 0) == errQUEUE_FULL)
+            {
+                RERROR(TAG, "packet queue full, dropping door command release pkt");
+            }
+        }
 
-    send_get_status();
+        send_get_status();
+    }
+    else
+    {
+        // Dry contact commands (only toggle functionality, open/close/toggle/stop -> toggle)
+        // Toggle signal
+        digitalWrite(UART_TX_PIN, HIGH);
+        delay(500);
+        digitalWrite(UART_TX_PIN, LOW);
+    }
 }
 
 void door_command_close()
@@ -1324,7 +1404,7 @@ void close_door()
 void send_get_status()
 {
     // only used with SECURITY2.0
-    if (secType == 2)
+    if (doorControlType == 2)
     {
         PacketData d;
         d.type = PacketDataType::NoData;
@@ -1354,7 +1434,7 @@ void set_lock(uint8_t value)
     }
 
     // SECUIRTY1.0
-    if (secType == 1)
+    if (doorControlType == 1)
     {
         // safety, Sec+1.0 is a toggle...
         if (data.value.lock.lock == LockState::On && garage_door.current_lock == LockCurrentState::CURR_LOCKED)
@@ -1425,7 +1505,7 @@ void set_light(bool value)
     }
 
     // SECUIRTY+1.0
-    if (secType == 1)
+    if (doorControlType == 1)
     {
         // safety, Sec+1.0 is a toggle...
         if (data.value.light.light == LightState::On && garage_door.light == true)

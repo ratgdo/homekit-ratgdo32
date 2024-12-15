@@ -21,16 +21,19 @@
 // none
 
 // RATGDO project includes
-//#include "softuart.h"
+#include "Packet.h"
 
-void setup_comms();
-void comms_loop();
+extern void setup_comms();
+extern void comms_loop();
 
-void open_door();
-void close_door();
+extern void open_door();
+extern void close_door();
 
-void set_lock(uint8_t value);
-void set_light(bool value);
+extern void set_lock(uint8_t value);
+extern void set_light(bool value);
 
-void save_rolling_code();
-void reset_door();
+extern void save_rolling_code();
+extern void reset_door();
+
+extern uint32_t doorControlType;
+extern DoorState doorState;
