@@ -10,7 +10,7 @@
  */
 
 // C/C++ language includes
-#include <limits.h>
+// None
 
 // Arduino includes
 #include <Wire.h>
@@ -22,6 +22,7 @@
 #include "led.h"
 #include "vehicle.h"
 #include "homekit.h"
+#include "config.h"
 
 // Logger tag
 static const char *TAG = "ratgdo-vehicle";
@@ -33,14 +34,14 @@ static const int MIN_DISTANCE = 20; // ignore bugs crawling on the distance sens
 
 int16_t vehicleDistance = 0;
 int16_t vehicleThresholdDistance = 1000; // set by user
-char vehicleStatus[16] = "Away";         // or Arriving or Departing or Present
+char vehicleStatus[16] = "Away";         // or Arriving or Departing or Parked
 bool vehicleStatusChange = false;
 
 static bool vehicleDetected = false;
 static bool vehicleArriving = false;
 static bool vehicleDeparting = false;
 static unsigned long lastChangeAt = 0;
-static unsigned long presence_timer = ULONG_MAX; // to be set by door open action
+static unsigned long presence_timer = 0; // to be set by door open action
 static unsigned long vehicle_motion_timer = 0;
 static std::vector<int16_t> distanceMeasurement(20, -1);
 
@@ -49,19 +50,31 @@ void calculatePresence(int16_t distance);
 void setup_vehicle()
 {
     VL53L4CX_Error rc = VL53L4CX_ERROR_NONE;
-    RINFO(TAG, "=== Setup VL5314CX time-of-flight sensor ===");
+    RINFO(TAG, "=== Setup VL53L4CX time-of-flight sensor ===");
 
     Wire.begin(19, 18);
     distanceSensor.begin();
     rc = distanceSensor.InitSensor(0x59);
-    rc |= distanceSensor.VL53L4CX_SetDistanceMode(VL53L4CX_DISTANCEMODE_LONG);
-    rc |= distanceSensor.VL53L4CX_StartMeasurement();
     if (rc != VL53L4CX_ERROR_NONE)
     {
-        RERROR(TAG, "VL5314CX failed to start");
+        RERROR(TAG, "VL53L4CX failed to initialize error: %d", rc);
         return;
     }
+    rc = distanceSensor.VL53L4CX_SetDistanceMode(VL53L4CX_DISTANCEMODE_LONG);
+    if (rc != VL53L4CX_ERROR_NONE)
+    {
+        RERROR(TAG, "VL53L4CX_SetDistanceMode error: %d", rc);
+        return;
+    }
+    rc = distanceSensor.VL53L4CX_StartMeasurement();
+    if (rc != VL53L4CX_ERROR_NONE)
+    {
+        RERROR(TAG, "VL53L4CX_StartMeasurement error: %d", rc);
+        return;
+    }
+
     enable_service_homekit_vehicle();
+    vehicleThresholdDistance = userConfig->getVehicleThreshold() * 10; // convert centimeters to millimeters
     vehicle_setup_done = true;
 }
 
@@ -74,11 +87,18 @@ void vehicle_loop()
     if ((distanceSensor.VL53L4CX_GetMeasurementDataReady(&dataReady) == 0) && (dataReady > 0))
     {
         VL53L4CX_MultiRangingData_t distanceData;
-        VL53L4CX_MultiRangingData_t *pDistanceData = &distanceData;
-        if (distanceSensor.VL53L4CX_GetMultiRangingData(pDistanceData) == 0)
+        if (distanceSensor.VL53L4CX_GetMultiRangingData(&distanceData) == 0)
         {
-            int objCount = pDistanceData->NumberOfObjectsFound;
-            calculatePresence((objCount == 0) ? -1 : pDistanceData->RangeData[objCount - 1].RangeMilliMeter);
+            int16_t dist = 0;
+            // Multiple objects could be found, only record the furthest away
+            for (int i = 0; i < distanceData.NumberOfObjectsFound; i++)
+            {
+                if (distanceData.RangeData[i].RangeStatus == 0)
+                    dist = std::max(dist, distanceData.RangeData[i].RangeMilliMeter);
+            }
+            // If a distance found, add it to our vehicle presence vector.
+            if (dist > 0)
+                calculatePresence(dist);
             distanceSensor.VL53L4CX_ClearInterruptAndStartMeasurement();
         }
     }

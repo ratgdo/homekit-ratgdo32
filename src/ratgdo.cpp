@@ -32,7 +32,7 @@
 #include "drycontact.h"
 
 // Logger tag
-static const char *TAG = "ratgdo";
+static const char *TAG = "ratgdo-main";
 
 GarageDoor garage_door;
 

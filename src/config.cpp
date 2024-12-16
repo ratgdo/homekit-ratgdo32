@@ -163,7 +163,7 @@ bool helperVehicleThreshold(const std::string &key, const std::string &value, co
 {
     userConfig->set(key, value);
     // set globals so takes effect immediately
-    vehicleThresholdDistance = (uint16_t)std::stoi(value);
+    vehicleThresholdDistance = (uint16_t)std::stoi(value) * 10; // convert centimeters to millimeters
     return true;
 }
 

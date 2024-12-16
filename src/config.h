@@ -31,6 +31,7 @@
 // Globals, for easy access...
 #define DEVICE_NAME_SIZE 32
 
+extern char default_device_name[DEVICE_NAME_SIZE];
 extern char device_name[DEVICE_NAME_SIZE];
 extern char device_name_rfc952[DEVICE_NAME_SIZE];
 
