@@ -161,9 +161,7 @@ void createMotionAccessories()
 
     // Define the Motion Sensor accessory...
     new SpanAccessory();
-    new Service::AccessoryInformation();
-    new Characteristic::Identify();
-    new Characteristic::Name("Motion");
+    new DEV_Info("Motion");
     motion = new DEV_Motion("Motion");
 }
 
@@ -175,23 +173,17 @@ void createVehicleAccessories()
 
     // Define Motion Sensor accessory for vehicle arriving
     new SpanAccessory();
-    new Service::AccessoryInformation();
-    new Characteristic::Identify();
-    new Characteristic::Name("Arriving");
+    new DEV_Info("Arriving");
     arriving = new DEV_Motion("Arriving");
 
     // Define Motion Sensor accessory for vehicle departing
     new SpanAccessory();
-    new Service::AccessoryInformation();
-    new Characteristic::Identify();
-    new Characteristic::Name("Departing");
+    new DEV_Info("Departing");
     departing = new DEV_Motion("Departing");
 
     // Define Motion Sensor accessory for vehicle occupancy (parked or away)
     new SpanAccessory();
-    new Service::AccessoryInformation();
-    new Characteristic::Identify();
-    new Characteristic::Name("Vehicle");
+    new DEV_Info("Vehicle");
     vehicle = new DEV_Occupancy();
 }
 
@@ -234,14 +226,11 @@ void setup_homekit()
 #endif
     // Define a bridge (as more than 3 accessories)
     new SpanAccessory();
-    new Service::AccessoryInformation();
-    new Characteristic::Identify();
+    new DEV_Info(default_device_name);
 
     // Define the Garage Door accessory...
     new SpanAccessory();
-    new Service::AccessoryInformation();
-    new Characteristic::Identify();
-    new Characteristic::Name(device_name);
+    new DEV_Info(device_name);
     new Characteristic::Manufacturer("Ratcloud llc");
     new Characteristic::SerialNumber(Network.macAddress().c_str());
     new Characteristic::Model("ratgdo-ESP32");
@@ -253,9 +242,7 @@ void setup_homekit()
     {
         // Define the Light accessory...
         new SpanAccessory();
-        new Service::AccessoryInformation();
-        new Characteristic::Identify();
-        new Characteristic::Name("Light");
+        new DEV_Info("Light");
         light = new DEV_Light();
     }
     else
@@ -309,6 +296,32 @@ void homekit_unpair()
 bool homekit_is_paired()
 {
     return isPaired;
+}
+
+/****************************************************************************
+ * Accessory Information Handler
+ */
+DEV_Info::DEV_Info(const char *name) : Service::AccessoryInformation()
+{
+    new Characteristic::Identify();
+    new Characteristic::Name(name);
+}
+
+boolean DEV_Info::update()
+{
+    RINFO(TAG, "Request to identify accessory, flash LED, etc.");
+    // LED, Laser and Tone calls are all asyncronous.  We will iluminate LED and Laser
+    // for 2 seconds, during which we will play tone.  Function will return after 1.5 seconds.
+    led.flash(2000);
+    laser.flash(2000);
+    tone(BEEPER_PIN, 1300);
+    delay(500);
+    tone(BEEPER_PIN, 2000);
+    delay(500);
+    tone(BEEPER_PIN, 1300);
+    delay(500);
+    tone(BEEPER_PIN, 2000, 500);
+    return true;
 }
 
 /****************************************************************************

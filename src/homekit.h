@@ -24,11 +24,9 @@
 #include "HomeSpan.h"
 
 void setup_homekit();
-//void homekit_loop();
 
 extern void notify_homekit_target_door_state_change();
 extern void notify_homekit_current_door_state_change();
-//extern void notify_homekit_active();
 extern void notify_homekit_target_lock();
 extern void notify_homekit_current_lock();
 extern void notify_homekit_obstruction();
@@ -67,6 +65,12 @@ struct DEV_GarageDoor : Service::GarageDoorOpener
     DEV_GarageDoor();
     boolean update();
     void loop();
+};
+
+struct DEV_Info : Service::AccessoryInformation
+{
+    DEV_Info(const char *name);
+    boolean update();
 };
 
 struct DEV_Light : Service::LightBulb
