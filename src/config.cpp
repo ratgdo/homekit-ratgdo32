@@ -217,11 +217,11 @@ void userSettings::toStdOut()
 {
     for (const auto &it : settings)
     {
-        if (holds_alternative<std::string>(it.second.value))
+        if (std::holds_alternative<std::string>(it.second.value))
         {
             Serial.printf("%s:\t%s\n", it.first.c_str(), std::get<std::string>(it.second.value).c_str());
         }
-        else if (holds_alternative<int>(it.second.value))
+        else if (std::holds_alternative<int>(it.second.value))
         {
             Serial.printf("%s:\t%d\n", it.first.c_str(), std::get<int>(it.second.value));
         }
@@ -236,11 +236,11 @@ void userSettings::toFile(Print &file)
 {
     for (const auto &it : settings)
     {
-        if (holds_alternative<std::string>(it.second.value))
+        if (std::holds_alternative<std::string>(it.second.value))
         {
             file.printf("%s;%s\n", it.first.c_str(), std::get<std::string>(it.second.value).c_str());
         }
-        else if (holds_alternative<int>(it.second.value))
+        else if (std::holds_alternative<int>(it.second.value))
         {
             file.printf("%s;%d\n", it.first.c_str(), std::get<int>(it.second.value));
         }
@@ -256,11 +256,11 @@ void userSettings::save()
     RINFO(TAG, "Writing user configuration to NVRAM");
     for (const auto &it : settings)
     {
-        if (holds_alternative<std::string>(it.second.value))
+        if (std::holds_alternative<std::string>(it.second.value))
         {
             nvRam->write(it.first, std::get<std::string>(it.second.value));
         }
-        else if (holds_alternative<int>(it.second.value))
+        else if (std::holds_alternative<int>(it.second.value))
         {
             nvRam->write(it.first, std::get<int>(it.second.value));
         }
@@ -280,11 +280,11 @@ void userSettings::load()
     RINFO(TAG, "Read user configuration from NVRAM");
     for (auto &it : settings)
     {
-        if (holds_alternative<std::string>(it.second.value))
+        if (std::holds_alternative<std::string>(it.second.value))
         {
             it.second.value = (std::string)nvRam->read(it.first, std::get<std::string>(it.second.value));
         }
-        else if (holds_alternative<int>(it.second.value))
+        else if (std::holds_alternative<int>(it.second.value))
         {
             it.second.value = (int)nvRam->read(it.first, std::get<int>(it.second.value));
         }
@@ -316,7 +316,7 @@ bool userSettings::set(const std::string &key, const bool value)
     xSemaphoreTake(mutex, portMAX_DELAY);
     if (settings.count(key))
     {
-        if (holds_alternative<bool>(settings[key].value))
+        if (std::holds_alternative<bool>(settings[key].value))
         {
             settings[key].value = value;
             nvRam->write(key, value ? 1 : 0);
@@ -333,13 +333,13 @@ bool userSettings::set(const std::string &key, const int value)
     xSemaphoreTake(mutex, portMAX_DELAY);
     if (settings.count(key))
     {
-        if (holds_alternative<int>(settings[key].value))
+        if (std::holds_alternative<int>(settings[key].value))
         {
             settings[key].value = value;
             nvRam->write(key, value);
             rc = true;
         }
-        else if (holds_alternative<bool>(settings[key].value))
+        else if (std::holds_alternative<bool>(settings[key].value))
         {
             settings[key].value = (value != 0);
             nvRam->write(key, value ? 1 : 0);
@@ -356,19 +356,19 @@ bool userSettings::set(const std::string &key, const std::string &value)
     xSemaphoreTake(mutex, portMAX_DELAY);
     if (settings.count(key))
     {
-        if (holds_alternative<std::string>(settings[key].value))
+        if (std::holds_alternative<std::string>(settings[key].value))
         {
             settings[key].value = value;
             nvRam->write(key, value);
             rc = true;
         }
-        else if (holds_alternative<bool>(settings[key].value))
+        else if (std::holds_alternative<bool>(settings[key].value))
         {
             settings[key].value = (value == "true") || (atoi(value.c_str()) != 0);
             nvRam->write(key, std::get<bool>(settings[key].value) ? 1 : 0);
             rc = true;
         }
-        else if (holds_alternative<int>(settings[key].value))
+        else if (std::holds_alternative<int>(settings[key].value))
         {
             settings[key].value = stoi(value);
             nvRam->write(key, stoi(value));
