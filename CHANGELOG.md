@@ -2,6 +2,19 @@
 
 All notable changes to `homekit-ratgdo` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v3.0.2 (2024-12-16)
+
+### What's Changed
+
+* Feature: Dry contact support, with thanks to @tlhagan
+* Feature: Add support for HomeKit Identify characteristic
+* Feature: Support for ratgdo32 as well as ratgdo32-disco
+* Bugfix: Vehicle distance sensor logic
+
+### Known Issues
+
+* Still testing... Future updates MAY include breaking changes reqiring a flash erase and re-upload.
+
 ## v3.0.1 (2024-12-11)
 
 ### What's Changed

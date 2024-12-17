@@ -8,7 +8,7 @@
  * Licensed under terms of the GPL-3.0 License.
  *
  * Contributions acknowledged from
- * T L Hagen... https://github.com/tlhagan
+ * Thomas Hagen... https://github.com/tlhagan
  *
  */
 #pragma once
