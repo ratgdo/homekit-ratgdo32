@@ -183,7 +183,7 @@ userSettings::userSettings()
     settings = {
         {cfg_deviceName, {false, false, default_device_name, setDeviceName}}, // call fn to set global
         {cfg_wifiChanged, {true, true, false, NULL}},
-        {cfg_wifiPower, {true, true, 20, helperWiFiPower}},    // call fn to set reboot only if setting changed
+        {cfg_wifiPower, {true, true, WIFI_POWER_MAX, helperWiFiPower}},    // call fn to set reboot only if setting changed
         {cfg_wifiPhyMode, {true, true, 0, helperWiFiPhyMode}}, // call fn to set reboot only if setting changed
         {cfg_staticIP, {true, true, false, NULL}},
         {cfg_localIP, {true, true, "0.0.0.0", NULL}},

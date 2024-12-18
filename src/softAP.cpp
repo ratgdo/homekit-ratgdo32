@@ -26,6 +26,7 @@
 #include "softAP.h"
 #include "web.h"
 #include "utilities.h"
+#include "provision.h"
 
 // Logger tag
 static const char *TAG = "ratgdo-softAP";
@@ -83,7 +84,9 @@ void wifi_scan()
         wifiNet.channel = WiFi.channel(i);
         wifiNet.rssi = WiFi.RSSI(i);
         memcpy(wifiNet.bssid, WiFi.BSSID(i), sizeof(wifiNet.bssid));
-        RINFO(TAG, "Network: %s (Ch:%d, %ddBm) AP: %s", WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i), WiFi.BSSIDstr(i).c_str());
+        wifiNet.encryptionType = WiFi.encryptionType(i);
+        RINFO(TAG, "Network: %s (Ch:%d, %ddBm) AP: %s, Encryption: %d",
+              wifiNet.ssid.c_str(), wifiNet.channel, wifiNet.rssi, WiFi.BSSIDstr(i).c_str(), wifiNet.encryptionType);
         wifiNets.insert(wifiNet);
     }
     // delete scan from memory
@@ -111,7 +114,9 @@ void start_soft_ap()
     server.begin();
     RINFO(TAG, "Soft AP web server started");
     softAPinitialized = true;
-    wifi_scan();
+    // wifi_scan();
+    // Allow improv WiFi provisioning when soft AP mode active.
+    setup_improv();
 }
 
 void soft_ap_loop()
@@ -263,7 +268,7 @@ void handle_setssid()
         if (!connected || previousBSSID != ssid)
         {
             userConfig->set(cfg_staticIP, false);
-            userConfig->set(cfg_wifiPower, 20);
+            userConfig->set(cfg_wifiPower, WIFI_POWER_MAX);
             userConfig->set(cfg_wifiPhyMode, 0);
             userConfig->set(cfg_timeZone, "");
         }
@@ -281,7 +286,7 @@ void handle_setssid()
             // We were not connected, and we failed to connext to new SSID,
             // so best to reset any wifi settings.
             userConfig->set(cfg_staticIP, false);
-            userConfig->set(cfg_wifiPower, 20);
+            userConfig->set(cfg_wifiPower, WIFI_POWER_MAX);
             userConfig->set(cfg_wifiPhyMode, 0);
             userConfig->set(cfg_timeZone, "");
         }

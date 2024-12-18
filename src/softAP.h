@@ -28,9 +28,9 @@ typedef struct
     int32_t rssi;
     int32_t channel;
     uint8_t bssid[6];
+    wifi_auth_mode_t encryptionType;
 } wifiNet_t;
 extern std::multiset<wifiNet_t, bool (*)(wifiNet_t, wifiNet_t)> wifiNets;
-// extern station_config wifiConf;
 
 extern void start_soft_ap();
 extern void soft_ap_loop();

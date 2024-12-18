@@ -30,6 +30,8 @@
 
 // Globals, for easy access...
 #define DEVICE_NAME_SIZE 32
+// TODO support WiFi TX Power... adjust max value if necessary (on ESP32 const are defined)
+#define WIFI_POWER_MAX 20
 
 extern char default_device_name[DEVICE_NAME_SIZE];
 extern char device_name[DEVICE_NAME_SIZE];
