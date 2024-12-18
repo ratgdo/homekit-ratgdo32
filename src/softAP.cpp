@@ -28,9 +28,9 @@
 #include "utilities.h"
 
 // Logger tag
-static const char *TAG = "softAP";
+static const char *TAG = "ratgdo-softAP";
 
-static const char softAPhttpPreamble[] = "HTTP/1.1 200 OK\nContent-Type: text/html\nCache-Control: no-cache, no-store\nConnection: close\n\n<!DOCTYPE html>";
+static const char softAPhttpPreamble[] = "HTTP/1.1 200 OK\nContent-Type: text/html\nCache-Control: no-cache, no-store\n\n<!DOCTYPE html>\n";
 // TODO enable advanced mode (AP selection), disabled below by setting display = none
 static const char softAPtableHead[] = R"(
 <tr style='display:none;'><td><input id='adv' name='advanced' type='checkbox' onclick='showAdvanced(this.checked)'></td><td colspan='2'>Advanced</td></tr>
@@ -95,6 +95,7 @@ void start_soft_ap()
     softAPmode = true;
     RINFO(TAG, "Start AP mode for: %s", device_name_rfc952);
     WiFi.persistent(false);
+    WiFi.setSleep(WIFI_PS_NONE); // Improves performance, at cost of power consumption
     bool apStarted = WiFi.softAP(device_name_rfc952);
     if (apStarted)
     {
@@ -167,10 +168,9 @@ void handle_wifinets()
     }
     RINFO(TAG, "Number of WiFi networks: %d", wifiNets.size());
     String currentSSID = "";
-    WiFiClient client = server.client();
-
-    client.print(softAPhttpPreamble);
-    client.print(softAPtableHead);
+    server.client().setNoDelay(true);
+    server.sendContent(softAPhttpPreamble, strlen(softAPhttpPreamble));
+    server.sendContent(softAPtableHead, strlen(softAPtableHead));
     int i = 0;
     for (wifiNet_t net : wifiNets)
     {
@@ -187,13 +187,17 @@ void handle_wifinets()
         {
             matchSSID = false;
         }
-        client.printf_P(softAPtableRow, (hide) ? "class='adv'" : "", i, (matchSSID) ? "checked='checked'" : "",
-                        net.ssid.c_str(), net.rssi, net.channel,
-                        net.bssid[0], net.bssid[1], net.bssid[2], net.bssid[3], net.bssid[4], net.bssid[5]);
+        snprintf(txtBuffer, TXT_BUFFER_SIZE, softAPtableRow, (hide) ? "class='adv'" : "", i, (matchSSID) ? "checked='checked'" : "",
+                 net.ssid.c_str(), net.rssi, net.channel,
+                 net.bssid[0], net.bssid[1], net.bssid[2], net.bssid[3], net.bssid[4], net.bssid[5]);
+        server.sendContent(txtBuffer, strlen(txtBuffer));
         i++;
     }
     // user entered value
-    client.printf_P(softAPtableLastRow, i, (!match) ? previousSSID.c_str() : "");
+    snprintf(txtBuffer, TXT_BUFFER_SIZE, softAPtableLastRow, i, (!match) ? previousSSID.c_str() : "");
+    server.sendContent(txtBuffer, strlen(txtBuffer));
+    server.sendContent("\n", 1);
+    server.client().stop();
     return;
 }
 
@@ -238,7 +242,6 @@ void handle_setssid()
     server.client().setNoDelay(true);
     server.send_P(200, type_txt, txtBuffer);
     delay(500);
-    // server.stop();
 
     const bool connected = WiFi.isConnected();
     String previousSSID;
