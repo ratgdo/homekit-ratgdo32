@@ -48,6 +48,7 @@ void crashCallback();
 extern bool syslogEn;
 extern uint16_t syslogPort;
 extern char syslogIP[16];
+extern bool suppressSerialLog;
 
 typedef struct logBuffer
 {
@@ -61,7 +62,6 @@ class LOG
 private:
     char *lineBuffer = NULL; // Buffer for single message line
     SemaphoreHandle_t logMutex = NULL;
-    bool syslogEn = false;
 
     static LOG *instancePtr;
     LOG();
