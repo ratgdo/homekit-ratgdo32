@@ -51,13 +51,12 @@ void wifiCallbackAll(int count)
     if (rebooting)
         return;
 
-    RINFO(TAG, "WiFi established, IP: %s, count: %d", WiFi.localIP().toString().c_str(), count);
+    RINFO(TAG, "WiFi established, count: %d, IP: %s, Mask: %s, Gateway: %s, DNS: %s", count, WiFi.localIP().toString().c_str(),
+          WiFi.subnetMask().toString().c_str(), WiFi.gatewayIP().toString().c_str(), WiFi.dnsIP().toString().c_str());
     userConfig->set(cfg_localIP, WiFi.localIP().toString().c_str());
     userConfig->set(cfg_gatewayIP, WiFi.gatewayIP().toString().c_str());
-    userConfig->set(cfg_subnetMask, WiFi.gatewayIP().toString().c_str());
+    userConfig->set(cfg_subnetMask, WiFi.subnetMask().toString().c_str());
     userConfig->set(cfg_nameserverIP, WiFi.dnsIP().toString().c_str());
-    RINFO(TAG, "WiFi Got IP: %s, Mask: %s, Gateway: %s, DNS: %s", userConfig->getLocalIP().c_str(),
-          userConfig->getSubnetMask().c_str(), userConfig->getGatewayIP().c_str(), userConfig->getNameserverIP().c_str());
     // With FiFi connected, we can now initialize the rest of our app.
     if (!softAPmode)
     {
@@ -98,7 +97,8 @@ void statusCallback(HS_STATUS status)
                 nm.fromString(userConfig->getSubnetMask().c_str()) &&
                 dns.fromString(userConfig->getNameserverIP().c_str()))
             {
-                RINFO(TAG, "Set static IP address");
+                RINFO(TAG, "Set static IP: %s, Mask: %s, Gateway: %s, DNS: %s",
+                      ip.toString().c_str(), nm.toString().c_str(), gw.toString().c_str(), dns.toString().c_str());
                 WiFi.config(ip, gw, nm, dns);
             }
             else
