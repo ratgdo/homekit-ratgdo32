@@ -220,10 +220,10 @@ If you are preparing to move the ratgdo to a new location then, after the device
 On changing the WiFi network SSID you will have to un-pair and re-pair the ratgdo to Apple Home.
 
 > [!NOTE]
-> If you do not set a new SSID and password within 10 minutes of booting into soft AP mode then the ratgdo will reboot as normal and connect to the previously set WiFi network SSID. __Not currently implemented on ratgdo32 boards.__
+> If you do not set a new SSID and password within 10 minutes of booting into soft AP mode then the ratgdo will reboot as normal and connect to the previously set WiFi network SSID.
 
 > [!NOTE]
-> On changing the SSID in soft AP mode the ratgdo attempts to connect to the new WiFi network.  If that fails, then the ratgdo will reset to the old SSID and password, remove any Access Point lock, and reboot. __Not currently implemented on ratgdo32 boards.__
+> On changing the SSID in soft AP mode the ratgdo attempts to connect to the new WiFi network.  If that fails, then the ratgdo will reset to the old SSID and password, remove any Access Point lock, and reboot.
 
 > [!WARNING]
 > The soft AP page has an _advanced_ mode. If you select this then the full list of discovered networks are shown, including same network SSID's broadcast by multiple access points. Selecting a WiFi network in advanced mode locks the device to a specific WiFi access point by its __unique hardware BSSID__. If that access point goes offline, or you replace it, then the device will __NOT connect__ to WiFi. __Use advanced mode with extreme caution__. __Not currently implemented on ratgdo32 boards.__
