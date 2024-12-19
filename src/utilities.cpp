@@ -76,8 +76,6 @@ bool get_auto_timezone()
 void time_is_set(timeval *tv)
 {
     clockSet = true;
-    // Using our log macro in here causes a hang (possible callback when within semaphore?)
-    Serial.printf("Current time: %s\n", timeString());
 }
 
 char *timeString(time_t reqTime, bool syslog)

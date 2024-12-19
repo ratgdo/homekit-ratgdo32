@@ -18,6 +18,7 @@
 
 // ESP system includes
 #include <esp_core_dump.h>
+#include <ping/ping_sock.h>
 
 // RATGDO project includes
 #include "ratgdo.h"
@@ -46,7 +47,12 @@ bool status_done = false;
 unsigned long status_timeout;
 
 // support for changeing WiFi settings
-unsigned long wifiConnectTimeout = 0;
+#define WIFI_CONNECT_TIMEOUT (30 * 1000)
+static unsigned long wifiConnectTimeout = 0;
+static bool ping_failure = false;
+static bool ping_timed_out = false;
+;
+static esp_ping_handle_t ping;
 
 void service_timer_loop();
 
@@ -92,7 +98,7 @@ void setup()
 
     if (userConfig->getWifiChanged())
     {
-        wifiConnectTimeout = millis() + 30000;
+        wifiConnectTimeout = millis() + WIFI_CONNECT_TIMEOUT;
     }
 
     setup_homekit();
@@ -110,6 +116,70 @@ void loop()
     improv_loop();
     vehicle_loop();
     service_timer_loop();
+}
+
+/****************************************************************************
+ * Functions to ping gateway to test network okay
+ */
+static void ping_success(esp_ping_handle_t hdl, void *args)
+{
+    uint8_t ttl;
+    uint16_t seqno;
+    uint32_t elapsed_time, recv_len;
+    ip_addr_t target_addr;
+    esp_ping_get_profile(hdl, ESP_PING_PROF_SEQNO, &seqno, sizeof(seqno));
+    esp_ping_get_profile(hdl, ESP_PING_PROF_TTL, &ttl, sizeof(ttl));
+    esp_ping_get_profile(hdl, ESP_PING_PROF_IPADDR, &target_addr, sizeof(target_addr));
+    esp_ping_get_profile(hdl, ESP_PING_PROF_SIZE, &recv_len, sizeof(recv_len));
+    esp_ping_get_profile(hdl, ESP_PING_PROF_TIMEGAP, &elapsed_time, sizeof(elapsed_time));
+    IPAddress ip_addr((uint32_t)target_addr.u_addr.ip4.addr);
+    RINFO(TAG, "Ping: %d bytes from %s icmp_seq=%d ttl=%d time=%dms",
+          recv_len, ip_addr.toString().c_str(), seqno, ttl, elapsed_time);
+    ping_timed_out = false;
+}
+
+static void ping_timeout(esp_ping_handle_t hdl, void *args)
+{
+    uint16_t seqno;
+    ip_addr_t target_addr;
+    esp_ping_get_profile(hdl, ESP_PING_PROF_SEQNO, &seqno, sizeof(seqno));
+    esp_ping_get_profile(hdl, ESP_PING_PROF_IPADDR, &target_addr, sizeof(target_addr));
+    IPAddress ip_addr((uint32_t)target_addr.u_addr.ip4.addr);
+    RINFO(TAG, "Ping from %s icmp_seq=%d timeout", ip_addr.toString().c_str(), seqno);
+    ping_timed_out = true;
+}
+
+static void ping_end(esp_ping_handle_t hdl, void *args)
+{
+    ping_failure = ping_timed_out;
+    RINFO(TAG, "Ping end: %s", (ping_failure) ? "failed" : "success");
+}
+
+static void ping_start()
+{
+    ip_addr_t addr;
+    esp_ping_config_t ping_config = ESP_PING_DEFAULT_CONFIG();
+    WiFi.gatewayIP().to_ip_addr_t(&addr);
+    RINFO(TAG, "Ping to: %s", WiFi.gatewayIP().toString().c_str());
+    ping_config.target_addr = addr;
+    ping_config.count = 2;
+
+    esp_ping_callbacks_t cbs;
+    cbs.on_ping_success = ping_success;
+    cbs.on_ping_timeout = ping_timeout;
+    cbs.on_ping_end = ping_end;
+    cbs.cb_args = NULL;
+    esp_ping_new_session(&ping_config, &cbs, &ping);
+
+    ping_failure = false;
+    ping_timed_out = false;
+    esp_ping_start(ping);
+}
+
+static void ping_stop()
+{
+    esp_ping_stop(ping);
+    esp_ping_delete_session(ping);
 }
 
 /****************************************************************************
@@ -131,7 +201,8 @@ void service_timer_loop()
     if (enableNTP && clockSet && lastRebootAt == 0)
     {
         lastRebootAt = time(NULL) - (current_millis / 1000);
-        RINFO(TAG, "System boot time: %s", timeString(lastRebootAt));
+        RINFO(TAG, "Current System time: %s", timeString());
+        RINFO(TAG, "System boot time:    %s", timeString(lastRebootAt));
     }
 #endif
 
@@ -150,49 +221,44 @@ void service_timer_loop()
     if ((wifiConnectTimeout > 0) && (current_millis > wifiConnectTimeout))
     {
         bool connected = (WiFi.status() == WL_CONNECTED);
-        RINFO(TAG, "30 seconds since WiFi settings change, connected to access point: %s", (connected) ? "true" : "false");
-        // If not connected, reset to auto.
         if (!connected)
         {
-            /* TODO check for WiFi Settings Change not working
-            RINFO(TAG, "Reset WiFi Power to 20.5 dBm and WiFiPhyMode to: 0");
-            // TODO add support for selecting WiFi PhyMode and WiFi TX Power
-            userConfig->wifiPower = 20;
-            userConfig->wifiPhyMode = 0;
-            WiFi.setOutputPower(20.5);
-            WiFi.setPhyMode((WiFiPhyMode_t)0);
-            write_config_to_file();
+            RERROR(TAG, "30 seconds since WiFi settings change, failed to connect");
+            userConfig->set(cfg_wifiPower, WIFI_POWER_MAX);
+            userConfig->set(cfg_wifiPhyMode, 0);
+            // TODO support WiFi TX Power & PhyMode... set changes immediately here
             // Now try and reconnect...
-            wifiConnectTimeout = millis() + 30000;
+            wifiConnectTimeout = millis() + WIFI_CONNECT_TIMEOUT;
             WiFi.reconnect();
-            return;
-            */
         }
         else
         {
-            RINFO(TAG, "Connected, TODO... test Gatway IP reachable");
-            /* TODO Check that network reachable
-            IPAddress ip;
-            if (!Ping.ping(WiFi.gatewayIP(), 1))
+            RINFO(TAG, "30 seconds since WiFi settings change, successfully connected to access point");
+            if (userConfig->getStaticIP())
             {
-                RINFO(TAG, "Unable to ping Gateway, reset to DHCP to acquire IP address and reconnect");
-                userConfig->set(cfg_staticIP, false);
-                IPAddress ip;
-                ip.fromString("0.0.0.0");
-                WiFi.config(ip, ip, ip, ip);
-                // Now try and reconnect...
-                wifiConnectTimeout = millis() + 30000;
-                WiFi.reconnect();
-                return;
+                RINFO(TAG, "Connected with static IP, test gateway IP reachable");
+                ping_start();
             }
-            else
-            {
-                RINFO(TAG, "Gateway %s alive %u ms", WiFi.gatewayIP().toString().c_str(), Ping.averageTime());
-            }
-            */
+            wifiConnectTimeout = 0;
         }
-        // reset flag
-        wifiConnectTimeout = 0;
         userConfig->set(cfg_wifiChanged, false);
+    }
+
+    if (ping_failure)
+    {
+        ping_failure = false; // reset, so we only come in here once
+        if (userConfig->getStaticIP())
+        {
+            // We timed out trying to ping gateway set by static IP, revert to DHCP
+            ping_stop();
+            RINFO(TAG, "Unable to ping Gateway, reset to DHCP to acquire IP address and reconnect");
+            userConfig->set(cfg_staticIP, false);
+            IPAddress ip;
+            ip.fromString("0.0.0.0");
+            WiFi.config(ip, ip, ip, ip);
+            // Now try and reconnect...
+            wifiConnectTimeout = millis() + WIFI_CONNECT_TIMEOUT;
+            WiFi.reconnect();
+        }
     }
 }
