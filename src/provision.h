@@ -7,17 +7,8 @@
  * All Rights Reserved.
  * Licensed under terms of the GPL-3.0 License.
  *
- * Contributions acknowledged from
- * Thomas Hagan... https://github.com/tlhagan
- *
  */
 #pragma once
 
-// C/C++ language includes
-
-// RATGDO project includes
-#include <OneButton.h>
-
-
-extern void setup_drycontact();
-extern void drycontact_loop();
+extern void setup_improv();
+extern void improv_loop();

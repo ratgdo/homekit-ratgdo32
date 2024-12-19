@@ -8,7 +8,7 @@
  * Licensed under terms of the GPL-3.0 License.
  *
  * Contributions acknowledged from
- * Thomas Hagen...     https://github.com/tlhagan
+ * Thomas Hagan...     https://github.com/tlhagan
  * Brandon Matthews... https://github.com/thenewwazoo
  * Jonathan Stroud...  https://github.com/jgstroud
  *

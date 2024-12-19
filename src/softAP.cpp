@@ -26,11 +26,12 @@
 #include "softAP.h"
 #include "web.h"
 #include "utilities.h"
+#include "provision.h"
 
 // Logger tag
-static const char *TAG = "softAP";
+static const char *TAG = "ratgdo-softAP";
 
-static const char softAPhttpPreamble[] = "HTTP/1.1 200 OK\nContent-Type: text/html\nCache-Control: no-cache, no-store\nConnection: close\n\n<!DOCTYPE html>";
+static const char softAPhttpPreamble[] = "HTTP/1.1 200 OK\nContent-Type: text/html\nCache-Control: no-cache, no-store\n\n<!DOCTYPE html>\n";
 // TODO enable advanced mode (AP selection), disabled below by setting display = none
 static const char softAPtableHead[] = R"(
 <tr style='display:none;'><td><input id='adv' name='advanced' type='checkbox' onclick='showAdvanced(this.checked)'></td><td colspan='2'>Advanced</td></tr>
@@ -48,7 +49,6 @@ extern WebServer server;
 
 #define MAX_ATTEMPTS_WIFI_CONNECTION 30
 #define TXT_BUFFER_SIZE 1024
-static char *txtBuffer;
 
 // support for scaning WiFi networks
 bool wifiNetsCmp(wifiNet_t a, wifiNet_t b)
@@ -83,7 +83,9 @@ void wifi_scan()
         wifiNet.channel = WiFi.channel(i);
         wifiNet.rssi = WiFi.RSSI(i);
         memcpy(wifiNet.bssid, WiFi.BSSID(i), sizeof(wifiNet.bssid));
-        RINFO(TAG, "Network: %s (Ch:%d, %ddBm) AP: %s", WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i), WiFi.BSSIDstr(i).c_str());
+        wifiNet.encryptionType = WiFi.encryptionType(i);
+        RINFO(TAG, "Network: %s (Ch:%d, %ddBm) AP: %s, Encryption: %d",
+              wifiNet.ssid.c_str(), wifiNet.channel, wifiNet.rssi, WiFi.BSSIDstr(i).c_str(), wifiNet.encryptionType);
         wifiNets.insert(wifiNet);
     }
     // delete scan from memory
@@ -95,6 +97,7 @@ void start_soft_ap()
     softAPmode = true;
     RINFO(TAG, "Start AP mode for: %s", device_name_rfc952);
     WiFi.persistent(false);
+    WiFi.setSleep(WIFI_PS_NONE); // Improves performance, at cost of power consumption
     bool apStarted = WiFi.softAP(device_name_rfc952);
     if (apStarted)
     {
@@ -105,12 +108,13 @@ void start_soft_ap()
         RINFO(TAG, "Error starting AP mode");
     }
 
-    txtBuffer = (char *)malloc(TXT_BUFFER_SIZE);
     server.onNotFound(handle_softAPweb);
     server.begin();
     RINFO(TAG, "Soft AP web server started");
     softAPinitialized = true;
-    wifi_scan();
+    // wifi_scan();
+    // Allow improv WiFi provisioning when soft AP mode active.
+    setup_improv();
 }
 
 void soft_ap_loop()
@@ -119,6 +123,13 @@ void soft_ap_loop()
         return;
 
     server.handleClient();
+
+    if (softAPmode && (millis() > 10 * 60 * 1000))
+    {
+        RINFO(TAG, "In Soft Access Point mode for over 10 minutes, reboot");
+        sync_and_restart();
+        return;
+    }
 }
 
 void handle_softAPweb()
@@ -167,11 +178,11 @@ void handle_wifinets()
     }
     RINFO(TAG, "Number of WiFi networks: %d", wifiNets.size());
     String currentSSID = "";
-    WiFiClient client = server.client();
-
-    client.print(softAPhttpPreamble);
-    client.print(softAPtableHead);
+    server.client().setNoDelay(true);
+    server.sendContent(softAPhttpPreamble, strlen(softAPhttpPreamble));
+    server.sendContent(softAPtableHead, strlen(softAPtableHead));
     int i = 0;
+    char *txtBuffer = (char *)malloc(TXT_BUFFER_SIZE);
     for (wifiNet_t net : wifiNets)
     {
         bool hide = true;
@@ -187,13 +198,18 @@ void handle_wifinets()
         {
             matchSSID = false;
         }
-        client.printf_P(softAPtableRow, (hide) ? "class='adv'" : "", i, (matchSSID) ? "checked='checked'" : "",
-                        net.ssid.c_str(), net.rssi, net.channel,
-                        net.bssid[0], net.bssid[1], net.bssid[2], net.bssid[3], net.bssid[4], net.bssid[5]);
+        snprintf(txtBuffer, TXT_BUFFER_SIZE, softAPtableRow, (hide) ? "class='adv'" : "", i, (matchSSID) ? "checked='checked'" : "",
+                 net.ssid.c_str(), net.rssi, net.channel,
+                 net.bssid[0], net.bssid[1], net.bssid[2], net.bssid[3], net.bssid[4], net.bssid[5]);
+        server.sendContent(txtBuffer, strlen(txtBuffer));
         i++;
     }
     // user entered value
-    client.printf_P(softAPtableLastRow, i, (!match) ? previousSSID.c_str() : "");
+    snprintf(txtBuffer, TXT_BUFFER_SIZE, softAPtableLastRow, i, (!match) ? previousSSID.c_str() : "");
+    server.sendContent(txtBuffer, strlen(txtBuffer));
+    server.sendContent("\n", 1);
+    server.client().stop();
+    free(txtBuffer);
     return;
 }
 
@@ -223,6 +239,7 @@ void handle_setssid()
         advanced = false;
     }
 
+    char *txtBuffer = (char *)malloc(TXT_BUFFER_SIZE);
     if (advanced)
     {
         RINFO(TAG, "Requested WiFi SSID: %s (%d) at AP: %02x:%02x:%02x:%02x:%02x:%02x",
@@ -238,7 +255,7 @@ void handle_setssid()
     server.client().setNoDelay(true);
     server.send_P(200, type_txt, txtBuffer);
     delay(500);
-    // server.stop();
+    free(txtBuffer);
 
     const bool connected = WiFi.isConnected();
     String previousSSID;
@@ -260,7 +277,7 @@ void handle_setssid()
         if (!connected || previousBSSID != ssid)
         {
             userConfig->set(cfg_staticIP, false);
-            userConfig->set(cfg_wifiPower, 20);
+            userConfig->set(cfg_wifiPower, WIFI_POWER_MAX);
             userConfig->set(cfg_wifiPhyMode, 0);
             userConfig->set(cfg_timeZone, "");
         }
@@ -278,7 +295,7 @@ void handle_setssid()
             // We were not connected, and we failed to connext to new SSID,
             // so best to reset any wifi settings.
             userConfig->set(cfg_staticIP, false);
-            userConfig->set(cfg_wifiPower, 20);
+            userConfig->set(cfg_wifiPower, WIFI_POWER_MAX);
             userConfig->set(cfg_wifiPhyMode, 0);
             userConfig->set(cfg_timeZone, "");
         }

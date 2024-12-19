@@ -2,7 +2,7 @@
   "name": "homekit-ratgdo",
   "version": "v3.0.2",
   "new_install_prompt_erase": true,
-  "new_install_improv_wait_time": 0,
+  "new_install_improv_wait_time": 60,
   "builds": [
     {
       "chipFamily": "ESP32",
