@@ -49,7 +49,6 @@ extern WebServer server;
 
 #define MAX_ATTEMPTS_WIFI_CONNECTION 30
 #define TXT_BUFFER_SIZE 1024
-static char *txtBuffer;
 
 // support for scaning WiFi networks
 bool wifiNetsCmp(wifiNet_t a, wifiNet_t b)
@@ -109,7 +108,6 @@ void start_soft_ap()
         RINFO(TAG, "Error starting AP mode");
     }
 
-    txtBuffer = (char *)malloc(TXT_BUFFER_SIZE);
     server.onNotFound(handle_softAPweb);
     server.begin();
     RINFO(TAG, "Soft AP web server started");
@@ -177,6 +175,7 @@ void handle_wifinets()
     server.sendContent(softAPhttpPreamble, strlen(softAPhttpPreamble));
     server.sendContent(softAPtableHead, strlen(softAPtableHead));
     int i = 0;
+    char *txtBuffer = (char *)malloc(TXT_BUFFER_SIZE);
     for (wifiNet_t net : wifiNets)
     {
         bool hide = true;
@@ -203,6 +202,7 @@ void handle_wifinets()
     server.sendContent(txtBuffer, strlen(txtBuffer));
     server.sendContent("\n", 1);
     server.client().stop();
+    free(txtBuffer);
     return;
 }
 
@@ -232,6 +232,7 @@ void handle_setssid()
         advanced = false;
     }
 
+    char *txtBuffer = (char *)malloc(TXT_BUFFER_SIZE);
     if (advanced)
     {
         RINFO(TAG, "Requested WiFi SSID: %s (%d) at AP: %02x:%02x:%02x:%02x:%02x:%02x",
@@ -247,6 +248,7 @@ void handle_setssid()
     server.client().setNoDelay(true);
     server.send_P(200, type_txt, txtBuffer);
     delay(500);
+    free(txtBuffer);
 
     const bool connected = WiFi.isConnected();
     String previousSSID;
