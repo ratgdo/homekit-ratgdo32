@@ -11,7 +11,7 @@
 > * Crashlog display and download.
 > * Locking WiFi to specific WiFi access point.
 > * Setting WiFi protocol version.
-> * Setting WiFi transmitters power.
+> * Setting WiFi transmit power.
 
 # What is HomeKit-RATGDO?
 
@@ -40,7 +40,10 @@ Connect your ratgdo to a computer with a USB cable and use the [online browser-b
 > [!NOTE]
 > The browser must be able to access a USB serial device. Some browsers block USB access. The Google Chrome browser is known to work and is recommended.
 
-After installing you must set the WiFi network and password. Using a laptop, phone or tablet search for WiFi network named _Garage Door ABCDEF_ where the last six characters are a unique identifier.  Once connected use a browser to access http://192.168.4.1 and wait for it to display a list of WiFi networks to join.
+After flashing the firmware, the browser-based tool will give you the option to provision WiFi network and password, and following that the option to connect to the ratgdo from where you can configure settings.
+
+If you skip this step, then you can set the network and password later using a laptop, phone or tablet.
+Search for the WiFi network named _Garage Door ABCDEF_ where the last six characters are a unique identifier. Once connected use a browser to access http://192.168.4.1 and wait for it to display a list of WiFi networks to join.
 
 After selecting the WiFi network the device will reboot and you can connect to it using a browser on your network at the address http://Garage-Door-ABCDEF.
 Once the device is running you can change the name and add it to HomeKit by scanning the QR code.
@@ -51,7 +54,7 @@ The manual setup code is `2510-2023`.
 > Only add one ratgdo device at a time.  If you have multiple ratgdo devices, make sure that any not already paired to
 HomeKit are turned off... except the one that you want to add.
 
-> [!IMPORTANT]
+> [!NOTE]
 > If you experience very slow or poor connection accessing the ratgdo device web page then try moving the device further away from the garage door opener.  Several users have reported that this can improve reliability of the connection. We do not know why this is the case but may suggest some RF interference between the door opener and the ratgdo device.
 
 ## HomeKit support
@@ -61,7 +64,7 @@ When you first add the device to HomeKit a number of accessories are added:
 * HomeKit _bridge_ to which all other accessories are attached
 * _garage door_ with door state, obstruction detection and lock. Lock not available with Dry Contact protocol
 * _light_ switch. Not available with Dry Contact protocol
-* _motion_ sensor. Automatically added for doors with wall panels that detect motion. Also can be optionally added and triggered by a door open/close button press and/or triggering the obstruction sensor.
+* _motion_ sensor. Automatically added for doors with wall panels that detect motion. Also can be optionally added and triggered by a button press on the wall pannel and/or triggering the obstruction sensor.
 * Vehicle arriving _motion_ sensor. Only on ratgdo32-disco boards, triggers motion if it detects arrival of a vehicle.
 * Vehicle departing _motion_ sensor. Only on ratgdo32-disco boards, triggers motion if it detects departure of a vehicle.
 * Vehicle presence _occupancy_ sensor. Only on ratgdo32-disco boards, set if the distance sensor detects presence of a vehicle.

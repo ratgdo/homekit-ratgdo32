@@ -43,7 +43,7 @@ void print_packet(uint8_t pkt[SECPLUS2_CODE_LEN]) {}
 #endif // UNIT_TEST
 
 #ifdef LOG_MSG_BUFFER
-// Construct the singleton object for LED access
+// Construct the singleton object for logger access
 LOG *LOG::instancePtr = new LOG();
 LOG *ratgdoLogger = LOG::getInstance();
 
@@ -52,6 +52,7 @@ bool syslogEn = false;
 uint16_t syslogPort = 514;
 char syslogIP[16] = "";
 WiFiUDP syslog;
+bool suppressSerialLog = false;
 
 // Constructor for LOG class
 LOG::LOG()
@@ -77,7 +78,8 @@ void LOG::logToBuffer(const char *fmt, ...)
         vsnprintf(buf, LINE_BUFFER_SIZE, fmt, args);
         va_end(args);
         // print line to the serial port
-        Serial.print(buf);
+        if (!suppressSerialLog)
+            Serial.print(buf);
         return;
     }
 
@@ -88,7 +90,8 @@ void LOG::logToBuffer(const char *fmt, ...)
     vsnprintf(lineBuffer, LINE_BUFFER_SIZE, fmt, args);
     va_end(args);
     // print line to the serial port
-    Serial.print(lineBuffer);
+    if (!suppressSerialLog)
+        Serial.print(lineBuffer);
 
     // copy the line into the message save buffer
     size_t len = strlen(lineBuffer);

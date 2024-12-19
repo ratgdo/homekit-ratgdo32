@@ -30,6 +30,7 @@
 #include "led.h"
 #include "vehicle.h"
 #include "drycontact.h"
+#include "provision.h"
 
 // Logger tag
 static const char *TAG = "ratgdo-main";
@@ -106,6 +107,7 @@ void loop()
     drycontact_loop();
     web_loop();
     soft_ap_loop();
+    improv_loop();
     vehicle_loop();
     service_timer_loop();
 }

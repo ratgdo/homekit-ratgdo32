@@ -2,6 +2,17 @@
 
 All notable changes to `homekit-ratgdo` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v3.0.3 (2024-12-19)
+
+### What's Changed
+
+* Bugfix: Soft AP list of available WiFi networks not properly terminated
+* Feature: Add support Improv-based WiFi provisioning
+
+### Known Issues
+
+* Still testing... Future updates MAY include breaking changes reqiring a flash erase and re-upload.
+
 ## v3.0.2 (2024-12-16)
 
 ### What's Changed
