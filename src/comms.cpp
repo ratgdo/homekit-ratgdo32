@@ -515,7 +515,6 @@ void comms_loop_sec1()
                 {
                     RINFO(TAG, "activating door");
                     garage_door.active = true;
-                    // TODO notify_homekit_active(); Makes no sence as "active" is not a supported characteristic of garage doors.
                     if (garage_door.current_state == CURR_OPENING || garage_door.current_state == CURR_OPEN)
                     {
                         garage_door.target_state = TGT_OPEN;
@@ -787,7 +786,6 @@ void comms_loop_sec2()
                 {
                     RINFO(TAG, "activating door");
                     garage_door.active = true;
-                    // TODO notify_homekit_active(); Makes no sence as "active" is not a supported characteristic of garage doors.
                     if (current_state == CURR_OPENING || current_state == CURR_OPEN)
                     {
                         target_state = TGT_OPEN;

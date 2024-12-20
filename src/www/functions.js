@@ -295,14 +295,6 @@ function setElementsFromStatus(status) {
                 date.setTime(value * 1000);
                 console.log(`Server time: ${date.toUTCString()}`);
                 break;
-            /* TODO Add back flash CRC checking?
-            case "checkFlashCRC":
-                if (!value) {
-                    console.warn("WARNING: Server checkFlashCRC() failed. Flash new firmware by USB cable to recover.");
-                    document.getElementById("checkFlashCRC").style.display = "initial";
-                }
-                break;
-            */
             case "motionTriggers":
                 setMotionTriggers(value);
                 break;
@@ -417,7 +409,6 @@ async function checkVersion(progress) {
     versionElem2.innerHTML = msg;
     const spanDots = document.getElementById(progress);
     const aniDots = dotDotDot(spanDots);
-    // TODO check this is correct URL for ratgdo32 releases
     const response = await fetch("https://api.github.com/repos/ratgdo/homekit-ratgdo32/releases", {
         method: "GET",
         cache: "no-cache",
@@ -497,26 +488,7 @@ function countdown(secs, msg) {
 }
 
 async function showUpdateDialog() {
-    /* TODO Add back flash CRC checking for OTA update dialog?
-    const modalFlashCRC = document.getElementById("modalFlashCRC");
-    modalFlashCRC.innerHTML = "Checking Flash CRC...";
-    modalFlashCRC.style.color = '';
-    */
     document.getElementById("myModal").style.display = 'block';
-    /* TODO Add back flash CRC checking for OTA update dialog?
-    const response = await fetch("checkflash", {
-        method: "GET",
-        cache: "no-cache"
-    });
-    const result = (await response.text()).trim().toLowerCase();
-    if (result === 'true') {
-        modalFlashCRC.style.color = 'green';
-        modalFlashCRC.innerHTML = "Flash CRC okay.";
-    } else {
-        modalFlashCRC.style.color = 'red';
-        modalFlashCRC.innerHTML = "WARNING: Flash CRC check failed. You must flash new firmware by USB cable to recover, please consult <a href='https://github.com/ratgdo/homekit-ratgdo32?tab=readme-ov-file#flash-crc-errors' style='color:red'>documentation.</a> RATGDO device may not restart if you reboot now.";
-    }
-    */
 }
 
 // Handles request to update server firmware from either GitHub (default) or from
@@ -647,22 +619,6 @@ async function firmwareUpdate(github = true) {
 async function rebootRATGDO(dialog = true) {
     if (dialog) {
         let txt = "Reboot RATGDO, are you sure?";
-        /* TODO Add back flash CRC checking on reboot?
-        document.getElementById("pleaseWait").style.display = "block";
-        loaderElem.style.visibility = "visible";
-        const response = await fetch("checkflash", {
-            method: "GET",
-            cache: "no-cache"
-        });
-        const result = (await response.text()).trim().toLowerCase();
-        loaderElem.style.visibility = "hidden";
-        // Give browser a moment to actually hide the spinner...
-        await new Promise(r => setTimeout(r, 50));
-        document.getElementById("pleaseWait").style.display = "none";
-        if (result !== 'true') {
-            txt = "WARNING: Flash CRC check failed. You must flash new firmware by USB cable to recover, please consult documentation. RATGDO device may not restart if you reboot now. Reboot anyway?";
-        }
-        */
         if (!confirm(txt)) return;
     }
     var response = await fetch("reboot", {
