@@ -40,6 +40,7 @@
 #include "json.h"
 #include "led.h"
 #include "vehicle.h"
+#include "www/build/webcontent.h"
 
 // Logger tag
 static const char *TAG = "ratgdo-http";

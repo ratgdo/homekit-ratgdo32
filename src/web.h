@@ -22,7 +22,6 @@
 
 // RATGDO project includes
 #define PROGMEM // so it is no-op in webcontent.h
-#include "www/build/webcontent.h"
 
 extern void setup_web();
 extern void web_loop();
