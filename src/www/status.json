@@ -40,5 +40,7 @@
   "timeZone": "America/New_York;EST5EDT,M3.2.0,M11.1.0",
   "distanceSensor": true,
   "vehicleStatus" : "Away",
-  "vehicleDist" : 100
+  "vehicleDist" : 100,
+  "laserEnabled" : false,
+  "laserHomeKit" : true
 }

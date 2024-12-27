@@ -103,14 +103,10 @@
             must first un-pair from existing home.
           </p>
         </div>
-        <div class="fullwidth" style="padding: 0px;">
-          <div class="serverstatus" style="padding: 0px; padding-bottom: 5px; display: flex; justify-content: space-evenly;">
-            <input type="button" value="Reboot RATGDO" onclick="rebootRATGDO(true)">
-            <input type="button" value="Firmware Update" onclick="showUpdateDialog()">
-          </div>
-          <div class="qrcode center">
-            <input type="button" id="unpair" value="Reset HomeKit" onclick="unpairRATGDO()">
-          </div>
+        <div class="fullwidth" style="padding: 0px; padding-bottom: 5px; display: flex; justify-content: space-evenly;">
+          <input type="button" value="Reboot RATGDO" onclick="rebootRATGDO(true)">
+          <input type="button" value="Firmware Update" onclick="showUpdateDialog()">
+          <input type="button" id="unpair" value="Reset HomeKit" onclick="unpairRATGDO()">
         </div>
         <div class="fullwidth">
           <table style="width: 95%">
@@ -275,6 +271,16 @@
                   <span style="vertical-align: middle; font-size: 0.8em"><span
                       id="vehicleThresholdCM"></span>&nbsp;cm&nbsp;(<span
                       id="vehicleThresholdInch"></span>&nbsp;inch)</span>
+                </td>
+              </tr>
+              <tr id="laserSetting" style="display:none;">
+                <td class="label">Park Assist Laser:</td>
+                <td>&nbsp;
+                  <input type="checkbox" id="laserEnabled" name="laserEnabled" value="no"
+                    onchange="enableLaser(this.checked)">
+                  <label for="laserEnabled">Enabled</label>
+                  <input type="checkbox" id="laserHomeKit" name="laserHomeKit" value="no" disabled>
+                  <label for="laserHomeKit">HomeKit Light Switch</label>
                 </td>
               </tr>
               <tr>

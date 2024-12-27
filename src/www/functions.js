@@ -127,6 +127,12 @@ function toggleSyslog() {
     }
 }
 
+// enable laser
+function enableLaser(value) {
+    document.getElementById('laserHomeKit').disabled = !value;
+    document.getElementById("laserButton").style.display = (value) ? "inline-block" : "none";
+}
+
 // Show or hide the static IP fields
 function toggleStaticIP() {
     document.getElementById("staticIPtable").style.display = (this.event.target.checked) ? "table" : "none";
@@ -218,12 +224,20 @@ function setElementsFromStatus(status) {
             case "distanceSensor":
                 document.getElementById("vehicleRow").style.display = (value) ? "table-row" : "none";
                 document.getElementById("vehicleSetting").style.display = (value) ? "table-row" : "none";
-                document.getElementById("laserButton").style.display = (value) ? "inline-block" : "none";
+                document.getElementById("laserSetting").style.display = (value) ? "table-row" : "none";
                 break;
             case "vehicleThreshold":
                 document.getElementById(key).value = value;
                 document.getElementById("vehicleThresholdCM").innerHTML = value;
                 document.getElementById("vehicleThresholdInch").innerHTML = Math.round(value / .254) / 10;
+                break;
+            case "laserEnabled":
+                document.getElementById(key).checked = value;
+                document.getElementById("laserButton").style.display = (value) ? "inline-block" : "none";
+                document.getElementById("laserHomeKit").disabled = !value;
+                break;
+            case "laserHomeKit":
+                document.getElementById(key).checked = value;
                 break;
             case "firmwareVersion":
                 document.getElementById(key).innerHTML = value;
@@ -816,6 +830,8 @@ async function saveSettings() {
 
     let vehicleThreshold = Math.max(Math.min(parseInt(document.getElementById("vehicleThreshold").value), 200), 5);
     if (isNaN(vehicleThreshold)) vehicleThreshold = 0;
+    const laserEnabled = (document.getElementById("laserEnabled").checked) ? '1' : '0';
+    const laserHomeKit = (document.getElementById("laserHomeKit").checked) ? '1' : '0';
 
     const syslogEn = (document.getElementById("syslogEn").checked) ? '1' : '0';
     let syslogIP = document.getElementById("syslogIP").value.substring(0, 15);
@@ -855,6 +871,8 @@ async function saveSettings() {
         */
         "TTCseconds", TTCseconds,
         "vehicleThreshold", vehicleThreshold,
+        "laserEnabled", laserEnabled,
+        "laserHomeKit", laserHomeKit,
         "motionTriggers", motionTriggers,
         "LEDidle", LEDidle,
         "staticIP", staticIP,

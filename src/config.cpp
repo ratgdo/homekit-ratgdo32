@@ -167,6 +167,13 @@ bool helperVehicleThreshold(const std::string &key, const std::string &value, co
     return true;
 }
 
+bool helperLaser(const std::string &key, const std::string &value, configSetting *action)
+{
+    userConfig->set(key, value);
+    enable_service_homekit_laser(userConfig->getLaserEnabled() && userConfig->getLaserHomeKit());
+    return true;
+}
+
 /****************************************************************************
  * User settings class
  */
@@ -183,8 +190,8 @@ userSettings::userSettings()
     settings = {
         {cfg_deviceName, {false, false, default_device_name, setDeviceName}}, // call fn to set global
         {cfg_wifiChanged, {true, true, false, NULL}},
-        {cfg_wifiPower, {true, true, WIFI_POWER_MAX, helperWiFiPower}},    // call fn to set reboot only if setting changed
-        {cfg_wifiPhyMode, {true, true, 0, helperWiFiPhyMode}}, // call fn to set reboot only if setting changed
+        {cfg_wifiPower, {true, true, WIFI_POWER_MAX, helperWiFiPower}}, // call fn to set reboot only if setting changed
+        {cfg_wifiPhyMode, {true, true, 0, helperWiFiPhyMode}},          // call fn to set reboot only if setting changed
         {cfg_staticIP, {true, true, false, NULL}},
         {cfg_localIP, {true, true, "0.0.0.0", NULL}},
         {cfg_subnetMask, {true, true, "0.0.0.0", NULL}},
@@ -210,6 +217,8 @@ userSettings::userSettings()
         {cfg_syslogIP, {false, false, "0.0.0.0", NULL}},
         {cfg_syslogPort, {false, false, 514, NULL}},
         {cfg_vehicleThreshold, {false, false, 100, helperVehicleThreshold}}, // call fn to set globals
+        {cfg_laserEnabled, {false, false, false, helperLaser}},
+        {cfg_laserHomeKit, {false, false, true, helperLaser}},
     };
 }
 
