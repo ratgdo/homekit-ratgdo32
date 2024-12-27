@@ -161,7 +161,7 @@ void createMotionAccessories()
         return;
 
     // Define the Motion Sensor accessory...
-    new SpanAccessory();
+    new SpanAccessory(HOMEKIT_AID_MOTION);
     new DEV_Info("Motion");
     motion = new DEV_Motion("Motion");
 }
@@ -173,24 +173,19 @@ void createVehicleAccessories()
         return;
 
     // Define Motion Sensor accessory for vehicle arriving
-    new SpanAccessory();
+    new SpanAccessory(HOMEKIT_AID_ARRIVING);
     new DEV_Info("Arriving");
     arriving = new DEV_Motion("Arriving");
 
     // Define Motion Sensor accessory for vehicle departing
-    new SpanAccessory();
+    new SpanAccessory(HOMEKIT_AID_DEPARTING);
     new DEV_Info("Departing");
     departing = new DEV_Motion("Departing");
 
     // Define Motion Sensor accessory for vehicle occupancy (parked or away)
-    new SpanAccessory();
+    new SpanAccessory(HOMEKIT_AID_VEHICLE);
     new DEV_Info("Vehicle");
     vehicle = new DEV_Occupancy();
-
-    // Define Light accessory for parking assist laser
-    new SpanAccessory();
-    new DEV_Info("Laser");
-    assistLaser = new DEV_Light(Light_t::ASSIST_LASER);
 }
 
 void enable_service_homekit_vehicle()
@@ -201,7 +196,40 @@ void enable_service_homekit_vehicle()
         nvRam->write(nvram_has_distance, 1);
         garage_door.has_distance_sensor = true;
         createVehicleAccessories();
+        if (!enable_service_homekit_laser(true))
+        {
+            // if enabling laser did not update database then we need to do it now.
+            homeSpan.updateDatabase();
+        }
     }
+}
+
+bool enable_service_homekit_laser(bool enable)
+{
+    if (enable)
+    {
+        if (!assistLaser && userConfig->getLaserEnabled() && userConfig->getLaserHomeKit())
+        {
+            // Define Light accessory for parking assist laser
+            // Create only if not already created, and user config requires it.
+            new SpanAccessory(HOMEKIT_AID_LASER);
+            new DEV_Info("Laser");
+            assistLaser = new DEV_Light(Light_t::ASSIST_LASER);
+            homeSpan.updateDatabase();
+            return true;
+        }
+    }
+    else if (assistLaser)
+    {
+        // Delete the accessory, if it exists
+        if (homeSpan.deleteAccessory(HOMEKIT_AID_LASER))
+        {
+            assistLaser = nullptr;
+            homeSpan.updateDatabase();
+            return true;
+        }
+    }
+    return false;
 }
 
 void setup_homekit()
@@ -231,11 +259,11 @@ void setup_homekit()
     new SpanUserCommand('t', "print FreeRTOS task info", printTaskInfo);
 #endif
     // Define a bridge (as more than 3 accessories)
-    new SpanAccessory();
+    new SpanAccessory(HOMEKIT_AID_BRIDGE);
     new DEV_Info(default_device_name);
 
     // Define the Garage Door accessory...
-    new SpanAccessory();
+    new SpanAccessory(HOMEKIT_AID_GARAGE_DOOR);
     new DEV_Info(device_name);
     new Characteristic::Manufacturer("Ratcloud llc");
     new Characteristic::SerialNumber(Network.macAddress().c_str());
@@ -247,7 +275,7 @@ void setup_homekit()
     if (userConfig->getGDOSecurityType() != 3)
     {
         // Define the Light accessory...
-        new SpanAccessory();
+        new SpanAccessory(HOMEKIT_AID_LIGHT_BULB);
         new DEV_Info("Light");
         light = new DEV_Light();
     }
@@ -272,6 +300,7 @@ void setup_homekit()
     if (garage_door.has_distance_sensor)
     {
         createVehicleAccessories();
+        enable_service_homekit_laser(true);
     }
     else
     {

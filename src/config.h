@@ -66,6 +66,8 @@ constexpr char cfg_syslogEn[] = "syslogEn";
 constexpr char cfg_syslogIP[] = "syslogIP";
 constexpr char cfg_syslogPort[] = "syslogPort";
 constexpr char cfg_vehicleThreshold[] = "vehicleThreshold";
+constexpr char cfg_laserEnabled[] = "laserEnabled";
+constexpr char cfg_laserHomeKit[] = "laserHomeKit";
 
 constexpr char nvram_messageLog[] = "messageLog";
 constexpr char nvram_id_code[] = "id_code";
@@ -132,6 +134,8 @@ public:
     std::string getSyslogIP() { return std::get<std::string>(get(cfg_syslogIP)); };
     int getSyslogPort() { return std::get<int>(get(cfg_syslogPort)); };
     int getVehicleThreshold() { return std::get<int>(get(cfg_vehicleThreshold)); };
+    bool getLaserEnabled() { return std::get<bool>(get(cfg_laserEnabled)); };
+    bool getLaserHomeKit() { return std::get<bool>(get(cfg_laserHomeKit)); };
 };
 extern userSettings *userConfig;
 

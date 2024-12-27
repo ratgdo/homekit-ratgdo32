@@ -498,6 +498,8 @@ void handle_status()
         last_reported_assist_laser = laser.state();
         ADD_BOOL(json, "assistLaser", last_reported_assist_laser);
     }
+    ADD_BOOL(json, cfg_laserEnabled, userConfig->getLaserEnabled());
+    ADD_BOOL(json, cfg_laserHomeKit, userConfig->getLaserHomeKit());
     END_JSON(json);
 
     // send JSON straight to serial port

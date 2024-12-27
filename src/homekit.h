@@ -23,6 +23,15 @@
 // RATGDO project includes
 #include "HomeSpan.h"
 
+// Accessory IDs
+#define HOMEKIT_AID_BRIDGE 1
+#define HOMEKIT_AID_GARAGE_DOOR 2
+#define HOMEKIT_AID_LIGHT_BULB 3
+#define HOMEKIT_AID_MOTION 4
+#define HOMEKIT_AID_ARRIVING 5
+#define HOMEKIT_AID_DEPARTING 6
+#define HOMEKIT_AID_VEHICLE 7
+#define HOMEKIT_AID_LASER 8
 
 enum Light_t : uint8_t
 {
@@ -46,6 +55,7 @@ extern void notify_homekit_vehicle_arriving(bool vehicleArriving);
 extern void notify_homekit_vehicle_departing(bool vehicleDeparting);
 extern void notify_homekit_laser(bool on);
 extern void enable_service_homekit_vehicle();
+extern bool enable_service_homekit_laser(bool enable);
 
 extern void homekit_unpair();
 extern bool homekit_is_paired();
