@@ -169,7 +169,7 @@ void web_loop()
     if (!web_setup_done)
         return;
 
-    unsigned long upTime = millis();
+    uint64_t upTime = millis64();
     xSemaphoreTake(jsonMutex, portMAX_DELAY);
     START_JSON(json);
     if (garage_door.active && garage_door.current_state != lastDoorState)
@@ -435,7 +435,7 @@ void handle_everything()
 
 void handle_status()
 {
-    unsigned long upTime = millis();
+    uint64_t upTime = millis64();
 #define clientCount 0
     // Build the JSON string
     xSemaphoreTake(jsonMutex, portMAX_DELAY);
@@ -770,7 +770,7 @@ void SSEheartbeat(SSESubscription *s)
         static int lastClientCount = 0;
         xSemaphoreTake(jsonMutex, portMAX_DELAY);
         START_JSON(json);
-        ADD_INT(json, "upTime", millis());
+        ADD_INT(json, "upTime", millis64());
         ADD_INT(json, "freeHeap", free_heap);
         ADD_INT(json, "minHeap", min_heap);
         // TODO monitor stack... ADD_INT(json, "minStack", ESP.getFreeContStack());

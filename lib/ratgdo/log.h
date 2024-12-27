@@ -21,6 +21,7 @@
 
 // RATGDO project includes
 #include "HomeSpan.h"
+#include "utilities.h"
 
 void print_packet(uint8_t *pkt);
 
@@ -82,14 +83,14 @@ extern LOG *ratgdoLogger;
 
 #define RATGDO_PRINTF(message, ...) ratgdoLogger->logToBuffer(PSTR(message), ##__VA_ARGS__)
 
-#define RINFO(tag, message, ...) RATGDO_PRINTF(">>> [%7lu] %s: " message "\n", millis(), tag, ##__VA_ARGS__)
-#define RERROR(tag, message, ...) RATGDO_PRINTF("!!! [%7lu] %s: " message "\n", millis(), tag, ##__VA_ARGS__)
+#define RINFO(tag, message, ...) RATGDO_PRINTF(">>> [%7llu] %s: " message "\n", millis64(), tag, ##__VA_ARGS__)
+#define RERROR(tag, message, ...) RATGDO_PRINTF("!!! [%7llu] %s: " message "\n", millis64(), tag, ##__VA_ARGS__)
 #else // LOG_MSG_BUFFER
 
 #ifndef UNIT_TEST
 
-#define RINFO(tag, message, ...) LOG0(">>> [%7lu] %s: " message "\n", millis(), tag, ##__VA_ARGS__)
-#define RERROR(tag, message, ...) LOG0("!!! [%7lu] %s: " message "\n", millis(), tag, ##__VA_ARGS__)
+#define RINFO(tag, message, ...) LOG0(">>> [%7llu] %s: " message "\n", millis64(), tag, ##__VA_ARGS__)
+#define RERROR(tag, message, ...) LOG0("!!! [%7llu] %s: " message "\n", millis64(), tag, ##__VA_ARGS__)
 
 #else // UNIT_TEST
 

@@ -40,9 +40,9 @@ bool vehicleStatusChange = false;
 static bool vehicleDetected = false;
 static bool vehicleArriving = false;
 static bool vehicleDeparting = false;
-static unsigned long lastChangeAt = 0;
-static unsigned long presence_timer = 0; // to be set by door open action
-static unsigned long vehicle_motion_timer = 0;
+static uint64_t lastChangeAt = 0;
+static uint64_t presence_timer = 0; // to be set by door open action
+static uint64_t vehicle_motion_timer = 0;
 static std::vector<int16_t> distanceMeasurement(20, -1);
 
 void calculatePresence(int16_t distance);
@@ -103,7 +103,7 @@ void vehicle_loop()
         }
     }
 
-    unsigned long current_millis = millis();
+    uint64_t current_millis = millis64();
     // Vehicle Arriving Clear Timer
     if (vehicleArriving && (current_millis > vehicle_motion_timer))
     {
@@ -185,7 +185,7 @@ void calculatePresence(int16_t distance)
         led.flash();
         // if change occurs with arrival/departure window then record motion,
         // presence timer is set when door opens.
-        lastChangeAt = millis();
+        lastChangeAt = millis64();
         if (lastChangeAt < presence_timer)
         {
             setArriveDepart(vehicleDetected);
@@ -206,7 +206,7 @@ void doorOpening()
     if (!vehicle_setup_done)
         return;
 
-    presence_timer = millis() + PRESENCE_DETECT_DURATION;
+    presence_timer = millis64() + PRESENCE_DETECT_DURATION;
 }
 
 // if notified of door closing, check for arrived/departed vehicle within time window (looking back)
@@ -215,7 +215,7 @@ void doorClosing()
     if (!vehicle_setup_done)
         return;
 
-    if ((millis() > PRESENCE_DETECT_DURATION) && ((millis() - lastChangeAt) < PRESENCE_DETECT_DURATION))
+    if ((millis64() > PRESENCE_DETECT_DURATION) && ((millis64() - lastChangeAt) < PRESENCE_DETECT_DURATION))
     {
         setArriveDepart(vehicleDetected);
         RINFO(TAG, "Vehicle status: %s", vehicleStatus);

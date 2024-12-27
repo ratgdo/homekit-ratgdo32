@@ -124,7 +124,7 @@ void soft_ap_loop()
 
     server.handleClient();
 
-    if (softAPmode && (millis() > 10 * 60 * 1000))
+    if (softAPmode && (millis64() > 10 * 60 * 1000))
     {
         RINFO(TAG, "In Soft Access Point mode for over 10 minutes, reboot");
         sync_and_restart();

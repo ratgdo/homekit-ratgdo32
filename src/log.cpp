@@ -167,7 +167,7 @@ void LOG::printMessageLog(Print &outputDev)
         outputDev.printf("Server time: %s\n", timeString());
     }
 #endif
-    outputDev.printf("Server uptime (ms): %lu\n", millis());
+    outputDev.printf("Server uptime (ms): %llu\n", millis64());
     outputDev.printf("Firmware version: %s\n", AUTO_VERSION);
 #ifdef ESP8266
     outputDev.write("Flash CRC: 0x");

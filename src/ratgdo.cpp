@@ -41,14 +41,14 @@ GarageDoor garage_door;
 // Track our memory usage
 uint32_t free_heap = (1024 * 1024);
 uint32_t min_heap = (1024 * 1024);
-unsigned long next_heap_check = 0;
+uint64_t next_heap_check = 0;
 
 bool status_done = false;
-unsigned long status_timeout;
+uint64_t status_timeout;
 
 // support for changeing WiFi settings
 #define WIFI_CONNECT_TIMEOUT (30 * 1000)
-static unsigned long wifiConnectTimeout = 0;
+static uint64_t wifiConnectTimeout = 0;
 static bool ping_failure = false;
 static bool ping_timed_out = false;
 ;
@@ -97,7 +97,7 @@ void setup()
 
     if (userConfig->getWifiChanged())
     {
-        wifiConnectTimeout = millis() + WIFI_CONNECT_TIMEOUT;
+        wifiConnectTimeout = millis64() + WIFI_CONNECT_TIMEOUT;
     }
 
     setup_homekit();
@@ -186,7 +186,7 @@ static void ping_stop()
  */
 void service_timer_loop()
 {
-    unsigned long current_millis = millis();
+    uint64_t current_millis = millis64();
 
     if ((rebootSeconds != 0) && (rebootSeconds < current_millis / 1000))
     {
@@ -227,7 +227,7 @@ void service_timer_loop()
             userConfig->set(cfg_wifiPhyMode, 0);
             // TODO support WiFi TX Power & PhyMode... set changes immediately here
             // Now try and reconnect...
-            wifiConnectTimeout = millis() + WIFI_CONNECT_TIMEOUT;
+            wifiConnectTimeout = millis64() + WIFI_CONNECT_TIMEOUT;
             WiFi.reconnect();
         }
         else
@@ -256,7 +256,7 @@ void service_timer_loop()
             ip.fromString("0.0.0.0");
             WiFi.config(ip, ip, ip, ip);
             // Now try and reconnect...
-            wifiConnectTimeout = millis() + WIFI_CONNECT_TIMEOUT;
+            wifiConnectTimeout = millis64() + WIFI_CONNECT_TIMEOUT;
             WiFi.reconnect();
         }
     }
