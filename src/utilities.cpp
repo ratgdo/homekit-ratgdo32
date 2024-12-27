@@ -42,11 +42,16 @@ const char www_realm[] = "RATGDO Login Required";
 // automatically reboot after X seconds
 uint32_t rebootSeconds = 0;
 
+uint64_t ARDUINO_ISR_ATTR millis64()
+{
+    return (uint64_t)(esp_timer_get_time() / 1000ULL);
+}
+
 #ifdef NTP_CLIENT
 bool clockSet = false;
 bool enableNTP = false;
-unsigned long lastRebootAt = 0;
-int32_t savedDoorUpdateAt = 0;
+uint64_t lastRebootAt = 0;
+// int32_t savedDoorUpdateAt = 0;
 
 bool get_auto_timezone()
 {
