@@ -17,7 +17,7 @@
 #include "led.h"
 
 // Logger tag
-static const char *TAG = "ratgdo-led";
+// static const char *TAG = "ratgdo-led";
 
 // Construct the singleton object for LED access
 LED led(LED_BUILTIN);

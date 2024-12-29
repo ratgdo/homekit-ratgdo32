@@ -421,9 +421,15 @@ nvRamClass::nvRamClass()
 void nvRamClass::checkStats()
 {
     nvs_stats_t nvs_stats;
-    esp_err_t err = nvs_get_stats(NULL, &nvs_stats);
-    RINFO(TAG, "NVRAM Stats... UsedEntries = (%lu), FreeEntries = (%lu), TotalEntries = (%lu), Count = (%lu)\n",
-          nvs_stats.used_entries, nvs_stats.free_entries, nvs_stats.total_entries, nvs_stats.namespace_count);
+    if (esp_err_t err = nvs_get_stats(NULL, &nvs_stats) == ESP_OK)
+    {
+        RINFO(TAG, "NVRAM Stats... UsedEntries = (%lu), FreeEntries = (%lu), TotalEntries = (%lu), Count = (%lu)\n",
+              nvs_stats.used_entries, nvs_stats.free_entries, nvs_stats.total_entries, nvs_stats.namespace_count);
+    }
+    else
+    {
+        RERROR(TAG, "Error return from nvs_get_stats: %d", err);
+    }
 }
 
 int32_t nvRamClass::read(const std::string &constKey, const int32_t dflt)

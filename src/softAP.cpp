@@ -37,7 +37,7 @@ static const char softAPtableHead[] = R"(
 <tr style='display:none;'><td><input id='adv' name='advanced' type='checkbox' onclick='showAdvanced(this.checked)'></td><td colspan='2'>Advanced</td></tr>
 <tr><th></th><th>SSID</th><th>RSSI</th><th>Chan</th><th>Hardware BSSID</th></tr>)";
 static const char softAPtableRow[] = R"(
-<tr %s><td><input type='radio' name='net' value='%d' %s></td><td>%s</td><td>%ddBm</td><td>%d</td><td>&nbsp;&nbsp;%02x:%02x:%02x:%02x:%02x:%02x</td></tr>)";
+<tr %s><td><input type='radio' name='net' value='%d' %s></td><td>%s</td><td>%lddBm</td><td>%ld</td><td>&nbsp;&nbsp;%02x:%02x:%02x:%02x:%02x:%02x</td></tr>)";
 static const char softAPtableLastRow[] = R"(
 <tr><td><input type='radio' name='net' value='%d'></td><td colspan='2'><input type='text' name='userSSID' placeholder='SSID' value='%s'></td></tr>)";
 
