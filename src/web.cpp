@@ -770,7 +770,6 @@ void SSEheartbeat(SSESubscription *s)
     {
         static int8_t lastRSSI = 0;
         static int16_t lastVehicleDistance = 0;
-        static int lastClientCount = 0;
         xSemaphoreTake(jsonMutex, portMAX_DELAY);
         START_JSON(json);
         ADD_INT(json, "upTime", millis64());
@@ -788,6 +787,7 @@ void SSEheartbeat(SSESubscription *s)
             ADD_STR(json, "wifiRSSI", (std::to_string(lastRSSI) + " dBm, Channel " + std::to_string(WiFi.channel())).c_str());
         }
         /* TODO monitor number of "clients" connected to HomeKit
+        static int lastClientCount = 0;
         if (arduino_homekit_get_running_server() && arduino_homekit_get_running_server()->nfds != lastClientCount)
         {
             lastClientCount = arduino_homekit_get_running_server()->nfds;
