@@ -3,7 +3,7 @@
  * https://ratcloud.llc
  * https://github.com/PaulWieland/ratgdo
  *
- * Copyright (c) 2023-24 David A Kerr... https://github.com/dkerr64/
+ * Copyright (c) 2023-25 David A Kerr... https://github.com/dkerr64/
  * All Rights Reserved.
  * Licensed under terms of the GPL-3.0 License.
  *
@@ -448,34 +448,28 @@ DEV_GarageDoor::DEV_GarageDoor() : Service::GarageDoorOpener()
 
 boolean DEV_GarageDoor::update()
 {
+    RINFO(TAG, "Garage Door Characteristics Update");
     if (target->getNewVal() == target->OPEN)
     {
-        RINFO(TAG, "Opening Garage Door");
-        current->setVal(current->OPENING);
-        obstruction->setVal(false);
-        open_door();
+        if (open_door())
+        {
+            obstruction->setVal(false);
+            current->setVal(current->OPENING);
+        }
     }
     else
     {
-        RINFO(TAG, "Closing Garage Door");
-        current->setVal(current->CLOSING);
-        obstruction->setVal(false);
-        close_door();
+        if (close_door())
+        {
+            obstruction->setVal(false);
+            current->setVal(current->CLOSING);
+        }
     }
 
     if (userConfig->getGDOSecurityType() != 3)
     {
-        // Dry contact cannot control lock ?
-        if (lockTarget->getNewVal() == lockTarget->LOCK)
-        {
-            RINFO(TAG, "Locking Garage Door Remotes");
-            set_lock(lockTarget->LOCK);
-        }
-        else
-        {
-            RINFO(TAG, "Unlocking Garage Door Remotes");
-            set_lock(lockTarget->UNLOCK);
-        }
+        // Dry contact cannot control lock
+        set_lock(lockTarget->getNewVal() == lockTarget->LOCK);
     }
     return true;
 }
@@ -540,7 +534,6 @@ boolean DEV_Light::update()
 {
     if (this->type == Light_t::GDO_LIGHT)
     {
-        RINFO(TAG, "Turn light %s", on->getNewVal<bool>() ? "on" : "off");
         set_light(DEV_Light::on->getNewVal<bool>());
     }
     else if (this->type == Light_t::ASSIST_LASER)
