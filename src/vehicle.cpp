@@ -3,7 +3,7 @@
  * https://ratcloud.llc
  * https://github.com/PaulWieland/ratgdo
  *
- * Copyright (c) 2023-24 David A Kerr... https://github.com/dkerr64/
+ * Copyright (c) 2024-25 David A Kerr... https://github.com/dkerr64/
  * All Rights Reserved.
  * Licensed under terms of the GPL-3.0 License.
  *
@@ -30,7 +30,8 @@ bool vehicle_setup_done = false;
 
 VL53L4CX distanceSensor(&Wire, SHUTDOWN_PIN);
 
-static const int MIN_DISTANCE = 20; // ignore bugs crawling on the distance sensor
+static const int MIN_DISTANCE = 25;   // ignore bugs crawling on the distance sensor
+static const int MAX_DISTANCE = 3000; // 3 meters, maximum range of the sensor
 
 int16_t vehicleDistance = 0;
 int16_t vehicleThresholdDistance = 1000; // set by user
@@ -87,20 +88,52 @@ void vehicle_loop()
     if ((distanceSensor.VL53L4CX_GetMeasurementDataReady(&dataReady) == 0) && (dataReady > 0))
     {
         VL53L4CX_MultiRangingData_t distanceData;
-        if (distanceSensor.VL53L4CX_GetMultiRangingData(&distanceData) == 0)
+        if (distanceSensor.VL53L4CX_GetMultiRangingData(&distanceData) == VL53L4CX_ERROR_NONE)
         {
-            int16_t dist = 0;
-            // Multiple objects could be found, only record the furthest away
-            for (int i = 0; i < distanceData.NumberOfObjectsFound; i++)
+            if (distanceData.NumberOfObjectsFound > 0)
             {
-                if (distanceData.RangeData[i].RangeStatus == 0)
-                    dist = std::max(dist, distanceData.RangeData[i].RangeMilliMeter);
+                int16_t distance = -1;
+                // Multiple objects could be found. During testing if I wave my hand in front of the
+                // sensor I get two distances... that of my hand, and that of the background.
+                // We will only record the furthest away.
+                for (int i = 0; i < distanceData.NumberOfObjectsFound; i++)
+                {
+                    // In testing I am seeing range status of 0, 4, 7 and 12.  These represent
+                    // 0:  VL53L4CX_RANGESTATUS_RANGE_VALID
+                    // 4:  VL53L4CX_RANGESTATUS_OUTOFBOUNDS_FAIL
+                    // 7:  VL53L4CX_RANGESTATUS_WRAP_TARGET_FAIL
+                    // 12: VL53L4CX_RANGESTATUS_TARGET_PRESENT_LACK_OF_SIGNAL
+                    // Documentation also suggests that valid data can be returned with:
+                    // 3:  VL53L4CX_RANGESTATUS_RANGE_VALID_MIN_RANGE_CLIPPED
+                    // 6:  VL53L4CX_RANGESTATUS_RANGE_VALID_NO_WRAP_CHECK_FAIL
+                    switch (distanceData.RangeData[i].RangeStatus)
+                    {
+                    case VL53L4CX_RANGESTATUS_RANGE_VALID:
+                    case VL53L4CX_RANGESTATUS_RANGE_VALID_MIN_RANGE_CLIPPED:
+                    case VL53L4CX_RANGESTATUS_RANGE_VALID_NO_WRAP_CHECK_FAIL:
+                        distance = std::max(distance, distanceData.RangeData[i].RangeMilliMeter);
+                        break;
+                    case VL53L4CX_RANGESTATUS_OUTOFBOUNDS_FAIL:
+                    case VL53L4CX_RANGESTATUS_WRAP_TARGET_FAIL:
+                    case VL53L4CX_RANGESTATUS_TARGET_PRESENT_LACK_OF_SIGNAL:
+                        // Bad data... assume no object, or if is one is past MAX_DISTANCE range.
+                        distance = MAX_DISTANCE;
+                        break;
+                    default:
+                        RERROR(TAG, "WARNING: Unhandled VL53L4CX RANGESTATUS value: %d", distanceData.RangeData[i].RangeStatus);
+                        break;
+                    }
+                }
+                calculatePresence(distance);
             }
-            // If a distance found, add it to our vehicle presence vector.
-            if (dist > 0)
-                calculatePresence(dist);
-            distanceSensor.VL53L4CX_ClearInterruptAndStartMeasurement();
+            else
+            {
+                // No objects found, assume maximum range for purpose of calculating vehicle presence.
+                calculatePresence(MAX_DISTANCE);
+            }
         }
+        // And start the sensor measuring again...
+        distanceSensor.VL53L4CX_ClearInterruptAndStartMeasurement();
     }
 
     uint64_t current_millis = millis64();
