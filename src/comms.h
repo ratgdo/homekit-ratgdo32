@@ -3,7 +3,7 @@
  * https://ratcloud.llc
  * https://github.com/PaulWieland/ratgdo
  * 
- * Copyright (c) 2023-24 David A Kerr... https://github.com/dkerr64/
+ * Copyright (c) 2023-25 David A Kerr... https://github.com/dkerr64/
  * All Rights Reserved.
  * Licensed under terms of the GPL-3.0 License.
  * 
@@ -26,11 +26,11 @@
 extern void setup_comms();
 extern void comms_loop();
 
-extern void open_door();
-extern void close_door();
+extern bool open_door();
+extern bool close_door();
 
-extern void set_lock(uint8_t value);
-extern void set_light(bool value);
+extern bool set_lock(bool value);
+extern bool set_light(bool value);
 
 extern void save_rolling_code();
 extern void reset_door();
