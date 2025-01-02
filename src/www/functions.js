@@ -1,7 +1,7 @@
 /***********************************************************************
  * homekit-ratgdo web page javascript functions
  *
- * Copyright (c) 2023-24 David Kerr, https://github.com/dkerr64
+ * Copyright (c) 2023-25 David Kerr, https://github.com/dkerr64
  *
  */
 
@@ -131,6 +131,7 @@ function toggleSyslog() {
 function enableLaser(value) {
     document.getElementById('laserHomeKit').disabled = !value;
     document.getElementById("laserButton").style.display = (value) ? "inline-block" : "none";
+    document.getElementById("parkAssist").style.display = (value) ? "table-row" : "none";
 }
 
 // Show or hide the static IP fields
@@ -235,9 +236,14 @@ function setElementsFromStatus(status) {
                 document.getElementById(key).checked = value;
                 document.getElementById("laserButton").style.display = (value) ? "inline-block" : "none";
                 document.getElementById("laserHomeKit").disabled = !value;
+                document.getElementById("parkAssist").style.display = (value) ? "table-row" : "none";
                 break;
             case "laserHomeKit":
                 document.getElementById(key).checked = value;
+                break;
+            case "assistDuration":
+                document.getElementById(key).value = value;
+                document.getElementById("assistValue").innerHTML = value;
                 break;
             case "firmwareVersion":
                 document.getElementById(key).innerHTML = value;
@@ -833,6 +839,9 @@ async function saveSettings() {
     const laserEnabled = (document.getElementById("laserEnabled").checked) ? '1' : '0';
     const laserHomeKit = (document.getElementById("laserHomeKit").checked) ? '1' : '0';
 
+    let assistDuration = Math.max(Math.min(parseInt(document.getElementById("assistDuration").value), 300), 0);
+    if (isNaN(assistDuration)) assistDuration = 0;
+
     const syslogEn = (document.getElementById("syslogEn").checked) ? '1' : '0';
     let syslogIP = document.getElementById("syslogIP").value.substring(0, 15);
     if (syslogIP.length == 0) syslogIP = serverStatus.syslogIP;
@@ -873,6 +882,7 @@ async function saveSettings() {
         "vehicleThreshold", vehicleThreshold,
         "laserEnabled", laserEnabled,
         "laserHomeKit", laserHomeKit,
+        "assistDuration", assistDuration,
         "motionTriggers", motionTriggers,
         "LEDidle", LEDidle,
         "staticIP", staticIP,

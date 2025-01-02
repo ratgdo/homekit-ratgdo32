@@ -71,7 +71,7 @@ When you first add the device to HomeKit a number of accessories are added:
 * Parking assist laser _light switch_. Only on ratgdo32-disco boards.
 
 Vehicle arrival and departing sensors are only triggered if vehicle motion is detected within 5 minutes of door opening or closing. The parking assist
-laser is activated for one minute when vehicle arrival is detected.
+laser is activated when vehicle arrival is detected.
 
 See below for instructions on setting the distance threshold for triggering vehicle presence.
 
@@ -163,6 +163,19 @@ Ratgdo32-disco boards detect vehicle arrival, departure and presence based on di
 reported in vehicle distance when there is no vehicle present (the approximate distance to the floor) and when the vehicle is parked (the approximate
 distance to the vehicle roof or hood).  Set the vehicle distance slider to between these these two values.  Measured distance can fluctuate so allow
 for this when setting the value.
+
+> [!IMPORTANT]
+> Take care when installing the ratgdo32-disco board that the sensor is not pointing at glass (e.g. your vehicle windshield). You may need tilt the board
+> to point towards the vehicle roof.  If you get unreliable results, you should also remove the yellow sticker that may be on the sensor to protect
+> it from dust during manufacture and shipping.
+
+### Laser
+
+If you have the parking assist laser accessory installed, select this option to enable support and optionally add HomeKit light switch accessory
+to allow for manual or HomeKit automation control.
+
+When enabled, you can configure how long the laser remains on during parking assist by selecting a value from zero to 300 seconds (5 minutes). Selecting
+zero disables parking assist laser.  Parking assist is triggered if an arriving vehicle is detected with 5 minutes of the door opening or closing.
 
 ### Door Protocol
 
@@ -433,4 +446,4 @@ this firmware would never have been necessary.
 
 [Garage icons](https://www.flaticon.com/free-icons/garage) created by Creative Squad - Flaticon
 
-Copyright (c) 2023-24 HomeKit-ratgdo32 [contributors](https://github.com/ratgdo/homekit-ratgdo32/graphs/contributors).
+Copyright (c) 2023-25 HomeKit-ratgdo32 [contributors](https://github.com/ratgdo/homekit-ratgdo32/graphs/contributors).

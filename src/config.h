@@ -3,7 +3,7 @@
  * https://ratcloud.llc
  * https://github.com/PaulWieland/ratgdo
  *
- * Copyright (c) 2023-24 David A Kerr... https://github.com/dkerr64/
+ * Copyright (c) 2023-25 David A Kerr... https://github.com/dkerr64/
  * All Rights Reserved.
  * Licensed under terms of the GPL-3.0 License.
  *
@@ -68,6 +68,7 @@ constexpr char cfg_syslogPort[] = "syslogPort";
 constexpr char cfg_vehicleThreshold[] = "vehicleThreshold";
 constexpr char cfg_laserEnabled[] = "laserEnabled";
 constexpr char cfg_laserHomeKit[] = "laserHomeKit";
+constexpr char cfg_assistDuration[] = "assistDuration";
 
 constexpr char nvram_messageLog[] = "messageLog";
 constexpr char nvram_id_code[] = "id_code";
@@ -136,6 +137,7 @@ public:
     int getVehicleThreshold() { return std::get<int>(get(cfg_vehicleThreshold)); };
     bool getLaserEnabled() { return std::get<bool>(get(cfg_laserEnabled)); };
     bool getLaserHomeKit() { return std::get<bool>(get(cfg_laserHomeKit)); };
+    int getAssistDuration() { return std::get<int>(get(cfg_assistDuration)); };
 };
 extern userSettings *userConfig;
 

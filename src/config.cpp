@@ -3,7 +3,7 @@
  * https://ratcloud.llc
  * https://github.com/PaulWieland/ratgdo
  *
- * Copyright (c) 2023-24 David A Kerr... https://github.com/dkerr64/
+ * Copyright (c) 2023-25 David A Kerr... https://github.com/dkerr64/
  * All Rights Reserved.
  * Licensed under terms of the GPL-3.0 License.
  *
@@ -219,6 +219,7 @@ userSettings::userSettings()
         {cfg_vehicleThreshold, {false, false, 100, helperVehicleThreshold}}, // call fn to set globals
         {cfg_laserEnabled, {false, false, false, helperLaser}},
         {cfg_laserHomeKit, {false, false, true, helperLaser}},
+        {cfg_assistDuration, {false, false, 60, NULL}},
     };
 }
 
