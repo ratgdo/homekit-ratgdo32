@@ -167,7 +167,8 @@ void setArriveDepart(bool vehiclePresent)
             vehicleDeparting = false;
             vehicle_motion_timer = lastChangeAt + MOTION_TIMER_DURATION;
             strlcpy(vehicleStatus, "Arriving", sizeof(vehicleStatus));
-            laser.flash(PARKING_ASSIST_TIMEOUT);
+            if (userConfig->getAssistDuration() > 0)
+                laser.flash(userConfig->getAssistDuration() * 1000);
             notify_homekit_vehicle_arriving(vehicleArriving);
         }
     }

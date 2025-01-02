@@ -42,5 +42,6 @@
   "vehicleStatus" : "Away",
   "vehicleDist" : 100,
   "laserEnabled" : false,
-  "laserHomeKit" : true
+  "laserHomeKit" : true,
+  "assistDuration" : 60
 }

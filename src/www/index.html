@@ -2,7 +2,7 @@
 <html lang="en">
 
 <head>
-  <!--  Copyright (c) 2023-24 David Kerr, https://github.com/dkerr64 -->
+  <!--  Copyright (c) 2023-25 David Kerr, https://github.com/dkerr64 -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=1">
   <meta name="apple-mobile-web-app-title" content="RATDGO">
@@ -37,7 +37,7 @@
         <div style="float:right;vertical-align: middle; padding-left: 0; padding-right: 0; cursor: pointer;">
           <img id="settings-icon" src="settings-sliders.svg?v=CRC-32" alt="Settings" style="width:1.5em;height:1.5em;">
           <img id="main-icon" src="garage-car.svg?v=CRC-32" alt="Homepage" onclick="history.back()"
-            style="display:none; width:1.5em;height:1.5em;">
+            style="display:none; width:1.5em; height:1.5em;">
         </div>
       </div>
       <!-- Main section of page ------------------------------------------------------------------>
@@ -188,7 +188,7 @@
             <table class="settings">
               <tr>
                 <td style="font-size: 0.65em;"><u>No reboot required:</u></td>
-                <td></td>
+                <td style="width: 70%;"></td>
               </tr>
               <tr>
                 <td class="label">Name:</td>
@@ -274,13 +274,29 @@
                 </td>
               </tr>
               <tr id="laserSetting" style="display:none;">
-                <td class="label">Park Assist Laser:</td>
+                <td class="label">Laser:</td>
                 <td>&nbsp;
                   <input type="checkbox" id="laserEnabled" name="laserEnabled" value="no"
                     onchange="enableLaser(this.checked)">
                   <label for="laserEnabled">Enabled</label>
                   <input type="checkbox" id="laserHomeKit" name="laserHomeKit" value="no" disabled>
                   <label for="laserHomeKit">HomeKit Light Switch</label>
+                </td>
+              </tr>
+              <tr>
+                <td></td>
+                <td>
+                  <table class="settings" id="parkAssist" style="display: none;">
+                    <tr>
+                      <td class="label">Assist Duration:</td>
+                      <td>&nbsp;
+                        <input type="range" min="0" max="300" value="60" id="assistDuration" name="assistDuration"
+                          class="slider" style="width:100px;">
+                        <span style="vertical-align: middle;"><span
+                            id="assistValue"></span>&nbsp;Secs</span>
+                      </td>
+                    </tr>
+                  </table>
                 </td>
               </tr>
               <tr>
@@ -423,7 +439,7 @@
       <div class="footer">
         <p style="margin:0px;">For documentation and support see the <a
             href="https://github.com/ratgdo/homekit-ratgdo32">GitHub</a>
-          page.<br>Copyright (c) 2023-24 <a
+          page.<br>Copyright (c) 2023-25 <a
             href="https://github.com/ratgdo/homekit-ratgdo32/graphs/contributors">homekit-ratgdo
             contributors.</a><br>Licensed under terms of the <a
             href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0
@@ -630,7 +646,14 @@
     vDistSlider.oninput = function () {
       vDistText1.innerHTML = this.value;
       vDistText2.innerHTML = Math.round(this.value / .254) / 10;
-    }
+    };
+
+    PAslider = document.getElementById("assistDuration");
+    PAtext = document.getElementById("assistValue");
+    PAtext.innerHTML = PAslider.value;
+    PAslider.oninput = function () {
+      PAtext.innerHTML = this.value;
+    };
   </script>
 </body>
 

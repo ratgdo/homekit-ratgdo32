@@ -3,7 +3,7 @@
  * https://ratcloud.llc
  * https://github.com/PaulWieland/ratgdo
  *
- * Copyright (c) 2023-24 David A Kerr... https://github.com/dkerr64/
+ * Copyright (c) 2023-25 David A Kerr... https://github.com/dkerr64/
  * All Rights Reserved.
  * Licensed under terms of the GPL-3.0 License.
  *
@@ -153,7 +153,7 @@ uint8_t subscriptionCount = 0;
 
 SemaphoreHandle_t jsonMutex = NULL;
 
-#define JSON_BUFFER_SIZE 1280
+#define JSON_BUFFER_SIZE 2048
 char *json = NULL;
 
 #define DOOR_STATE(s) (s == 0) ? "Open" : (s == 1) ? "Closed"  \
@@ -501,6 +501,7 @@ void handle_status()
     }
     ADD_BOOL(json, cfg_laserEnabled, userConfig->getLaserEnabled());
     ADD_BOOL(json, cfg_laserHomeKit, userConfig->getLaserHomeKit());
+    ADD_INT(json, cfg_assistDuration, userConfig->getAssistDuration());
     END_JSON(json);
 
     // send JSON straight to serial port

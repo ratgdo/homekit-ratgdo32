@@ -3,7 +3,7 @@
  * https://ratcloud.llc
  * https://github.com/PaulWieland/ratgdo
  *
- * Copyright (c) 2023-24 David A Kerr... https://github.com/dkerr64/
+ * Copyright (c) 2023-25 David A Kerr... https://github.com/dkerr64/
  * All Rights Reserved.
  * Licensed under terms of the GPL-3.0 License.
  *
@@ -185,6 +185,7 @@ void load_all_config_settings()
     RINFO(TAG, "   vehicleThreshold:    %d", userConfig->getVehicleThreshold());
     RINFO(TAG, "   laserEnabled:        %s", userConfig->getLaserEnabled() ? "true" : "false");
     RINFO(TAG, "   laserHomeKit:        %s", userConfig->getLaserHomeKit() ? "true" : "false");
+    RINFO(TAG, "   assistDuration:      %d", userConfig->getAssistDuration());
     RINFO(TAG, "RFC952 device hostname: %s", device_name_rfc952);
 
 #ifdef NTP_CLIENT
