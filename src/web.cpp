@@ -100,7 +100,7 @@ WebServer server(80);
 GarageDoor last_reported_garage_door;
 bool last_reported_paired = false;
 bool last_reported_assist_laser = false;
-uint32_t lastDoorUpdateAt = 0;
+uint64_t lastDoorUpdateAt = 0;
 GarageDoorCurrentState lastDoorState = (GarageDoorCurrentState)0xff;
 
 static bool web_setup_done = false;
@@ -459,7 +459,7 @@ void handle_status()
     ADD_INT(json, "freeHeap", free_heap);
     ADD_INT(json, "minHeap", min_heap);
     // TODO monitor stack... ADD_INT(json, "minStack", 0);
-    ADD_INT(json, "crashCount", crashCount);
+    ADD_INT(json, "crashCount", abs(crashCount));
     // TODO support WiFi PhyMode... ADD_INT(json, cfg_wifiPhyMode, userConfig->getWifiPhyMode());
     // TODO support WiFi TX Power... ADD_INT(json, cfg_wifiPower, userConfig->getWifiPower());
     ADD_BOOL(json, cfg_staticIP, userConfig->getStaticIP());

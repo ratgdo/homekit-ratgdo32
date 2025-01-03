@@ -4,7 +4,7 @@
  * https://ratcloud.llc
  * https://github.com/PaulWieland/ratgdo
  *
- * Copyright (c) 2023-24 David A Kerr... https://github.com/dkerr64/
+ * Copyright (c) 2023-25 David A Kerr... https://github.com/dkerr64/
  * All Rights Reserved.
  * Licensed under terms of the GPL-3.0 License.
  *
@@ -205,6 +205,12 @@ void service_timer_loop()
         lastRebootAt = time(NULL) - (current_millis / 1000);
         RINFO(TAG, "Current System time: %s", timeString());
         RINFO(TAG, "System boot time:    %s", timeString(lastRebootAt));
+        // Need to also set when last door open/close was
+        if (userConfig->getDoorUpdateAt() != 0)
+        {
+            lastDoorUpdateAt = (((uint64_t)userConfig->getDoorUpdateAt() - time(NULL)) * 1000LL) + current_millis;
+            RINFO(TAG, "Last door update at: %s", timeString((uint64_t)userConfig->getDoorUpdateAt()));
+        }
     }
 
     // Check heap
