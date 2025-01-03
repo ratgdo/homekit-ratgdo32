@@ -199,7 +199,7 @@
               <tr>
                 <td class="label">Door Close Delay:</td>
                 <td>&nbsp;
-                  <input type="range" min="0" max="60" value="0" id="TTCseconds" name="TTCseconds" class="slider"
+                  <input type="range" min="0" max="20" value="0" id="TTCseconds" name="TTCseconds" class="slider"
                     style="width:150px;">
                   <span style="vertical-align: middle; font-size: 0.8em"><span
                       id="TTCsecondsValue"></span>&nbsp;Seconds</span>
@@ -266,7 +266,7 @@
               <tr id="vehicleSetting" style="display:none;">
                 <td class="label">Vehicle Distance:</td>
                 <td>&nbsp;
-                  <input type="range" min="5" max="300" value="180" id="vehicleThreshold" name="vehicleThreshold"
+                  <input type="range" min="5" max="300" value="180" step="5" id="vehicleThreshold" name="vehicleThreshold"
                     class="slider" style="width:150px;">
                   <span style="vertical-align: middle; font-size: 0.8em"><span
                       id="vehicleThresholdCM"></span>&nbsp;cm&nbsp;(<span
@@ -290,7 +290,7 @@
                     <tr>
                       <td class="label">Assist Duration:</td>
                       <td>&nbsp;
-                        <input type="range" min="0" max="300" value="60" id="assistDuration" name="assistDuration"
+                        <input type="range" min="0" max="300" value="60" step="5" id="assistDuration" name="assistDuration"
                           class="slider" style="width:100px;">
                         <span style="vertical-align: middle;"><span
                             id="assistValue"></span>&nbsp;Secs</span>
@@ -633,9 +633,9 @@
     */
     TTCslider = document.getElementById("TTCseconds");
     TTCtext = document.getElementById("TTCsecondsValue");
-    TTCtext.innerHTML = TTCslider.value;
+    TTCtext.innerHTML = (TTCslider.value <= 10) ? TTCslider.value : ((TTCslider.value - 10) * 5) + 10;
     TTCslider.oninput = function () {
-      TTCtext.innerHTML = this.value;
+      TTCtext.innerHTML = (this.value <= 10) ? this.value : ((this.value - 10) * 5) + 10;
     };
 
     vDistSlider = document.getElementById("vehicleThreshold");
