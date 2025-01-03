@@ -3,7 +3,7 @@
  * https://ratcloud.llc
  * https://github.com/PaulWieland/ratgdo
  *
- * Copyright (c) 2023-24 David A Kerr... https://github.com/dkerr64/
+ * Copyright (c) 2023-25 David A Kerr... https://github.com/dkerr64/
  * All Rights Reserved.
  * Licensed under terms of the GPL-3.0 License.
  *
@@ -33,6 +33,8 @@ extern void load_page(const char *page);
 
 extern const char response400invalid[];
 extern const char type_txt[];
+
+extern uint64_t lastDoorUpdateAt;
 
 enum BroadcastType : uint8_t
 {
