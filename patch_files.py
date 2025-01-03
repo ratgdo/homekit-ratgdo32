@@ -2,7 +2,7 @@
 #
 # This script runs patch command on specified files.
 #
-# Copyright (c) 2023 David Kerr, https://github.com/dkerr64
+# Copyright (c) 2024-25 David Kerr, https://github.com/dkerr64
 #
 import os
 

@@ -3,7 +3,7 @@
  * https://ratcloud.llc
  * https://github.com/PaulWieland/ratgdo
  *
- * Copyright (c) 2023-24 David A Kerr... https://github.com/dkerr64/
+ * Copyright (c) 2023-25 David A Kerr... https://github.com/dkerr64/
  * All Rights Reserved.
  * Licensed under terms of the GPL-3.0 License.
  *
@@ -29,9 +29,11 @@ void print_packet(uint8_t *pkt);
 #define REBOOT_LOG_MSG_FILE "/reboot_log"
 
 #if defined(MMU_IRAM_HEAP) || !defined(ESP8266)
-// This can be large, but not too large.  IRAM heap is approx 18KB, we also need
+// This can be large, but not too large.
+// On ESP8266 we save logs in IRAM heap, which is approx 18KB, we also need
 // space for other data in here, so during development monitor logs and adjust
 // this smaller if necessary.  IRAM malloc's are all done during startup.
+// On ESP32 we save reboot and crash logs in RTC noinit memory, which is approx 8KB.
 #define LOG_BUFFER_SIZE (1024 * 3)
 #else
 #define LOG_BUFFER_SIZE 1024
