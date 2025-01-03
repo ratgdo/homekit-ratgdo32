@@ -25,10 +25,6 @@
 
 void print_packet(uint8_t *pkt);
 
-// #define LOG_MSG_BUFFER
-
-#ifdef LOG_MSG_BUFFER
-
 #define CRASH_LOG_MSG_FILE "/crash_log"
 #define REBOOT_LOG_MSG_FILE "/reboot_log"
 
@@ -36,20 +32,20 @@ void print_packet(uint8_t *pkt);
 // This can be large, but not too large.  IRAM heap is approx 18KB, we also need
 // space for other data in here, so during development monitor logs and adjust
 // this smaller if necessary.  IRAM malloc's are all done during startup.
-#define LOG_BUFFER_SIZE 2048
+#define LOG_BUFFER_SIZE (1024 * 3)
 #else
 #define LOG_BUFFER_SIZE 1024
 #endif
 #define LINE_BUFFER_SIZE 256
 
-#ifdef ENABLE_CRASH_LOG
-void crashCallback();
-#endif
-
 extern bool syslogEn;
 extern uint16_t syslogPort;
 extern char syslogIP[16];
 extern bool suppressSerialLog;
+
+extern time_t rebootTime;
+extern time_t crashTime;
+extern int16_t crashCount;
 
 typedef struct logBuffer
 {
@@ -74,30 +70,15 @@ public:
     static LOG *getInstance() { return instancePtr; }
 
     void logToBuffer(const char *fmt, ...);
-    void printSavedLog(Print &outDevice = Serial);
+    void printSavedLog(Print &outDevice = Serial, bool fromNVram = false);
     void printMessageLog(Print &outDevice = Serial);
-    void saveMessageLog();
+    void printCrashLog(Print &outDevice = Serial);
+    void saveMessageLog(bool toNVram = false);
 };
 
 extern LOG *ratgdoLogger;
 
 #define RATGDO_PRINTF(message, ...) ratgdoLogger->logToBuffer(PSTR(message), ##__VA_ARGS__)
 
-#define RINFO(tag, message, ...) RATGDO_PRINTF(">>> [%7llu] %s: " message "\n", millis64(), tag, ##__VA_ARGS__)
-#define RERROR(tag, message, ...) RATGDO_PRINTF("!!! [%7llu] %s: " message "\n", millis64(), tag, ##__VA_ARGS__)
-#else // LOG_MSG_BUFFER
-
-#ifndef UNIT_TEST
-
-#define RINFO(tag, message, ...) LOG0(">>> [%7llu] %s: " message "\n", millis64(), tag, ##__VA_ARGS__)
-#define RERROR(tag, message, ...) LOG0("!!! [%7llu] %s: " message "\n", millis64(), tag, ##__VA_ARGS__)
-
-#else // UNIT_TEST
-
-#include <stdio.h>
-#define RINFO(tag, message, ...) printf(">>> %s: " message "\n", tag, ##__VA_ARGS__)
-#define RERROR(tag, message, ...) printf("!!! %s: " message "\n", tag, ##__VA_ARGS__)
-
-#endif // UNIT_TEST
-
-#endif // LOG_MSG_BUFFER
+#define RINFO(tag, message, ...) RATGDO_PRINTF(">>> [%7lu.%03u] %s: " message "\n", (uint32_t)(millis64() / 1000LL), (uint16_t)(millis64() % 1000LL), tag, ##__VA_ARGS__)
+#define RERROR(tag, message, ...) RATGDO_PRINTF("!!! [%7lu.%03u] %s: " message "\n", (uint32_t)(millis64() / 1000LL), (uint16_t)(millis64() % 1000LL), tag, ##__VA_ARGS__)

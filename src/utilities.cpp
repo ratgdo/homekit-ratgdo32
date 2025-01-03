@@ -47,11 +47,9 @@ uint64_t ARDUINO_ISR_ATTR millis64()
     return (uint64_t)(esp_timer_get_time() / 1000ULL);
 }
 
-#ifdef NTP_CLIENT
 bool clockSet = false;
 bool enableNTP = false;
 uint64_t lastRebootAt = 0;
-// int32_t savedDoorUpdateAt = 0;
 
 bool get_auto_timezone()
 {
@@ -95,10 +93,10 @@ char *timeString(time_t reqTime, bool syslog)
         localtime_r(&tTime, &tmTime);
         if (syslog)
         {
-            // syslog compatibe
+            // syslog compatible
             strftime(tBuffer, sizeof(tBuffer), "%Y-%m-%dT%H:%M:%S.000%z", &tmTime);
             // %z returns e.g. "-400" or "+1000", we need it to be "-4:00" or "+10:00"
-            // thie format is REQUIRED by syslog
+            // this format is REQUIRED by syslog
             int i = strlen(tBuffer);
             if (tBuffer[i - 5] == '-' || tBuffer[i - 5] == '+' ||
                 tBuffer[i - 6] == '-' || tBuffer[i - 6] == '+')
@@ -117,7 +115,6 @@ char *timeString(time_t reqTime, bool syslog)
     }
     return tBuffer;
 }
-#endif
 
 char *make_rfc952(char *dest, const char *src, int size)
 {
@@ -173,11 +170,9 @@ void load_all_config_settings()
     RINFO(TAG, "   rebootSeconds:       %d", userConfig->getRebootSeconds());
     RINFO(TAG, "   LEDidle:             %d", userConfig->getLEDidle());
     RINFO(TAG, "   motionTriggers:      %d", userConfig->getMotionTriggers());
-#ifdef NTP_CLIENT
     RINFO(TAG, "   enableNTP:           %s", userConfig->getEnableNTP() ? "true" : "false");
     RINFO(TAG, "   doorUpdateAt:        %d", userConfig->getDoorUpdateAt());
     RINFO(TAG, "   timeZone:            %s", userConfig->getTimeZone().c_str());
-#endif
     RINFO(TAG, "   softAPmode:          %s", userConfig->getSoftAPmode() ? "true" : "false");
     RINFO(TAG, "   syslogEn:            %s", userConfig->getSyslogEn() ? "true" : "false");
     RINFO(TAG, "   syslogIP:            %s", userConfig->getSyslogIP().c_str());
@@ -188,7 +183,6 @@ void load_all_config_settings()
     RINFO(TAG, "   assistDuration:      %d", userConfig->getAssistDuration());
     RINFO(TAG, "RFC952 device hostname: %s", device_name_rfc952);
 
-#ifdef NTP_CLIENT
     // Only enable NTP client if not in soft AP mode.
     enableNTP = !softAPmode && userConfig->getEnableNTP();
     if (enableNTP)
@@ -210,7 +204,6 @@ void load_all_config_settings()
             configTzTime("UTC0", NTP_SERVER);
         }
     }
-#endif
 }
 
 void sync_and_restart()

@@ -8,7 +8,6 @@
 > Firmware for the new DISCO device is under development. The following features, documented in this README, are not currently available in this version
 > and may never be implemented
 > 
-> * Crashlog display and download.
 > * Locking WiFi to specific WiFi access point.
 > * Setting WiFi protocol version.
 > * Setting WiFi transmit power.
@@ -278,7 +277,7 @@ If the OTA firmware update fails the following message will be displayed and you
 
 ### Esptool
 
-[Espressif](https://www.espressif.com) publishes [esptool](https://docs.espressif.com/projects/esptool/en/latest/esp8266/index.html), a command line utility built with python.  Esptool requires that you connect a USB serial cable to the ratgdo device.
+[Espressif](https://www.espressif.com) publishes [esptool](https://docs.espressif.com/projects/esptool/en/latest/esp32/index.html), a command line utility built with python.  Esptool requires that you connect a USB serial cable to the ratgdo device.
 
 > [!NOTE]
 > The ratgdo32 firmware comprises multiple files. It is strongly recommended to use the [online browser-based flash tool](https://ratgdo.github.io/homekit-ratgdo32/flash.html) described above rather than use this command directly
@@ -315,7 +314,7 @@ Resets and reboots the device. This will delete HomeKit pairing.
 ```
 curl -s http://<ip-address>/crashlog
 ```
-Returns details of the last crash including stack trace and the message log leading up to the crash. __Not currently implemented on ratgdo32 boards.__
+Returns details of the last crash including stack trace and the message log leading up to the crash.
 
 ### Clear crash log
 
@@ -412,7 +411,7 @@ has already found a fix.
 
 Great reliability improvements have been made in recent versions of the firmware, but it is possible that things can still go wrong. As noted above you should check that the door protocol is correctly set and if WiFi connection stability is suspected then you select a specific WiFi version.
 
-The footer of the webpage displays useful information that can help project contributors assist with diagnosing a problem. The ESP8266 is a low-memory device so monitoring actual memory usage is first place to start. Whenever you connect to the webpage, the firmware reports memory utilization every second... current available free heap, the lowest value that free heap has reached since last reboot, and the minimum available stack reached since last reboot.
+The footer of the webpage displays useful information that can help project contributors assist with diagnosing a problem. The ratgdo is a low-memory device so monitoring actual memory usage is first place to start. Whenever you connect to the webpage, the firmware reports memory utilization every second... current available free heap, the lowest value that free heap has reached since last reboot, and the minimum available stack reached since last reboot.
 
 In addition the last reboot date and time is reported (calculated by subtracting up-time from current time).
 

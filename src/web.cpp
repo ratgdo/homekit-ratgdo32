@@ -49,15 +49,6 @@ static const char *TAG = "ratgdo-http";
 // This is used for CSS, JS and IMAGE file types.  Set to 30 days !!
 #define CACHE_CONTROL (60 * 60 * 24 * 30)
 
-#ifdef ENABLE_CRASH_LOG
-#include "EspSaveCrash.h"
-#ifdef LOG_MSG_BUFFER
-EspSaveCrash saveCrash(1408, 1024, true, &crashCallback);
-#else
-EspSaveCrash saveCrash(1408, 1024, true);
-#endif
-#endif
-
 // Forward declare the internal URI handling functions...
 void handle_reset();
 void handle_status();
@@ -112,8 +103,6 @@ bool last_reported_assist_laser = false;
 uint32_t lastDoorUpdateAt = 0;
 GarageDoorCurrentState lastDoorState = (GarageDoorCurrentState)0xff;
 
-// number of times the device has crashed
-int crashCount = 0;
 static bool web_setup_done = false;
 
 // Implement our own firmware update so can enforce MD5 check.
@@ -334,7 +323,8 @@ void handle_reset()
 
 void handle_reboot()
 {
-    RINFO(TAG, "... reboot requested");
+    RINFO(TAG, "System boot time:    %s", timeString(lastRebootAt));
+    RINFO(TAG, "Reboot requested at: %s", timeString());
     const char *resp = "Rebooting...\n";
     server.client().setNoDelay(true);
     server.send(200, type_txt, resp);
@@ -923,13 +913,7 @@ void handle_crashlog()
     RINFO(TAG, "Request to display crash log...");
     WiFiClient client = server.client();
     client.print(response200);
-    /* TODO show crashdump
-        saveCrash.print(client);
-    #ifdef LOG_MSG_BUFFER
-        if (crashCount > 0)
-            printSavedLog(client);
-    #endif
-    */
+    ratgdoLogger->printCrashLog(client);
     client.stop();
 }
 
@@ -937,10 +921,7 @@ void handle_showlog()
 {
     WiFiClient client = server.client();
     client.print(response200);
-#ifdef LOG_MSG_BUFFER
     ratgdoLogger->printMessageLog(client);
-    // ratgdoLogger->saveMessageLog();
-#endif
     client.stop();
 }
 
@@ -948,9 +929,7 @@ void handle_showrebootlog()
 {
     WiFiClient client = server.client();
     client.print(response200);
-#ifdef LOG_MSG_BUFFER
     ratgdoLogger->printSavedLog(client);
-#endif
     client.stop();
 }
 
@@ -971,6 +950,7 @@ void handle_crash_oom()
     delay(1000);
     for (int i = 0; i < 30; i++)
     {
+        RINFO(TAG, "malloc(1024)");
         crashptr = malloc(1024);
     }
 }
@@ -982,7 +962,7 @@ void handle_forcecrash()
     delay(1000);
     RINFO(TAG, "Result: %s", test_str);
 }
-#endif
+#endif // CRASH_DEBUG
 
 void SSEBroadcastState(const char *data, BroadcastType type)
 {

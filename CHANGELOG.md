@@ -9,6 +9,7 @@ All notable changes to `homekit-ratgdo32` will be documented in this file. This 
 ### What's Changed
 
 * Feature: Add user setting to enable/disable parking assist laser, and set duration of assist laser.
+* Feature: Added support to save log on crash (Issue #2)
 * Bugfix: Remove multiple copies of web page content from the firmware binary.
 * Bugfix: Use 64-bit integer to handle milliseconds since last boot.
 * Bugfix: Handle more possible return codes from vehicle distance sensor.

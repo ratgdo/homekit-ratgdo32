@@ -40,5 +40,3 @@ enum BroadcastType : uint8_t
     LOG_MESSAGE = 2,
 };
 void SSEBroadcastState(const char *data, BroadcastType type = RATGDO_STATUS);
-
-extern "C" int crashCount; // pull in number of times crashed.

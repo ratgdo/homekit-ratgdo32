@@ -67,25 +67,29 @@ void setup()
         ; // Wait for serial port to open
 
     Serial.printf("\n\n\n=== R A T G D O ===\n");
-
-    if (esp_core_dump_image_check() == ESP_OK)
-    {
-        crashCount = 1;
-        Serial.printf("CORE DUMP FOUND\n");
-        esp_core_dump_summary_t *summary = (esp_core_dump_summary_t *)malloc(sizeof(esp_core_dump_summary_t));
-        if (summary)
-        {
-            if (esp_core_dump_get_summary(summary) == ESP_OK)
-            {
-                Serial.printf("Crash in task: %s\n", summary->exc_task);
-            }
-        }
-        free(summary);
-    }
-
     // Beep on boot...
     tone(BEEPER_PIN, 1300, 500);
     led.on();
+
+    esp_reset_reason_t r = esp_reset_reason();
+    switch (r)
+    {
+    case ESP_RST_POWERON:
+    case ESP_RST_PWR_GLITCH:
+        RINFO(TAG, "System restart after power-on or power glitch: %d", r);
+        // RTC memory does not survive power interruption. Initialize values.
+        rebootTime = 0;
+        crashTime = 0;
+        crashCount = 0;
+        break;
+    default:
+        RINFO(TAG, "System restart reason: %d", r);
+        break;
+    }
+
+    // If there is a core dump image but no saved crash log, then set count to -1.
+    if ((crashCount == 0) && (esp_core_dump_image_check() == ESP_OK))
+        crashCount = -1;
 
     load_all_config_settings();
 
@@ -196,14 +200,12 @@ void service_timer_loop()
         return;
     }
 
-#ifdef NTP_CLIENT
     if (enableNTP && clockSet && lastRebootAt == 0)
     {
         lastRebootAt = time(NULL) - (current_millis / 1000);
         RINFO(TAG, "Current System time: %s", timeString());
         RINFO(TAG, "System boot time:    %s", timeString(lastRebootAt));
     }
-#endif
 
     // Check heap
     if (current_millis > next_heap_check)
