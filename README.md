@@ -411,7 +411,7 @@ has already found a fix.
 
 Great reliability improvements have been made in recent versions of the firmware, but it is possible that things can still go wrong. As noted above you should check that the door protocol is correctly set and if WiFi connection stability is suspected then you select a specific WiFi version.
 
-The footer of the webpage displays useful information that can help project contributors assist with diagnosing a problem. The ratgdo is a low-memory device so monitoring actual memory usage is first place to start. Whenever you connect to the webpage, the firmware reports memory utilization every second... current available free heap, the lowest value that free heap has reached since last reboot, and the minimum available stack reached since last reboot.
+The footer of the webpage displays useful information that can help project contributors assist with diagnosing a problem. The ratgdo is a low-memory device so monitoring actual memory usage is first place to start. Whenever you connect to the webpage, the firmware reports memory utilization... current available free heap, the lowest value that free heap has reached since last reboot.
 
 In addition the last reboot date and time is reported (calculated by subtracting up-time from current time).
 
@@ -420,6 +420,10 @@ The _lastDoorChange_ will show the date and time that the door was last opened o
 ### Show system logs
 
 Clicking on the system logs link will open a new browser tab with details of current and saved logs.  On this page you can select to view the current system log, the current system status in raw JSON format, the system log immediately before the last user requested reboot or reset, and the system log immediately before the last crash. If you open an issue on GitHub then please copy/paste the full crash log into the issue.
+
+> [!NOTE]
+> Logs from the last reboot and crash are saved in volatile memory and do not survive a power interruption or a firmware flash.
+> If you need to retain these logs to report an issue please make a copy before disconnecting the power or updating firmware.
 
 ## How can I contribute?
 

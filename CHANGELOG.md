@@ -9,11 +9,12 @@ All notable changes to `homekit-ratgdo32` will be documented in this file. This 
 ### What's Changed
 
 * Feature: Add user setting to enable/disable parking assist laser, and set duration of assist laser.
-* Feature: Added support to save log on crash (Issue #2)
+* Feature: Added support to save and view message log on crash (Issue #2).
 * Bugfix: Remove multiple copies of web page content from the firmware binary.
 * Bugfix: Use 64-bit integer to handle milliseconds since last boot.
 * Bugfix: Handle more possible return codes from vehicle distance sensor.
 * Bugfix: Door status incorrectly reported to HomeKit if close requested for already closed door (Issue #28).
+* Bugfix: Last door change date/time was not always been set correctly after reboot.
 * Updated copyright statement(s) to include year 2025.
 
 ### Known Issues

@@ -1,7 +1,7 @@
 /***********************************************************************
  * homekit-ratgdo logger web page javascript functions
  *
- * Copyright (c) 2024 David Kerr, https://github.com/dkerr64
+ * Copyright (c) 2024-25 David Kerr, https://github.com/dkerr64
  *
  */
 
