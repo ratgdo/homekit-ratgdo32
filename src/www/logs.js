@@ -84,7 +84,7 @@ function openTab(evt, tabName) {
     document.getElementById(tabName).style.display = "block";
     evt.currentTarget.className += " active";
     if (tabName === "crashTab") {
-        if (msgJson?.crashCount > 0) {
+        if (msgJson?.crashCount != 0) {
             document.getElementById("clearBtn").style.display = "inline-block";
         }
     } else if (tabName === "statusTab") {

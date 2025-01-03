@@ -24,14 +24,12 @@
 // #include "homekit_decl.h"
 // #include "ratgdo.h"
 
-#ifdef NTP_CLIENT
 extern bool clockSet;
 extern uint64_t lastRebootAt;
 extern char *timeString(time_t reqTime = 0, bool syslog = false);
 extern bool enableNTP;
 extern bool get_auto_timezone();
 #define NTP_SERVER "pool.ntp.org"
-#endif
 
 #if defined(MMU_IRAM_HEAP)
 // IRAM heap is used only for allocating globals, to leave as much regular heap
