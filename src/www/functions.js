@@ -219,7 +219,7 @@ function setElementsFromStatus(status) {
                 document.getElementById("rebootHours").value = value / 60 / 60;
                 break;
             case "TTCseconds":
-                document.getElementById(key).value = value;
+                document.getElementById(key).value = (value <= 10) ? value : (value - 10) / 5 + 10;
                 document.getElementById("TTCsecondsValue").innerHTML = value;
                 break;
             case "distanceSensor":
@@ -831,8 +831,9 @@ async function saveSettings() {
                 : '0';
     const wifiPower = Math.max(Math.min(parseInt(document.getElementById("wifiPower").value), 20), 0);
     */
-    let TTCseconds = Math.max(Math.min(parseInt(document.getElementById("TTCseconds").value), 60), 0);
+    let TTCseconds = Math.max(parseInt(document.getElementById("TTCseconds").value), 0);
     if (isNaN(TTCseconds)) TTCseconds = 0;
+    TTCseconds = (TTCseconds <= 10) ? TTCseconds : ((TTCseconds - 10) * 5) + 10;
 
     let vehicleThreshold = Math.max(Math.min(parseInt(document.getElementById("vehicleThreshold").value), 200), 5);
     if (isNaN(vehicleThreshold)) vehicleThreshold = 0;
