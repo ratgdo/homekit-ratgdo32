@@ -340,14 +340,14 @@ void load_page(const char *page)
     if (webcontent.count(page) == 0)
         return handle_notfound();
 
-    const char *data = (char *)std::get<0>(webcontent.at(page));
-    int length = std::get<1>(webcontent.at(page));
-    const char *typeP = std::get<2>(webcontent.at(page));
+    const char *data = (char *)webcontent.at(page).data;
+    int length =  webcontent.at(page).length;
+    const char *typeP = webcontent.at(page).type;
+    const char *crc32 = webcontent.at(page).crc32.c_str();
     // need local copy as strcmp_P cannot take two PSTR()'s
     char type[MAX_MIME_TYPE_LEN];
     strncpy_P(type, typeP, MAX_MIME_TYPE_LEN);
-    // Following for browser cache control...
-    const char *crc32 = std::get<3>(webcontent.at(page)).c_str();
+
     bool cache = false;
     char cacheHdr[24] = "no-cache, no-store";
     char matchHdr[8] = "";
