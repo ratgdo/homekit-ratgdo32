@@ -715,8 +715,8 @@ async function setGDO(...args) {
             if (serverStatus[args[i]] != args[i + 1]) {
                 console.log(`Set: ${args[i]} to: ${args[i + 1]}`);
                 formData.append(args[i], args[i + 1]);
-                // Update local copy with what we are sending to ratgdo.
-                serverStatus[args[i]] = args[i + 1];
+                // Local copy of server status will be updated when server later reports status.
+                // serverStatus[args[i]] = args[i + 1];
             }
         }
         if (Array.from(formData.keys()).length > 0) {
