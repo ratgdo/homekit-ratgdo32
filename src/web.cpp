@@ -469,7 +469,7 @@ void handle_status()
     ADD_INT(json, cfg_TTCseconds, userConfig->getTTCseconds());
     ADD_INT(json, cfg_vehicleThreshold, userConfig->getVehicleThreshold());
     ADD_INT(json, cfg_motionTriggers, motionTriggers.asInt);
-    ADD_INT(json, cfg_LEDidle, led.getIdleState());
+    ADD_INT(json, cfg_LEDidle, userConfig->getLEDidle());
     // We send milliseconds relative to current time... ie updated X milliseconds ago
     ADD_INT(json, "lastDoorUpdateAt", (upTime - lastDoorUpdateAt));
     ADD_BOOL(json, "enableNTP", enableNTP);

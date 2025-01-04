@@ -68,7 +68,7 @@ void LED::setIdleState(uint8_t state)
     }
     else
     {
-        idleState = state;
+        idleState = state ? onState : offState;
         // active state is opposite of idle state which can be zero or one.
         activeState = (idleState == 1) ? 0 : 1;
     }
