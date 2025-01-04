@@ -15,6 +15,9 @@ All notable changes to `homekit-ratgdo32` will be documented in this file. This 
 * Bugfix: Handle more possible return codes from vehicle distance sensor.
 * Bugfix: Door status incorrectly reported to HomeKit if close requested for already closed door (Issue #28).
 * Bugfix: Last door change date/time was not always been set correctly after reboot.
+* Bugfix: Activity LED options not correctly shown in web page.
+* Bugfix: Activity LED constantly on with Sec+ 1.0 protocol.
+* Bugfix: Remove wait for incoming serial packet before starting to detect Sec+ 1.0 digital wall panel.
 * Updated copyright statement(s) to include year 2025.
 
 ### Known Issues

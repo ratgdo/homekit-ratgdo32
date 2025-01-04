@@ -243,11 +243,7 @@ void wallPlate_Emulation()
 
     if (!serialDetected)
     {
-        if (sw_serial.available())
-        {
-            RINFO(TAG, "Serial available");
-            serialDetected = currentMillis;
-        }
+        serialDetected = currentMillis;
         return;
     }
 
@@ -1054,6 +1050,8 @@ bool transmitSec1(byte toSend)
     // disable disable rx (allows for cleaner tx, and no echo)
     if (!poll_cmd)
     {
+        // Use LED to signal activity
+        led.flash(FLASH_MS);
         sw_serial.enableRx(false);
     }
 
@@ -1099,6 +1097,8 @@ bool transmitSec2(PacketAction &pkt_ac)
         }
         else
         {
+            // Use LED to signal activity
+            led.flash(FLASH_MS);
             sw_serial.write(buf, SECPLUS2_CODE_LEN);
             delayMicroseconds(100);
         }
@@ -1116,9 +1116,6 @@ bool process_PacketAction(PacketAction &pkt_ac)
 {
 
     bool success = false;
-
-    // Use LED to signal activity
-    led.flash(FLASH_MS);
 
     if (doorControlType == 1)
     {
@@ -1160,7 +1157,6 @@ bool process_PacketAction(PacketAction &pkt_ac)
                     RINFO(TAG, "sending DOOR button release");
                 }
             }
-
             break;
         }
 
@@ -1184,7 +1180,6 @@ bool process_PacketAction(PacketAction &pkt_ac)
                     RINFO(TAG, "Sending LIGHT button release");
                 }
             }
-
             break;
         }
 
@@ -1208,14 +1203,12 @@ bool process_PacketAction(PacketAction &pkt_ac)
                     RINFO(TAG, "sending LOCK button release");
                 }
             }
-
             break;
         }
 
         default:
         {
-            RINFO(TAG, "pkt_ac.pkt.m_data.type=%d", pkt_ac.pkt.m_data.type);
-
+            RINFO(TAG, "UNHANDLED pkt_ac.pkt.m_data.type=%d", pkt_ac.pkt.m_data.type);
             break;
         }
         }
