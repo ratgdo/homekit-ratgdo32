@@ -1,6 +1,6 @@
 {
   "name": "homekit-ratgdo",
-  "version": "v3.0.4",
+  "version": "v3.0.5",
   "new_install_prompt_erase": true,
   "new_install_improv_wait_time": 60,
   "builds": [
@@ -8,11 +8,11 @@
       "chipFamily": "ESP32",
       "parts": [
         {
-          "path": "firmware/homekit-ratgdo32-v3.0.4.bootloader.bin",
+          "path": "firmware/homekit-ratgdo32-v3.0.5.bootloader.bin",
           "offset": 4096
         },
         {
-          "path": "firmware/homekit-ratgdo32-v3.0.4.partitions.bin",
+          "path": "firmware/homekit-ratgdo32-v3.0.5.partitions.bin",
           "offset": 32768
         },
         {
@@ -20,7 +20,7 @@
           "offset": 57344
         },
         {
-          "path": "firmware/homekit-ratgdo32-v3.0.4.firmware.bin",
+          "path": "firmware/homekit-ratgdo32-v3.0.5.firmware.bin",
           "offset": 65536
         }
       ]
