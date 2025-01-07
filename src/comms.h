@@ -21,7 +21,9 @@
 // none
 
 // RATGDO project includes
-#include "Packet.h"
+#include "../lib/ratgdo/Packet.h"
+#include "../lib/ratgdo/Reader.h"
+#include "../lib/ratgdo/secplus2.h"
 
 extern void setup_comms();
 extern void comms_loop();

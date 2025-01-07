@@ -32,7 +32,6 @@
 #include "ratgdo.h"
 #include "config.h"
 #include "comms.h"
-#include "log.h"
 #include "web.h"
 #include "utilities.h"
 #include "homekit.h"

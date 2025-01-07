@@ -24,8 +24,6 @@
 #include "SoftwareSerial.h"
 #include "ratgdo.h"
 #include "homekit.h"
-#include "Reader.h"
-#include "secplus2.h"
 #include "utilities.h"
 #include "comms.h"
 #include "config.h"
