@@ -23,11 +23,8 @@
 
 // RATGDO project includes
 #include "ratgdo.h"
-#include "log.h"
 #include "config.h"
 #include "utilities.h"
-#include "secplus2.h"
-// #include "comms.h"
 #include "web.h"
 
 // Logger tag

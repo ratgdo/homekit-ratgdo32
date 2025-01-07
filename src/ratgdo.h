@@ -25,7 +25,7 @@
 
 // RATGDO project includes
 #include "HomeSpan.h"
-#include "log.h"
+#include "../lib/ratgdo/log.h"
 
 #define DEVICE_NAME "homekit-ratgdo"
 #define MANUF_NAME "ratCloud llc"
