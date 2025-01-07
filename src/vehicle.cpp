@@ -216,7 +216,6 @@ void calculatePresence(int16_t distance)
         vehicleDetected = false;
     if (vehicleDetected != priorVehicleDetected)
     {
-        led.flash();
         // if change occurs with arrival/departure window then record motion,
         // presence timer is set when door opens.
         lastChangeAt = millis64();

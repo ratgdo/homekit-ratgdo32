@@ -23,11 +23,6 @@
 LED led(LED_BUILTIN);
 LED laser(LASER_PIN);
 
-void LEDtimerCallback(LED *led)
-{
-    led->idle();
-}
-
 // Constructor for LED class
 LED::LED(uint8_t gpio_num, uint8_t state)
 {
@@ -74,8 +69,13 @@ void LED::setIdleState(uint8_t state)
     }
 }
 
-void LED::flash(unsigned long ms)
+void LED::flash(uint64_t ms)
 {
-    digitalWrite(pin, activeState);
-    LEDtimer.once_ms(ms, LEDtimerCallback, this);
+    if (!LEDtimer.active())
+    {
+        // Don't flash if we are already in a flash.
+        digitalWrite(pin, activeState);
+        LEDtimer.once_ms(ms, [this]()
+                         { this->idle(); });
+    }
 }

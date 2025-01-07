@@ -38,7 +38,7 @@ public:
     void off();
     void idle();
     bool state() { return (currentState == onState); };
-    void flash(unsigned long ms = FLASH_MS);
+    void flash(uint64_t ms = FLASH_MS);
     void setIdleState(uint8_t state);
     uint8_t getIdleState() { return idleState; };
 };
