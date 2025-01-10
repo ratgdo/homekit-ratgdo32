@@ -43,5 +43,6 @@
   "vehicleDist" : 100,
   "laserEnabled" : false,
   "laserHomeKit" : true,
-  "assistDuration" : 60
+  "assistDuration" : 60,
+  "qrPayload" : "X-HM://0042WZMX3RTGO"
 }

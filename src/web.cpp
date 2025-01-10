@@ -340,7 +340,7 @@ void load_page(const char *page)
         return handle_notfound();
 
     const char *data = (char *)webcontent.at(page).data;
-    int length =  webcontent.at(page).length;
+    int length = webcontent.at(page).length;
     const char *typeP = webcontent.at(page).type;
     const char *crc32 = webcontent.at(page).crc32.c_str();
     // need local copy as strcmp_P cannot take two PSTR()'s
@@ -491,6 +491,7 @@ void handle_status()
     ADD_BOOL(json, cfg_laserEnabled, userConfig->getLaserEnabled());
     ADD_BOOL(json, cfg_laserHomeKit, userConfig->getLaserHomeKit());
     ADD_INT(json, cfg_assistDuration, userConfig->getAssistDuration());
+    ADD_STR(json, "qrPayload", qrPayload);
     END_JSON(json);
 
     // send JSON straight to serial port

@@ -1,0 +1,1 @@
+../../.pio/libdeps/ratgdo_esp32dev/qrcodejs/qrcode.js

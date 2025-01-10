@@ -172,6 +172,19 @@ async function loadTZinfo(list) {
     }
 }
 
+function showQrCode(payload) {
+    if (serverStatus.paired)
+        return;
+
+    console.log(`Create QR code for ${payload}`);
+    var qrcode = new QRCode(document.getElementById("qr-svg"), {
+        width : 300,
+        height : 300,
+        useSVG: true
+    });
+    qrcode.makeCode(payload);
+}
+
 // Update all elements on HTML page to reflect status
 function setElementsFromStatus(status) {
     let date = new Date();
@@ -181,11 +194,14 @@ function setElementsFromStatus(status) {
                 if (value) {
                     document.getElementById("unpair").value = "Un-pair HomeKit";
                     document.getElementById("qrcode").style.display = "none";
+                    document.getElementById("qr-svg").style.display = "none";
                     document.getElementById("re-pair-info").style.display = "inline-block";
                 } else {
                     document.getElementById("unpair").value = "Reset HomeKit";
                     document.getElementById("re-pair-info").style.display = "none";
                     document.getElementById("qrcode").style.display = "inline-block";
+                    document.getElementById("qr-svg").style.display = "block";
+
                 }
                 break;
             case "upTime":
@@ -336,6 +352,9 @@ function setElementsFromStatus(status) {
                 break;
             case "freeIramHeap":
                 // Unused... remove this case statement when/if we add to html.
+                break;
+            case "qrPayload":
+                showQrCode(value);
                 break;
             default:
                 try {

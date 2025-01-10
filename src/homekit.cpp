@@ -44,6 +44,8 @@ static DEV_Light *assistLaser;
 static bool isPaired = false;
 static bool rebooting = false;
 
+char qrPayload[21];
+
 /****************************************************************************
  * Callback functions, notify us of significant events
  */
@@ -268,6 +270,32 @@ bool enable_service_homekit_laser(bool enable)
     return false;
 }
 
+char *toBase62(char *base62, size_t len, uint32_t base10)
+{
+    static char *base62Chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    int i = 0;
+    // Will pad with zeros until base62 buffer filled (to len)
+    while ((base10 > 0) || (i < len - 1))
+    {
+        base62[i++] = base62Chars[base10 % 62];
+        base10 /= 62;
+    }
+    // null terminate
+    base62[i] = 0;
+    // Now reverse order of the string;
+    char *str = base62;
+    char *end = str + strlen(str) - 1;
+    while (str < end)
+    {
+        *str ^= *end;
+        *end ^= *str;
+        *str ^= *end;
+        str++;
+        end--;
+    }
+    return base62;
+}
+
 void setup_homekit()
 {
     RINFO(TAG, "=== Setup HomeKit accessories and services ===");
@@ -278,11 +306,22 @@ void setup_homekit()
     homeSpan.setPortNum(5556);
     // We will manage LED flashing ourselves
     // homeSpan.setStatusPin(LED_BUILTIN);
-
     homeSpan.enableAutoStartAP();
     homeSpan.setApFunction(start_soft_ap);
 
-    homeSpan.setQRID("RTGO");
+    // Generate a QR Code ID from our MAC address, which should create unique pairing QR codes
+    // for each of multiple devices on a network... although we do have to clip to 4 characters,
+    // so we loose ~2 most significant bits.
+    uint8_t mac[6];
+    Network.macAddress(mac);
+    uint32_t uid = (mac[3] << 16) + (mac[4] << 8) + mac[5];
+    char qrID[6];
+    toBase62(qrID, sizeof(qrID), uid); // always includes leading zeros
+    RINFO(TAG, "HomeKit pairing QR Code ID: %s", &qrID[1]);
+    HapQR qrCode;
+    strlcpy(qrPayload, qrCode.get((uint32_t)25102023,&qrID[1],(uint8_t)Category::GarageDoorOpeners), sizeof(qrPayload));
+    RINFO(TAG, "HomeKit QR setup payload: %s",qrPayload);
+    homeSpan.setQRID(&qrID[1]);
     homeSpan.setPairingCode("25102023"); // On Oct 25, 2023, Chamberlain announced they were disabling API
                                          // access for "unauthorized" third parties.
 

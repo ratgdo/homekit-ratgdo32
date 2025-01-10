@@ -60,6 +60,8 @@ extern bool enable_service_homekit_laser(bool enable);
 extern void homekit_unpair();
 extern bool homekit_is_paired();
 
+extern char qrPayload[];
+
 struct GDOEvent
 {
     SpanCharacteristic *c;
