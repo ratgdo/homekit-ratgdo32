@@ -178,8 +178,8 @@ function showQrCode(payload) {
 
     console.log(`Create QR code for ${payload}`);
     var qrcode = new QRCode(document.getElementById("qr-svg"), {
-        width : 300,
-        height : 300,
+        width: 300,
+        height: 300,
         useSVG: true
     });
     qrcode.makeCode(payload);
@@ -821,6 +821,15 @@ function getMotionTriggers() {
 }
 
 function setMotionTriggers(bitset) {
+    if (bitset & 1) {
+        // motion status can be visible
+        document.getElementById("motionLabel").style.display = "table-cell";
+        document.getElementById("garageMotion").style.display = "table-cell";
+    } else {
+        // motion status should be hidden
+        document.getElementById("motionLabel").style.display = "none";
+        document.getElementById("garageMotion").style.display = "none";
+    }
     document.getElementById("motionMotion").checked = (bitset & 1) ? true : false;
     document.getElementById("motionObstruction").checked = (bitset & 2) ? true : false;
     //document.getElementById("motionLight").checked = (bitset & 4) ? true : false;
