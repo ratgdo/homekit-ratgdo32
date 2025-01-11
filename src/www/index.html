@@ -100,7 +100,9 @@
         </div>
         <div class="qrcode">
           <img id="qrcode" src="qrframe.svg?v=CRC-32" alt="QR Code" style="display:none;">
-          <svg id="qr-svg" style="position:absolute; top:35%; left:5%; width:90%; height:60%; padding:0px 12px 12px"></svg>
+          <svg id="qr-svg"
+            style="display:none; position:absolute; top:35%; left:5%; width:90%; height:60%; padding:0px 12px 12px">
+          </svg>
           <p id="re-pair-info" style="display:none; font-size: 10px;">If you wish to pair to another HomeKit home, you
             must first un-pair from existing home.
           </p>
@@ -127,7 +129,7 @@
             <tr>
               <td>Door Protocol:</td>
               <td id="GDOSecurityType"></td>
-              <td>Motion:</td>
+              <td id="motionLabel">Motion:</td>
               <td id="garageMotion"></td>
             </tr>
             <tr id="vehicleRow" style="display:none;">
