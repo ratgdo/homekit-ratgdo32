@@ -203,7 +203,7 @@ userSettings::userSettings()
         //  Credentials are MD5 Hash... server.credentialHash(username, realm, "password");
         {cfg_wwwCredentials, {false, false, "10d3c00fa1e09696601ef113b99f8a87", NULL}},
         {cfg_GDOSecurityType, {true, false, 2, helperGDOSecurityType}}, // call fn to reset door
-        {cfg_TTCseconds, {false, false, 0, NULL}},
+        {cfg_TTCseconds, {false, false, 5, NULL}},
         {cfg_rebootSeconds, {true, true, 0, NULL}},
         {cfg_LEDidle, {false, false, 0, helperLEDidle}},               // call fn to set LED object
         {cfg_motionTriggers, {false, false, 0, helperMotionTriggers}}, // call fn to enable HomeSpan service
