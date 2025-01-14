@@ -237,6 +237,7 @@ function setElementsFromStatus(status) {
             case "TTCseconds":
                 document.getElementById(key).value = (value <= 10) ? value : (value - 10) / 5 + 10;
                 document.getElementById("TTCsecondsValue").innerHTML = value;
+                document.getElementById("TTCwarning").style.display = (value < 5) ? "inline" : "none";
                 break;
             case "distanceSensor":
                 document.getElementById("vehicleRow").style.display = (value) ? "table-row" : "none";
@@ -839,7 +840,15 @@ function setMotionTriggers(bitset) {
 };
 
 async function saveSettings() {
-    if (!confirm('Save Settings. Reboot may be required, are you sure?')) {
+    let TTCseconds = Math.max(parseInt(document.getElementById("TTCseconds").value), 0);
+    if (isNaN(TTCseconds)) TTCseconds = 0;
+    TTCseconds = (TTCseconds <= 10) ? TTCseconds : ((TTCseconds - 10) * 5) + 10;
+
+    let msg = (TTCseconds < 5) ? "WARNING: You have requested a time-to-close delay of less than 5 seconds. " +
+        "This violates US Consumer Product Safety Act Regulations, section 1211.14, unattended operation requirements.\n\n" +
+        "By selecting a " + TTCseconds + " seconds delay you accept all responsibility and liability for injury or any other loss.\n\n" : "";
+
+    if (!confirm(msg + 'Save Settings. Reboot may be required, are you sure?')) {
         return;
     }
     const gdoSec = (document.getElementById("gdosec1").checked) ? '1'
@@ -859,10 +868,6 @@ async function saveSettings() {
                 : '0';
     const wifiPower = Math.max(Math.min(parseInt(document.getElementById("wifiPower").value), 20), 0);
     */
-    let TTCseconds = Math.max(parseInt(document.getElementById("TTCseconds").value), 0);
-    if (isNaN(TTCseconds)) TTCseconds = 0;
-    TTCseconds = (TTCseconds <= 10) ? TTCseconds : ((TTCseconds - 10) * 5) + 10;
-
     let vehicleThreshold = Math.max(Math.min(parseInt(document.getElementById("vehicleThreshold").value), 200), 5);
     if (isNaN(vehicleThreshold)) vehicleThreshold = 0;
     const laserEnabled = (document.getElementById("laserEnabled").checked) ? '1' : '0';
