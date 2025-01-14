@@ -28,11 +28,11 @@
 extern void setup_comms();
 extern void comms_loop();
 
-extern bool open_door();
-extern bool close_door();
+extern GarageDoorCurrentState open_door();
+extern GarageDoorCurrentState close_door();
 
-extern bool set_lock(bool value);
-extern bool set_light(bool value);
+extern bool set_lock(bool value, bool verify = true);
+extern bool set_light(bool value, bool verify = true);
 
 extern void save_rolling_code();
 extern void reset_door();

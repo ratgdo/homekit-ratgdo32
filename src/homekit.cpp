@@ -296,6 +296,14 @@ char *toBase62(char *base62, size_t len, uint32_t base10)
     return base62;
 }
 
+#ifdef TEST_TTC
+extern void delayFnCall(uint32_t ms, void (*callback)());
+void delayFnCallTest(const char *buf)
+{
+    delayFnCall(10000, nullptr);
+}
+#endif
+
 void setup_homekit()
 {
     RINFO(TAG, "=== Setup HomeKit accessories and services ===");
@@ -319,8 +327,8 @@ void setup_homekit()
     toBase62(qrID, sizeof(qrID), uid); // always includes leading zeros
     RINFO(TAG, "HomeKit pairing QR Code ID: %s", &qrID[1]);
     HapQR qrCode;
-    strlcpy(qrPayload, qrCode.get((uint32_t)25102023,&qrID[1],(uint8_t)Category::GarageDoorOpeners), sizeof(qrPayload));
-    RINFO(TAG, "HomeKit QR setup payload: %s",qrPayload);
+    strlcpy(qrPayload, qrCode.get((uint32_t)25102023, &qrID[1], (uint8_t)Category::GarageDoorOpeners), sizeof(qrPayload));
+    RINFO(TAG, "HomeKit QR setup payload: %s", qrPayload);
     homeSpan.setQRID(&qrID[1]);
     homeSpan.setPairingCode("25102023"); // On Oct 25, 2023, Chamberlain announced they were disabling API
                                          // access for "unauthorized" third parties.
@@ -336,8 +344,12 @@ void setup_homekit()
     homeSpan.begin(Category::Bridges, device_name, device_name_rfc952, "ratgdo-ESP32");
 
 #ifdef CONFIG_FREERTOS_USE_TRACE_FACILITY
-    new SpanUserCommand('t', "print FreeRTOS task info", printTaskInfo);
+    new SpanUserCommand('t', "- print FreeRTOS task info", printTaskInfo);
 #endif
+#ifdef TEST_TTC
+    new SpanUserCommand('u', "- test time-to-close function", delayFnCallTest);
+#endif
+
     // Define a bridge (as more than 3 accessories)
     new SpanAccessory(HOMEKIT_AID_BRIDGE);
     new DEV_Info(default_device_name);
@@ -506,7 +518,7 @@ void notify_homekit_obstruction()
 DEV_GarageDoor::DEV_GarageDoor() : Service::GarageDoorOpener()
 {
     RINFO(TAG, "Configuring HomeKit Garage Door Service");
-    event_q = xQueueCreate(5, sizeof(GDOEvent));
+    event_q = xQueueCreate(10, sizeof(GDOEvent));
     current = new Characteristic::CurrentDoorState(current->CLOSED);
     target = new Characteristic::TargetDoorState(target->CLOSED);
     obstruction = new Characteristic::ObstructionDetected(obstruction->NOT_DETECTED);
@@ -529,22 +541,9 @@ DEV_GarageDoor::DEV_GarageDoor() : Service::GarageDoorOpener()
 boolean DEV_GarageDoor::update()
 {
     RINFO(TAG, "Garage Door Characteristics Update");
-    if (target->getNewVal() == target->OPEN)
-    {
-        if (open_door())
-        {
-            obstruction->setVal(false);
-            current->setVal(current->OPENING);
-        }
-    }
-    else
-    {
-        if (close_door())
-        {
-            obstruction->setVal(false);
-            current->setVal(current->CLOSING);
-        }
-    }
+    GarageDoorCurrentState state = (target->getNewVal() == target->OPEN) ? open_door() : close_door();
+    obstruction->setVal(false);
+    current->setVal(state);
 
     if (userConfig->getGDOSecurityType() != 3)
     {
@@ -606,7 +605,7 @@ DEV_Light::DEV_Light(Light_t type) : Service::LightBulb()
         RINFO(TAG, "Configuring HomeKit Light Service for GDO Light");
     else if (type == Light_t::ASSIST_LASER)
         RINFO(TAG, "Configuring HomeKit Light Service for Laser");
-    event_q = xQueueCreate(5, sizeof(GDOEvent));
+    event_q = xQueueCreate(10, sizeof(GDOEvent));
     DEV_Light::on = new Characteristic::On(DEV_Light::on->OFF);
 }
 
@@ -693,7 +692,7 @@ void notify_homekit_vehicle_departing(bool vehicleDeparting)
 DEV_Motion::DEV_Motion(const char *name) : Service::MotionSensor()
 {
     RINFO(TAG, "Configuring HomeKit Motion Service for %s", name);
-    event_q = xQueueCreate(5, sizeof(GDOEvent));
+    event_q = xQueueCreate(10, sizeof(GDOEvent));
     strlcpy(this->name, name, sizeof(this->name));
     DEV_Motion::motion = new Characteristic::MotionDetected(motion->NOT_DETECTED);
 }
@@ -725,7 +724,7 @@ void notify_homekit_vehicle_occupancy(bool vehicleDetected)
 DEV_Occupancy::DEV_Occupancy() : Service::OccupancySensor()
 {
     RINFO(TAG, "Configuring HomeKit Occupancy Service");
-    event_q = xQueueCreate(5, sizeof(GDOEvent));
+    event_q = xQueueCreate(10, sizeof(GDOEvent));
     DEV_Occupancy::occupied = new Characteristic::OccupancyDetected(occupied->NOT_DETECTED);
 }
 
