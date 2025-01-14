@@ -53,9 +53,7 @@ uint32_t doorControlType = 0;
 
 // For Time-to-close control
 Ticker TTCtimer = Ticker();
-uint8_t TTCcountdown = 0;
 bool TTCwasLightOn = false;
-void (*TTC_Action)(void) = NULL;
 
 struct ForceRecover force_recover;
 #define force_recover_delay 3
@@ -129,7 +127,6 @@ void door_command(DoorAction action);
 void send_get_status();
 bool transmitSec1(byte toSend);
 bool transmitSec2(PacketAction &pkt_ac);
-void TTCdelayLoop();
 void manual_recovery();
 void obstruction_timer();
 
@@ -139,7 +136,7 @@ void obstruction_timer();
 void setup_comms()
 {
     // Create packet queue
-    pkt_q = xQueueCreate(5, sizeof(PacketAction));
+    pkt_q = xQueueCreate(10, sizeof(PacketAction));
 
     if (doorControlType == 0)
         doorControlType = userConfig->getGDOSecurityType();
@@ -285,7 +282,7 @@ void wallPlate_Emulation()
             PacketAction pkt_ac = {pkt, true, 20}; // 20ms delay for SECURITY1.0 (which is minimum delay)
             if (xQueueSendToBack(pkt_q, &pkt_ac, 0) == errQUEUE_FULL)
             {
-                RERROR(TAG, "packet queue full");
+                RERROR(TAG, "packet queue full, dropping panel emulation status pkt");
             }
 
             // send direct
@@ -497,12 +494,11 @@ void comms_loop_sec1()
                     break;
                 }
 
-                if ((garage_door.current_state == CURR_CLOSING) && (TTCcountdown > 0))
+                if ((garage_door.current_state == CURR_CLOSING) && (TTCtimer.active()))
                 {
                     // We are in a time-to-close delay timeout, cancel the timeout
                     RINFO(TAG, "Canceling time-to-close delay timer");
                     TTCtimer.detach();
-                    TTCcountdown = 0;
                 }
 
                 if (!garage_door.active)
@@ -637,7 +633,8 @@ void comms_loop_sec1()
     bool okToSend = false;
     static uint16_t retryCount = 0;
 
-    if (uxQueueMessagesWaiting(pkt_q) > 0)
+    uint32_t msgs;
+    while ((msgs = uxQueueMessagesWaiting(pkt_q)) > 0)
     {
         now = millis64();
 
@@ -662,32 +659,37 @@ void comms_loop_sec1()
         // OK to send based on above rules
         if (okToSend)
         {
-
-            if (uxQueueMessagesWaiting(pkt_q) > 0)
-            {
+            // Three packets in the queue is normal (e.g. light press, light release, followed by get status)
+            // but more than that may indicate a problem
+            if (msgs > 3)
+                RERROR(TAG, "WARNING: message packets in queue is > 3 (%lu)", msgs);
+            else
                 ESP_LOGD(TAG, "packet ready for tx");
-                xQueueReceive(pkt_q, &pkt_ac, 0); // ignore errors
-                if (process_PacketAction(pkt_ac))
+
+            xQueueReceive(pkt_q, &pkt_ac, 0); // ignore errors
+            if (process_PacketAction(pkt_ac))
+            {
+                // get next delay "between" transmits
+                cmdDelay = pkt_ac.delay;
+            }
+            else
+            {
+                cmdDelay = 0;
+                if (retryCount++ < MAX_COMMS_RETRY)
                 {
-                    // get next delay "between" transmits
-                    cmdDelay = pkt_ac.delay;
+                    RERROR(TAG, "transmit failed, will retry");
+                    xQueueSendToFront(pkt_q, &pkt_ac, 0); // ignore errors
                 }
                 else
                 {
-                    cmdDelay = 0;
-                    if (retryCount++ < MAX_COMMS_RETRY)
-                    {
-                        RERROR(TAG, "transmit failed, will retry");
-                        xQueueSendToFront(pkt_q, &pkt_ac, 0); // ignore errors
-                    }
-                    else
-                    {
-                        RERROR(TAG, "transmit failed, exceeded max retry, aborting");
-                        retryCount = 0;
-                    }
+                    RERROR(TAG, "transmit failed, exceeded max retry, aborting");
+                    retryCount = 0;
                 }
             }
         }
+        // If we are looping over multiple packets, yield on each loop
+        if (msgs > 1)
+            yield();
     }
 
     // check for wall panel and provide emulator
@@ -705,10 +707,16 @@ void comms_loop_sec2()
     if (!sw_serial.available())
     {
         PacketAction pkt_ac;
-
-        if (uxQueueMessagesWaiting(pkt_q) > 0)
+        uint32_t msgs;
+        while ((msgs = uxQueueMessagesWaiting(pkt_q)) > 0)
         {
-            ESP_LOGD(TAG, "packet ready for tx");
+            // Two packets in the queue is normal (e.g. set light followed by get status)
+            // but more than that may indicate a problem
+            if (msgs > 2)
+                RERROR(TAG, "WARNING: message packets in queue is > 2 (%lu)", msgs);
+            else
+                ESP_LOGD(TAG, "packet ready for tx");
+
             xQueueReceive(pkt_q, &pkt_ac, 0); // ignore errors
             if (!process_PacketAction(pkt_ac))
             {
@@ -724,6 +732,9 @@ void comms_loop_sec2()
                     retryCount = 0;
                 }
             }
+            // If we are looping over multiple packets, yield on each loop
+            if (msgs > 1)
+                yield();
         }
     }
     else
@@ -768,12 +779,11 @@ void comms_loop_sec2()
                     break;
                 }
 
-                if ((current_state == CURR_CLOSING) && (TTCcountdown > 0))
+                if ((current_state == CURR_CLOSING) && (TTCtimer.active()))
                 {
                     // We are in a time-to-close delay timeout, cancel the timeout
                     RINFO(TAG, "Canceling time-to-close delay timer");
                     TTCtimer.detach();
-                    TTCcountdown = 0;
                 }
 
                 if (!garage_door.active)
@@ -790,11 +800,10 @@ void comms_loop_sec2()
                     }
                 }
 
-                RINFO(TAG, "tgt %d curr %d", target_state, current_state);
-
                 if ((target_state != garage_door.target_state) ||
                     (current_state != garage_door.current_state))
                 {
+                    RINFO(TAG, "Door target: %d, current: %d", target_state, current_state);
                     garage_door.target_state = target_state;
                     garage_door.current_state = current_state;
 
@@ -949,6 +958,13 @@ void comms_loop_sec2()
                     garage_door.motion = true;
                     notify_homekit_motion();
                 }
+                break;
+            }
+
+            case PacketCommand::GetStatus:
+            case PacketCommand::Unknown:
+            {
+                // Silently ignore, because we see lots of these and they have no data, and Packet.h logged them.
                 break;
             }
 
@@ -1290,76 +1306,85 @@ void door_command_close()
     door_command(DoorAction::Close);
 }
 
-bool open_door()
+GarageDoorCurrentState open_door()
 {
-    // return value: true = set state to OPENING, else leave state unchanged
-    if (TTCcountdown > 0)
+    if (TTCtimer.active())
     {
         // We are in a time-to-close delay timeout.
         // Effect of open is to cancel the timeout (leaving door open)
         RINFO(TAG, "Canceling time-to-close delay timer");
         TTCtimer.detach();
-        TTCcountdown = 0;
         // Reset light to state it was at before delay start.
         set_light(TTCwasLightOn);
-        return false;
+        return GarageDoorCurrentState::CURR_OPEN;
     }
 
     // safety
     if (garage_door.current_state == GarageDoorCurrentState::CURR_OPEN)
     {
         RINFO(TAG, "Door already open; ignored request");
-        return false;
+        return GarageDoorCurrentState::CURR_OPEN;
     }
 
     if (garage_door.current_state == GarageDoorCurrentState::CURR_CLOSING)
     {
         RINFO(TAG, "Door is closing; do stop");
         door_command(DoorAction::Stop);
-        return false;
+        return GarageDoorCurrentState::CURR_STOPPED;
     }
     RINFO(TAG, "Opening door");
     door_command(DoorAction::Open);
-    return true;
+    return GarageDoorCurrentState::CURR_OPENING;
 }
 
-void TTCdelayLoop()
+// Call function after ms milliseconds during which we flash and beep
+void delayFnCall(uint32_t ms, void (*callback)())
 {
-    if (--TTCcountdown > 0)
-    {
-        if (garage_door.light)
-        {
-            // play alert beep every other loop
-            tone(BEEPER_PIN, 1300, 500);
-        }
-        // If light is on, turn it off.  If off, turn it on.
-        set_light(!garage_door.light);
-    }
-    else
-    {
-        // End of delay period
-        tone(BEEPER_PIN, 2000, 500);
-        TTCtimer.detach();
-        if (TTC_Action)
-            (*TTC_Action)();
-    }
-    return;
+    static const uint32_t interval = 250;
+    static uint32_t iterations = 0;
+
+    TTCtimer.detach();                 // Terminate existing timer if any
+    iterations = ms / interval;        // Number of times to go through loop
+    TTCwasLightOn = garage_door.light; // Current state of light
+    RINFO(TAG, "Start function delay timer for %lums (%d iterations)", ms, iterations);
+    TTCtimer.attach_ms(interval, [callback]()
+                       {
+                        if (iterations > 0)
+                        {
+                            if (iterations % 2 == 0)
+                            {
+                                // If light is on, turn it off.  If off, turn it on.
+                                set_light((iterations % 4) != 0, false);
+                            }
+                            tone(BEEPER_PIN, 1300, 125);
+                            iterations--;
+                        }
+                        else
+                        {
+                            TTCtimer.detach();
+                            // Turn light off. It will turn on as part of the door close action and then go off after a timeout
+                            set_light(false);
+                            if (callback)
+                            {
+                                RINFO(TAG,"Calling delayed function 0x%08lX", (uint32_t)callback);
+                                callback();
+                            }
+                        } });
 }
 
-bool close_door()
+GarageDoorCurrentState close_door()
 {
-    // return value: true = set state to CLOSING, else leave state unchanged
     if (garage_door.current_state == GarageDoorCurrentState::CURR_CLOSED)
     {
         RINFO(TAG, "Door already closed; ignored request");
-        return false;
+        return GarageDoorCurrentState::CURR_CLOSED;
     }
 
     if (garage_door.current_state == GarageDoorCurrentState::CURR_OPENING)
     {
         RINFO(TAG, "Door already opening; do stop");
         door_command(DoorAction::Stop);
-        return false;
+        return GarageDoorCurrentState::CURR_STOPPED;
     }
 
     if (userConfig->getTTCseconds() == 0)
@@ -1369,28 +1394,22 @@ bool close_door()
     }
     else
     {
-        if (TTCcountdown > 0)
+        if (TTCtimer.active())
         {
-            // We are in a time-to-close delay timeout.
-            // Effect of second click is to cancel the timeout and close immediately
+            // We are in a time-to-close delay timeout, cancel the timeout
             RINFO(TAG, "Canceling time-to-close delay timer");
             TTCtimer.detach();
-            TTCcountdown = 0;
-            RINFO(TAG, "Closing door");
-            door_command(DoorAction::Close);
+            // Reset light to state it was at before delay start.
+            set_light(TTCwasLightOn);
+            return GarageDoorCurrentState::CURR_OPEN;
         }
         else
         {
             RINFO(TAG, "Delay door close by %d seconds", userConfig->getTTCseconds());
-            // Call delay loop every 0.5 seconds to flash light.
-            TTCcountdown = userConfig->getTTCseconds() * 2;
-            // Remember whether light was on or off
-            TTCwasLightOn = garage_door.light;
-            TTC_Action = &door_command_close;
-            TTCtimer.attach_ms(500, TTCdelayLoop);
+            delayFnCall(userConfig->getTTCseconds() * 1000, door_command_close);
         }
     }
-    return true;
+    return GarageDoorCurrentState::CURR_CLOSING;
 }
 
 void send_get_status()
@@ -1410,33 +1429,20 @@ void send_get_status()
     }
 }
 
-bool set_lock(bool value)
+bool set_lock(bool value, bool verify)
 {
     // return value: true = lock state changed, else state unchanged
+    if (verify && (garage_door.current_lock == ((value) ? LockCurrentState::CURR_LOCKED : LockCurrentState::CURR_UNLOCKED)))
+    {
+        RINFO(TAG, "Remote locks already %s; ignored request", (value) ? "locked" : "unlocked");
+        return false;
+    }
+
     PacketData data;
     data.type = PacketDataType::Lock;
-    if (value)
-    {
-        if (garage_door.current_lock == LockCurrentState::CURR_LOCKED)
-        {
-            RINFO(TAG, "Lock already locked; ignored request");
-            return false;
-        }
-        RINFO(TAG, "Locking Garage Door Remotes");
-        data.value.lock.lock = LockState::On;
-        garage_door.target_lock = TGT_LOCKED;
-    }
-    else
-    {
-        if (garage_door.current_lock == LockCurrentState::CURR_UNLOCKED)
-        {
-            RINFO(TAG, "Lock already unlocked; ignored request");
-            return false;
-        }
-        RINFO(TAG, "Unlocking Garage Door Remotes");
-        data.value.lock.lock = LockState::Off;
-        garage_door.target_lock = TGT_UNLOCKED;
-    }
+    data.value.lock.lock = (value) ? LockState::On : LockState::Off;
+    garage_door.target_lock = (value) ? TGT_LOCKED : TGT_UNLOCKED;
+    RINFO(TAG, "Set Garage Door Remote locks: %s", (value) ? "locked" : "unlocked");
 
     // SECURITY1.0
     if (doorControlType == 1)
@@ -1480,36 +1486,23 @@ bool set_lock(bool value)
         {
             RERROR(TAG, "packet queue full, dropping lock pkt");
         }
-        send_get_status();
     }
     return true;
 }
 
-bool set_light(bool value)
+bool set_light(bool value, bool verify)
 {
     // return value: true = light state changed, else state unchanged
+    if (verify && (garage_door.light == value))
+    {
+        RINFO(TAG, "Light already %s; ignored request", (value) ? "on" : "off");
+        return false;
+    }
+
     PacketData data;
     data.type = PacketDataType::Light;
-    if (value)
-    {
-        if (garage_door.light == true)
-        {
-            RINFO(TAG, "Light already On; ignored request");
-            return false;
-        }
-        RINFO(TAG, "Turn on Garage Door Light");
-        data.value.light.light = LightState::On;
-    }
-    else
-    {
-        if (garage_door.light == false)
-        {
-            RINFO(TAG, "Light already Off; ignored request");
-            return false;
-        }
-        RINFO(TAG, "Turn off Garage Door Light");
-        data.value.light.light = LightState::Off;
-    }
+    data.value.light.light = (value) ? LightState::On : LightState::Off;
+    RINFO(TAG, "Set Garage Door Light: %s", (value) ? "on" : "off");
 
     // SECURITY+1.0
     if (doorControlType == 1)
@@ -1553,13 +1546,16 @@ bool set_light(bool value)
         {
             RERROR(TAG, "packet queue full, dropping light pkt");
         }
-        send_get_status();
     }
     return true;
 }
 
 void manual_recovery()
 {
+    // Don't check for manual recovery if in midst of a time-to-close delay
+    if (TTCtimer.active())
+        return;
+
     // Increment counter every time button is pushed.  If we hit 5 in 3 seconds,
     // go to WiFi recovery mode
     if (force_recover.push_count++ == 0)
@@ -1576,14 +1572,9 @@ void manual_recovery()
 
     if (force_recover.push_count >= 5)
     {
-        RINFO(TAG, "Request to boot into soft access point mode in %ds", force_recover_delay);
+        RINFO(TAG, "Request to boot into soft access point mode in %d seconds", force_recover_delay);
         userConfig->set(cfg_softAPmode, true);
-        // Call delay loop every 0.5 seconds to flash light.
-        TTCcountdown = force_recover_delay * 2;
-        // Remember whether light was on or off
-        TTCwasLightOn = garage_door.light;
-        TTC_Action = &sync_and_restart;
-        TTCtimer.attach_ms(500, TTCdelayLoop);
+        delayFnCall(force_recover_delay * 1000, sync_and_restart);
     }
 }
 
