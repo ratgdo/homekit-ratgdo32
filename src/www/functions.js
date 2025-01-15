@@ -249,6 +249,10 @@ function setElementsFromStatus(status) {
                 document.getElementById("vehicleThresholdCM").innerHTML = value;
                 document.getElementById("vehicleThresholdInch").innerHTML = Math.round(value / .254) / 10;
                 break;
+            case "vehicleDist":
+                document.getElementById(key).innerHTML = value;
+                document.getElementById("vehicleDistInch").innerHTML = Math.round(value / .254) / 10;
+                break;
             case "laserEnabled":
                 document.getElementById(key).checked = value;
                 document.getElementById("laserButton").style.display = (value) ? "inline-block" : "none";
