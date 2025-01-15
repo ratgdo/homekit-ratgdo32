@@ -113,12 +113,12 @@
           <input type="button" id="unpair" value="Reset HomeKit" onclick="unpairRATGDO()">
         </div>
         <div class="fullwidth">
-          <table style="width: 95%">
+          <table style="width: 100%">
             <tr>
               <td style="width: 30%;">Door State:</td>
               <td style="width: 20%;" id="garageDoorState"></td>
-              <td style="width: 30%;">Light On:</td>
-              <td style="width: 20%;" id="garageLightOn"></td>
+              <td style="width: 25%;">Light On:</td>
+              <td style="width: 25%;" id="garageLightOn"></td>
             </tr>
             <tr>
               <td>Lock State:</td>
@@ -136,7 +136,10 @@
               <td>Vehicle:</td>
               <td id="vehicleStatus"></td>
               <td>Distance:</td>
-              <td><span id="vehicleDist"></span>&nbsp;cm</td>
+              <td>
+                <span id="vehicleDist"></span>&nbsp;cm<span style="font-size: 0.8em;">&nbsp;(<span
+                    id="vehicleDistInch"></span>&nbsp;inch)</span>
+              </td>
             </tr>
           </table>
         </div>
@@ -274,9 +277,9 @@
                 <td>&nbsp;
                   <input type="range" min="5" max="300" value="180" step="5" id="vehicleThreshold"
                     name="vehicleThreshold" class="slider" style="width:130px;">
-                  <span style="vertical-align: middle; font-size: 0.8em"><span
-                      id="vehicleThresholdCM"></span>&nbsp;cm&nbsp;(<span
-                      id="vehicleThresholdInch"></span>&nbsp;inch)</span>
+                  <span style="vertical-align: middle; font-size: 0.8em">
+                    <span id="vehicleThresholdCM"></span>&nbsp;cm<span style="font-size: 0.8em;">&nbsp;(<span
+                        id="vehicleThresholdInch"></span>&nbsp;inch)</span>
                 </td>
               </tr>
               <tr id="laserSetting" style="display:none;">
