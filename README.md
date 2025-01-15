@@ -133,7 +133,11 @@ This updates the name reported to HomeKit and for mDNS device discovery.  The de
 
 ### Door Close Delay
 
-You can select up-to 60 second delay before door starts closing. During the delay period the garage door lights will flash and you may hear the relay clicking. On ratgdo32-disco boards you will also hear an audible beep.
+You can select up-to 60 second delay before door starts closing. During the delay period the garage door lights will flash and you may hear the relay clicking. On ratgdo32-disco boards you will also hear audible beeping. Default time-to-close delay is 5 seconds.
+
+> [!WARNING]
+> The US Consumer Product Safety Act Regulations, section 1211.14, unattended operation requirements [16 CFR § 1211.14](https://www.law.cornell.edu/cfr/text/16/1211.14), state that there must be a minimum delay of 5 seconds before the door closes.
+> The regulation also requires that the light flash with audible beeping.  If you select a time-to-close delay of under 5 seconds then a warning is shown in the web settings page and you accept all responsibility and liability for injury or any other loss.
 
 ### Require Password
 

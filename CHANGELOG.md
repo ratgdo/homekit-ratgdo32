@@ -4,6 +4,22 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v3.0.6 (2025-01-17)
+
+### What's Changed
+
+* Bugfix: Crash in esp_timer.c possibly related to multi-thread use of Ticker for LED timer (Issue #30).
+* Bugfix: Motion sensor status should not show if there is no motion sensor.
+* Bugfix: Crash reported at end of time-to-close delay (Issue #32).
+* Bugfix: Could not set vehicle threshold above 200cm
+* Feature: Set default time-to-close delay to 5 seconds and add warning if user selects lower value (Issue #33).
+* Feature: Dynamically create HomeKit QR setup ID, and QR code graphic for pairing.
+* Other: Updated HomeSpan library to version 2.1.1.
+
+### Known Issues
+
+* Still testing... Future updates MAY include breaking changes requiring a flash erase and re-upload.
+
 ## v3.0.5 (2025-01-05)
 
 ### What's Changed
