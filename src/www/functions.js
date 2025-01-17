@@ -872,7 +872,7 @@ async function saveSettings() {
                 : '0';
     const wifiPower = Math.max(Math.min(parseInt(document.getElementById("wifiPower").value), 20), 0);
     */
-    let vehicleThreshold = Math.max(Math.min(parseInt(document.getElementById("vehicleThreshold").value), 200), 5);
+    let vehicleThreshold = Math.max(Math.min(parseInt(document.getElementById("vehicleThreshold").value), 300), 5);
     if (isNaN(vehicleThreshold)) vehicleThreshold = 0;
     const laserEnabled = (document.getElementById("laserEnabled").checked) ? '1' : '0';
     const laserHomeKit = (document.getElementById("laserHomeKit").checked) ? '1' : '0';
