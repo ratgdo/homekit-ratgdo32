@@ -7,6 +7,9 @@
  * All Rights Reserved.
  * Licensed under terms of the GPL-3.0 License.
  *
+ * Contributions acknowledged from
+ * David Kerr...     https://github.com/dkerr64
+ * 
  */
 #pragma once
 
@@ -70,7 +73,7 @@
 //   I named those "unknown" in the Status struct but don't use or print them.
 //
 //   There are many command types that are not implemented here, as they were not necessary for
-//   implmementing HomeKit support. That does not mean I would not like a more-complete
+//   implementing HomeKit support. That does not mean I would not like a more-complete
 //   implementation.
 
 // Tag for union of data structures attached to packets
@@ -82,6 +85,7 @@ enum class PacketDataType
     Lock,
     DoorAction,
     Openings,
+    Battery,
     Unknown,
 };
 
@@ -359,9 +363,12 @@ const uint8_t GET_OPENINGS_LO_BYTE_MASK = 0xFF;
 const uint8_t GET_OPENINGS_LO_BYTE_SHIFT = 24;
 const uint8_t GET_OPENINGS_HI_BYTE_MASK = 0xFF;
 const uint8_t GET_OPENINGS_HI_BYTE_SHIFT = 16;
+const uint8_t GET_OPENINGS_FLAG_MASK = 0x0F;
+const uint8_t GET_OPENINGS_FLAG_SHIFT = 8;
 struct OpeningsCommandData
 {
     uint16_t count;
+    uint8_t flags;
     uint8_t parity;
 
     OpeningsCommandData() = default;
@@ -369,6 +376,7 @@ struct OpeningsCommandData
     {
         uint8_t lo = ((pkt_data >> GET_OPENINGS_LO_BYTE_SHIFT) & GET_OPENINGS_LO_BYTE_MASK);
         uint8_t hi = ((pkt_data >> GET_OPENINGS_HI_BYTE_SHIFT) & GET_OPENINGS_HI_BYTE_MASK);
+        flags = ((pkt_data >> GET_OPENINGS_FLAG_SHIFT) & GET_OPENINGS_FLAG_MASK);
         parity = ((pkt_data >> COMMAND_PARITY_SHIFT) & COMMAND_PARITY_MASK);
 
         count = hi << 8 | lo;
@@ -387,7 +395,55 @@ struct OpeningsCommandData
 
     void to_string(char *buf, size_t buflen)
     {
-        snprintf(buf, buflen, "Openings %02d", count);
+        snprintf(buf, buflen, "Openings %02d, Flags 0x%02X, Parity 0x%X", count, flags, parity);
+    };
+};
+
+enum class BatteryState : uint8_t
+{
+    Unknown = 0,
+    Charging = 6,
+    Full = 8,
+};
+
+const uint8_t BATTERY_DATA_MASK = 0xFF;
+const uint8_t BATTERY_DATA_SHIFT = 16;
+struct BatteryCommandData
+{
+    BatteryState state;
+    uint8_t parity;
+
+    BatteryCommandData() = default;
+    BatteryCommandData(uint32_t pkt_data)
+    {
+        state = static_cast<BatteryState>((pkt_data >> BATTERY_DATA_SHIFT) & BATTERY_DATA_MASK);
+        parity = ((pkt_data >> COMMAND_PARITY_SHIFT) & COMMAND_PARITY_MASK);
+    };
+
+    uint32_t to_data(void)
+    {
+        uint32_t pkt_data = 0;
+        pkt_data |= static_cast<uint32_t>(state) << BATTERY_DATA_SHIFT;
+        pkt_data |= parity << COMMAND_PARITY_SHIFT;
+        return pkt_data;
+    };
+
+    void to_string(char *buf, size_t buflen)
+    {
+        const char *s = "Invalid command";
+        switch (state)
+        {
+        case BatteryState::Unknown:
+            s = "Unknown";
+            break;
+        case BatteryState::Charging:
+            s = "Charging";
+            break;
+        case BatteryState::Full:
+            s = "Full";
+            break;
+        }
+        snprintf(buf, buflen, "BatteryState %s, Parity 0x%X", s, parity);
     };
 };
 
@@ -429,6 +485,7 @@ struct PacketData
         LightCommandData light;
         DoorActionCommandData door_action;
         OpeningsCommandData openings;
+        BatteryCommandData battery;
         uint32_t cmd;
     } value;
 
@@ -462,6 +519,10 @@ struct PacketData
             value.openings.to_string(subbuf, subbuflen);
             snprintf(buf, buflen, "Openings: [%s]", subbuf);
             break;
+        case PacketDataType::Battery:
+            value.battery.to_string(subbuf, subbuflen);
+            snprintf(buf, buflen, "Battery: [%s]", subbuf);
+            break;
         case PacketDataType::Unknown:
             snprintf(buf, buflen, "Unknown: [%03lX]", value.cmd);
             break;
@@ -479,6 +540,7 @@ public:
         Status = 0x081,
         Obst1 = 0x084, // sent when an obstruction happens?
         Obst2 = 0x085, // sent when an obstruction happens?
+        Battery = 0x09d,
         Pair3 = 0x0a0,
         Pair3Resp = 0x0a1,
         Learn2 = 0x181,
@@ -519,6 +581,8 @@ public:
             return "Obst1";
         case PacketCommandValue::Obst2:
             return "Obst2";
+        case PacketCommandValue::Battery:
+            return "Battery";
         case PacketCommandValue::Pair3:
             return "Pair3";
         case PacketCommandValue::Pair3Resp:
@@ -571,6 +635,8 @@ public:
             return PacketCommandValue::Obst1;
         case PacketCommandValue::Obst2:
             return PacketCommandValue::Obst2;
+        case PacketCommandValue::Battery:
+            return PacketCommandValue::Battery;
         case PacketCommandValue::Pair3:
             return PacketCommandValue::Pair3;
         case PacketCommandValue::Pair3Resp:
@@ -723,6 +789,13 @@ struct Packet
             m_data.value.openings = OpeningsCommandData(pkt_data);
             break;
         }
+
+        case PacketCommand::Battery:
+        {
+            m_data.type = PacketDataType::Battery;
+            m_data.value.battery = BatteryCommandData(pkt_data);
+            break;
+        }
         }
     }
 
@@ -794,6 +867,12 @@ struct Packet
         case PacketCommand::Openings:
         {
             pkt_data = m_data.value.openings.to_data();
+            break;
+        }
+
+        case PacketCommand::Battery:
+        {
+            pkt_data = m_data.value.battery.to_data();
             break;
         }
         }
