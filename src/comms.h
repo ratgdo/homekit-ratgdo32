@@ -21,9 +21,7 @@
 // none
 
 // RATGDO project includes
-#include "../lib/ratgdo/Packet.h"
-#include "../lib/ratgdo/Reader.h"
-#include "../lib/ratgdo/secplus2.h"
+// none
 
 extern void setup_comms();
 extern void comms_loop();
@@ -38,4 +36,4 @@ extern void save_rolling_code();
 extern void reset_door();
 
 extern uint32_t doorControlType;
-extern DoorState doorState;
+extern GarageDoorCurrentState doorState;
