@@ -296,14 +296,6 @@ char *toBase62(char *base62, size_t len, uint32_t base10)
     return base62;
 }
 
-#ifdef TEST_TTC
-extern void delayFnCall(uint32_t ms, void (*callback)());
-void delayFnCallTest(const char *buf)
-{
-    delayFnCall(10000, nullptr);
-}
-#endif
-
 void setup_homekit()
 {
     RINFO(TAG, "=== Setup HomeKit accessories and services ===");
@@ -345,9 +337,6 @@ void setup_homekit()
 
 #ifdef CONFIG_FREERTOS_USE_TRACE_FACILITY
     new SpanUserCommand('t', "- print FreeRTOS task info", printTaskInfo);
-#endif
-#ifdef TEST_TTC
-    new SpanUserCommand('u', "- test time-to-close function", delayFnCallTest);
 #endif
 
     // Define a bridge (as more than 3 accessories)

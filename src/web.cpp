@@ -205,6 +205,11 @@ void web_loop()
     ADD_BOOL_C(json, "garageLightOn", garage_door.light, last_reported_garage_door.light);
     ADD_BOOL_C(json, "garageMotion", garage_door.motion, last_reported_garage_door.motion);
     ADD_BOOL_C(json, "garageObstructed", garage_door.obstructed, last_reported_garage_door.obstructed);
+    if (doorControlType == 2)
+    {
+        ADD_INT_C(json, "batteryState", garage_door.batteryState, last_reported_garage_door.batteryState);
+        ADD_INT_C(json, "openingsCount", garage_door.openingsCount, last_reported_garage_door.openingsCount);
+    }
     if (strlen(json) > 2)
     {
         // Have we added anything to the JSON string?
@@ -492,6 +497,11 @@ void handle_status()
     ADD_BOOL(json, cfg_laserHomeKit, userConfig->getLaserHomeKit());
     ADD_INT(json, cfg_assistDuration, userConfig->getAssistDuration());
     ADD_STR(json, "qrPayload", qrPayload);
+    if (doorControlType == 2)
+    {
+        ADD_INT(json, "batteryState", garage_door.batteryState);
+        ADD_INT(json, "openingsCount", garage_door.openingsCount);
+    }
     END_JSON(json);
 
     // send JSON straight to serial port

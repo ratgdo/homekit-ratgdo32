@@ -99,6 +99,8 @@ struct GarageDoor
     bool light;
     LockCurrentState current_lock;
     LockTargetState target_lock;
+    uint16_t openingsCount;
+    uint8_t batteryState;
 };
 
 extern GarageDoor garage_door;

@@ -361,11 +361,15 @@ function setElementsFromStatus(status) {
             case "qrPayload":
                 showQrCode(value);
                 break;
+            case "batteryState":
+                document.getElementById("secPlus2Row").style.display = "table-row";
+                document.getElementById(key).innerHTML = (value == 6) ? "Charging" : (value == 8) ? "Fully Charged" : "Unknown";
+                break;
             default:
                 try {
                     document.getElementById(key).innerHTML = value;
                 } catch (error) {
-                    console.warn(`Server sent unrecognized status key: ${key}`);
+                    console.warn(`Server sent unrecognized status: ${key} : ${value}`);
                 }
         }
     }
