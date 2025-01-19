@@ -25,6 +25,11 @@
 #include "ratgdo.h"
 #include "homekit.h"
 #include "utilities.h"
+
+#include "../lib/ratgdo/Packet.h"
+#include "../lib/ratgdo/Reader.h"
+#include "../lib/ratgdo/secplus2.h"
+
 #include "comms.h"
 #include "config.h"
 #include "led.h"
@@ -90,7 +95,8 @@ uint64_t last_tx;
 
 bool wallplateBooting = false;
 bool wallPanelDetected = false;
-DoorState doorState = DoorState::Unknown;
+GarageDoorCurrentState doorState = GarageDoorCurrentState::UNKNOWN;
+
 uint8_t lightState;
 uint8_t lockState;
 
@@ -150,7 +156,7 @@ void setup_comms()
 
         wallPanelDetected = false;
         wallplateBooting = false;
-        doorState = DoorState::Unknown;
+        doorState = GarageDoorCurrentState::UNKNOWN;
         lightState = 2;
         lockState = 2;
     }
@@ -252,7 +258,7 @@ void wallPlate_Emulation()
             lastRequestMillis = currentMillis;
         }
 
-        if (!wallPanelDetected && (doorState != DoorState::Unknown || lightState != 2))
+        if (!wallPanelDetected && (doorState != GarageDoorCurrentState::UNKNOWN || lightState != 2))
         {
             wallPanelDetected = true;
             wallplateBooting = false;
@@ -384,7 +390,7 @@ void comms_loop_sec1()
             RINFO(TAG, "0x31 RX (door release)");
 
             // Possible power up of 889LM
-            if ((DoorState)doorState == DoorState::Unknown)
+            if (doorState == GarageDoorCurrentState::UNKNOWN)
             {
                 wallplateBooting = true;
             }
@@ -443,54 +449,52 @@ void comms_loop_sec1()
                 switch (val)
                 {
                 case 0x00:
-                    doorState = DoorState::Stopped;
+                    doorState = GarageDoorCurrentState::CURR_STOPPED;
                     break;
                 case 0x01:
-                    doorState = DoorState::Opening;
+                    doorState = GarageDoorCurrentState::CURR_OPENING;
                     break;
                 case 0x02:
-                    doorState = DoorState::Open;
+                    doorState = GarageDoorCurrentState::CURR_OPEN;
                     break;
                 // no 0x03 known
                 case 0x04:
-                    doorState = DoorState::Closing;
+                    doorState = GarageDoorCurrentState::CURR_CLOSING;
                     break;
                 case 0x05:
-                    doorState = DoorState::Closed;
+                    doorState = GarageDoorCurrentState::CURR_CLOSED;
                     break;
                 case 0x06:
-                    doorState = DoorState::Stopped;
+                    doorState = GarageDoorCurrentState::CURR_STOPPED;
                     break;
                 default:
-                    doorState = DoorState::Unknown;
+                    doorState = GarageDoorCurrentState::UNKNOWN;
                     break;
                 }
 
-                // RINFO(TAG, "doorstate: %d", doorState);
-
                 switch (doorState)
                 {
-                case DoorState::Open:
+                case GarageDoorCurrentState::CURR_OPEN:
                     garage_door.current_state = CURR_OPEN;
                     garage_door.target_state = TGT_OPEN;
                     break;
-                case DoorState::Closed:
+                case GarageDoorCurrentState::CURR_CLOSED:
                     garage_door.current_state = CURR_CLOSED;
                     garage_door.target_state = TGT_CLOSED;
                     break;
-                case DoorState::Stopped:
+                case GarageDoorCurrentState::CURR_STOPPED:
                     garage_door.current_state = CURR_STOPPED;
                     garage_door.target_state = TGT_OPEN;
                     break;
-                case DoorState::Opening:
+                case GarageDoorCurrentState::CURR_OPENING:
                     garage_door.current_state = CURR_OPENING;
                     garage_door.target_state = TGT_OPEN;
                     break;
-                case DoorState::Closing:
+                case GarageDoorCurrentState::CURR_CLOSING:
                     garage_door.current_state = CURR_CLOSING;
                     garage_door.target_state = TGT_CLOSED;
                     break;
-                case DoorState::Unknown:
+                case GarageDoorCurrentState::UNKNOWN:
                     RERROR(TAG, "Got door state unknown");
                     break;
                 }
@@ -538,6 +542,9 @@ void comms_loop_sec1()
                         break;
                     case GarageDoorCurrentState::CURR_CLOSING:
                         l = "Closing";
+                        break;
+                    case GarageDoorCurrentState::UNKNOWN:
+                        l = "Unknown";
                         break;
                     }
                     RINFO(TAG, "status DOOR: %s", l);
@@ -1010,26 +1017,26 @@ void comms_loop_sec2()
 
 void comms_loop_drycontact()
 {
-    static DoorState previousDoorState = DoorState::Unknown;
+    static GarageDoorCurrentState previousDoorState = GarageDoorCurrentState::UNKNOWN;
 
     // Notify HomeKit when the door state changes
     if (doorState != previousDoorState)
     {
         switch (doorState)
         {
-        case DoorState::Open:
+        case GarageDoorCurrentState::CURR_OPEN:
             garage_door.current_state = GarageDoorCurrentState::CURR_OPEN;
             garage_door.target_state = GarageDoorTargetState::TGT_OPEN;
             break;
-        case DoorState::Closed:
+        case GarageDoorCurrentState::CURR_CLOSED:
             garage_door.current_state = GarageDoorCurrentState::CURR_CLOSED;
             garage_door.target_state = GarageDoorTargetState::TGT_CLOSED;
             break;
-        case DoorState::Opening:
+        case GarageDoorCurrentState::CURR_OPENING:
             garage_door.current_state = GarageDoorCurrentState::CURR_OPENING;
             garage_door.target_state = GarageDoorTargetState::TGT_OPEN;
             break;
-        case DoorState::Closing:
+        case GarageDoorCurrentState::CURR_CLOSING:
             garage_door.current_state = GarageDoorCurrentState::CURR_CLOSING;
             garage_door.target_state = GarageDoorTargetState::TGT_CLOSED;
             break;

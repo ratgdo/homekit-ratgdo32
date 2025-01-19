@@ -43,8 +43,6 @@ void setup_drycontact()
     if (doorControlType == 0)
         doorControlType = userConfig->getGDOSecurityType();
 
-    doorState = DoorState::Unknown;
-
     pinMode(DRY_CONTACT_OPEN_PIN, INPUT_PULLUP);
     pinMode(DRY_CONTACT_CLOSE_PIN, INPUT_PULLUP);
 
@@ -70,23 +68,23 @@ void drycontact_loop()
     {
         if (dryContactDoorOpen)
         {
-            doorState = DoorState::Open;
+            doorState = GarageDoorCurrentState::CURR_OPEN;
         }
 
         if (dryContactDoorClose)
         {
-            doorState = DoorState::Closed;
+            doorState = GarageDoorCurrentState::CURR_CLOSED;
         }
 
         if (!dryContactDoorClose && !dryContactDoorOpen)
         {
             if (previousDryContactDoorClose)
             {
-                doorState = DoorState::Opening;
+                doorState = GarageDoorCurrentState::CURR_OPENING;
             }
             else if (previousDryContactDoorOpen)
             {
-                doorState = DoorState::Closing;
+                doorState = GarageDoorCurrentState::CURR_CLOSING;
             }
         }
 

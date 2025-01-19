@@ -62,6 +62,7 @@ enum GarageDoorCurrentState : uint8_t
     CURR_OPENING = Characteristic::CurrentDoorState::OPENING,
     CURR_CLOSING = Characteristic::CurrentDoorState::CLOSING,
     CURR_STOPPED = Characteristic::CurrentDoorState::STOPPED,
+    UNKNOWN = 0xFF,
 };
 
 enum GarageDoorTargetState : uint8_t
