@@ -125,6 +125,7 @@ void sync();
 bool process_PacketAction(PacketAction &pkt_ac);
 void door_command(DoorAction action);
 void send_get_status();
+void send_get_openings();
 bool transmitSec1(byte toSend);
 bool transmitSec2(PacketAction &pkt_ac);
 void manual_recovery();
@@ -798,6 +799,13 @@ void comms_loop_sec2()
                     {
                         target_state = TGT_CLOSED;
                     }
+                    // retrieve number of door open/close cycles.
+                    send_get_openings();
+                }
+                else if (current_state == CURR_CLOSED && (current_state != garage_door.current_state))
+                {
+                    // door activated, retrieve number of door open/close cycles.
+                    send_get_openings();
                 }
 
                 if ((target_state != garage_door.target_state) ||
@@ -961,7 +969,24 @@ void comms_loop_sec2()
                 break;
             }
 
+            case PacketCommand::Battery:
+            {
+                garage_door.batteryState = (uint8_t)pkt.m_data.value.battery.state;
+                break;
+            }
+
+            case PacketCommand::Openings:
+            {
+                if (pkt.m_data.value.openings.flags == 0)
+                {
+                    // Apparently flags must be zero... to indicate a reply to our request
+                    garage_door.openingsCount = pkt.m_data.value.openings.count;
+                }
+                break;
+            }
+
             case PacketCommand::GetStatus:
+            case PacketCommand::GetOpenings:
             case PacketCommand::Unknown:
             {
                 // Silently ignore, because we see lots of these and they have no data, and Packet.h logged them.
@@ -969,6 +994,7 @@ void comms_loop_sec2()
             }
 
             default:
+                // Log if we get a command that we do not recognize.
                 RINFO(TAG, "Support for %s packet unimplemented. Ignoring.", PacketCommand::to_string(pkt.m_pkt_cmd));
                 break;
             }
@@ -1421,6 +1447,23 @@ void send_get_status()
         d.type = PacketDataType::NoData;
         d.value.no_data = NoData();
         Packet pkt = Packet(PacketCommand::GetStatus, d, id_code);
+        PacketAction pkt_ac = {pkt, true};
+        if (xQueueSendToBack(pkt_q, &pkt_ac, 0) == errQUEUE_FULL)
+        {
+            RERROR(TAG, "packet queue full, dropping get status pkt");
+        }
+    }
+}
+
+void send_get_openings()
+{
+    // only used with SECURITY2.0
+    if (doorControlType == 2)
+    {
+        PacketData d;
+        d.type = PacketDataType::NoData;
+        d.value.no_data = NoData();
+        Packet pkt = Packet(PacketCommand::GetOpenings, d, id_code);
         PacketAction pkt_ac = {pkt, true};
         if (xQueueSendToBack(pkt_q, &pkt_ac, 0) == errQUEUE_FULL)
         {

@@ -47,6 +47,14 @@
         strcat(s, (v) ? "true" : "false"); \
         strcat(s, ",\n");                  \
     }
+#define ADD_INT_C(s, k, v, ov) \
+    {                          \
+        if (v != ov)           \
+        {                      \
+            ov = v;            \
+            ADD_INT(s, k, v)   \
+        }                      \
+    }
 #define ADD_BOOL_C(s, k, v, ov) \
     {                           \
         if (v != ov)            \

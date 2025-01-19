@@ -44,5 +44,7 @@
   "laserEnabled" : false,
   "laserHomeKit" : true,
   "assistDuration" : 60,
-  "qrPayload" : "X-HM://0042WZMX3RTGO"
+  "qrPayload" : "X-HM://0042WZMX3RTGO",
+  "batteryState" : 8,
+  "openingsCount" : 999
 }
