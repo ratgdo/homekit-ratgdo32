@@ -95,7 +95,9 @@ struct GarageDoor
     bool obstructed;
     bool has_motion_sensor;
     bool has_distance_sensor;
+#ifndef USE_GDOLIB
     uint64_t motion_timer;
+#endif
     bool motion;
     bool light;
     LockCurrentState current_lock;

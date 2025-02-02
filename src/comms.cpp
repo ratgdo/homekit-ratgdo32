@@ -21,14 +21,21 @@
 #include <Ticker.h>
 
 // RATGDO project includes
+#ifndef USE_GDOLIB
 #include "SoftwareSerial.h"
+#endif
 #include "ratgdo.h"
 #include "homekit.h"
 #include "utilities.h"
 
+#ifndef USE_GDOLIB
 #include "../lib/ratgdo/Packet.h"
 #include "../lib/ratgdo/Reader.h"
 #include "../lib/ratgdo/secplus2.h"
+#else
+#include "gdo.h"
+// #include <magic_enum.hpp>
+#endif
 
 #include "comms.h"
 #include "config.h"
@@ -40,7 +47,7 @@ static const char *TAG = "ratgdo-comms";
 static bool comms_setup_done = false;
 
 /********************************** LOCAL STORAGE *****************************************/
-
+#ifndef USE_GDOLIB
 struct PacketAction
 {
     Packet pkt;
@@ -50,7 +57,7 @@ struct PacketAction
 
 QueueHandle_t pkt_q;
 SoftwareSerial sw_serial;
-
+#endif
 extern struct GarageDoor garage_door;
 extern bool status_done;
 
@@ -63,6 +70,43 @@ bool TTCwasLightOn = false;
 struct ForceRecover force_recover;
 #define force_recover_delay 3
 
+#ifdef USE_GDOLIB
+static gdo_status_t gdo_status;
+
+std::map<gdo_door_state_t, GarageDoorCurrentState> gdo_to_homekit_door_current_state = {
+    {GDO_DOOR_STATE_UNKNOWN, (GarageDoorCurrentState)0xFF},
+    {GDO_DOOR_STATE_OPEN, GarageDoorCurrentState::CURR_OPEN},
+    {GDO_DOOR_STATE_CLOSED, GarageDoorCurrentState::CURR_CLOSED},
+    {GDO_DOOR_STATE_STOPPED, GarageDoorCurrentState::CURR_STOPPED},
+    {GDO_DOOR_STATE_OPENING, GarageDoorCurrentState::CURR_OPENING},
+    {GDO_DOOR_STATE_CLOSING, GarageDoorCurrentState::CURR_CLOSING},
+    {GDO_DOOR_STATE_MAX, (GarageDoorCurrentState)0xFF},
+};
+
+std::map<gdo_door_state_t, GarageDoorTargetState> gdo_to_homekit_door_target_state = {
+    {GDO_DOOR_STATE_UNKNOWN, (GarageDoorTargetState)0xFF},
+    {GDO_DOOR_STATE_OPEN, GarageDoorTargetState::TGT_OPEN},
+    {GDO_DOOR_STATE_CLOSED, GarageDoorTargetState::TGT_CLOSED},
+    {GDO_DOOR_STATE_STOPPED, (GarageDoorTargetState)0xFF},
+    {GDO_DOOR_STATE_OPENING, (GarageDoorTargetState)0xFF},
+    {GDO_DOOR_STATE_CLOSING, (GarageDoorTargetState)0xFF},
+    {GDO_DOOR_STATE_MAX, (GarageDoorTargetState)0xFF},
+};
+
+std::map<gdo_lock_state_t, LockCurrentState> gdo_to_homekit_lock_current_state = {
+    {GDO_LOCK_STATE_UNLOCKED, LockCurrentState::CURR_UNLOCKED},
+    {GDO_LOCK_STATE_LOCKED, LockCurrentState::CURR_LOCKED},
+    {GDO_LOCK_STATE_MAX, (LockCurrentState)0xFF},
+};
+
+std::map<gdo_lock_state_t, LockTargetState> gdo_to_homekit_lock_target_state = {
+    {GDO_LOCK_STATE_UNLOCKED, LockTargetState::TGT_UNLOCKED},
+    {GDO_LOCK_STATE_LOCKED, LockTargetState::TGT_LOCKED},
+    {GDO_LOCK_STATE_MAX, (LockTargetState)0xFF},
+};
+#endif
+
+#ifndef USE_GDOLIB
 /******************************* OBSTRUCTION SENSOR *********************************/
 
 struct obstruction_sensor_t
@@ -81,11 +125,12 @@ void IRAM_ATTR isr_obstruction()
 SecPlus2Reader reader;
 uint32_t id_code = 0;
 uint32_t rolling_code = 0;
+#endif
 uint32_t last_saved_code = 0;
 #define MAX_CODES_WITHOUT_FLASH_WRITE 10
 
 /******************************* SECURITY 1.0 *********************************/
-
+#ifndef USE_GDOLIB
 static const uint8_t RX_LENGTH = 2;
 typedef uint8_t RxPacket[RX_LENGTH * 4];
 uint64_t last_rx;
@@ -95,8 +140,9 @@ uint64_t last_tx;
 
 bool wallplateBooting = false;
 bool wallPanelDetected = false;
+#endif
 GarageDoorCurrentState doorState = GarageDoorCurrentState::UNKNOWN;
-
+#ifndef USE_GDOLIB
 uint8_t lightState;
 uint8_t lockState;
 
@@ -124,9 +170,9 @@ enum secplus1Codes : uint8_t
     LightLockStatus = 0x3A,
     Unknown = 0xFF
 };
-
+#endif
 /*************************** FORWARD DECLARATIONS ******************************/
-
+#ifndef USE_GDOLIB
 void sync();
 bool process_PacketAction(PacketAction &pkt_ac);
 void door_command(DoorAction action);
@@ -136,18 +182,133 @@ bool transmitSec1(byte toSend);
 bool transmitSec2(PacketAction &pkt_ac);
 void manual_recovery();
 void obstruction_timer();
+#endif
+
+#ifdef USE_GDOLIB
+/****************************************************************************
+ * Callback for GDOLIB status
+ */
+static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, void *arg)
+{
+    switch (event)
+    {
+    case GDO_CB_EVENT_SYNCED:
+        RINFO(TAG, "Event synced: %s, protocol: %s", status->synced ? "true" : "false", gdo_protocol_type_to_string(status->protocol));
+        if (status->protocol == GDO_PROTOCOL_SEC_PLUS_V2)
+        {
+            RINFO(TAG, "Client ID: %" PRIu32 ", Rolling code: %" PRIu32, status->client_id, status->rolling_code);
+        }
+
+        if (!status->synced)
+        {
+            if (gdo_set_rolling_code(status->rolling_code + 100) != ESP_OK)
+            {
+                RERROR(TAG, "Failed to set rolling code");
+            }
+            else
+            {
+                RINFO(TAG, "Rolling code set to %" PRIu32 ", retrying sync", status->rolling_code);
+                gdo_sync();
+            }
+        }
+        break;
+    case GDO_CB_EVENT_LIGHT:
+        RINFO(TAG, "Event light: %s", gdo_light_state_to_string(status->light));
+        notify_homekit_light(status->light == gdo_light_state_t::GDO_LIGHT_STATE_ON);
+        break;
+    case GDO_CB_EVENT_LOCK:
+        RINFO(TAG, "Event lock: %s", gdo_lock_state_to_string(status->lock));
+        notify_homekit_target_lock(gdo_to_homekit_lock_target_state[status->lock]);
+        notify_homekit_current_lock(gdo_to_homekit_lock_current_state[status->lock]);
+        break;
+    case GDO_CB_EVENT_DOOR_POSITION:
+        RINFO(TAG, "Event door: %s, %.2f%%, target: %.2f%%", gdo_door_state_to_string(status->door),
+              (float)status->door_position, (float)status->door_target);
+        // RINFO(TAG, "Door State: %s", (magic_enum::enum_name(status->door)).data());
+        notify_homekit_current_door_state_change(gdo_to_homekit_door_current_state[status->door]);
+        break;
+    case GDO_CB_EVENT_LEARN:
+        RINFO(TAG, "Event learn: %s", gdo_learn_state_to_string(status->learn));
+        break;
+    case GDO_CB_EVENT_OBSTRUCTION:
+        RINFO(TAG, "Event obstruction: %s", gdo_obstruction_state_to_string(status->obstruction));
+        notify_homekit_obstruction(status->obstruction == gdo_obstruction_state_t::GDO_OBSTRUCTION_STATE_OBSTRUCTED);
+        break;
+    case GDO_CB_EVENT_MOTION:
+        RINFO(TAG, "Event motion: %s", gdo_motion_state_to_string(status->motion));
+        // We got a motion message, so we know we have a motion sensor
+        // If it's not yet enabled, add the service
+        if (!garage_door.has_motion_sensor)
+        {
+            RINFO(TAG, "Detected new Motion Sensor. Enabling Service");
+            garage_door.has_motion_sensor = true;
+            motionTriggers.bit.motion = 1;
+            userConfig->set(cfg_motionTriggers, motionTriggers.asInt);
+            enable_service_homekit_motion();
+        }
+        notify_homekit_motion(status->motion == gdo_motion_state_t::GDO_MOTION_STATE_DETECTED);
+        break;
+    case GDO_CB_EVENT_BATTERY:
+        RINFO(TAG, "Event battery: %s", gdo_battery_state_to_string(status->battery));
+        garage_door.batteryState = status->battery;
+        break;
+    case GDO_CB_EVENT_BUTTON:
+        RINFO(TAG, "Button: %s", gdo_button_state_to_string(status->button));
+        break;
+    case GDO_CB_EVENT_MOTOR:
+        RINFO(TAG, "Motor: %s", gdo_motor_state_to_string(status->motor));
+        break;
+    case GDO_CB_EVENT_OPENINGS:
+        RINFO(TAG, "Event openings: %d", status->openings);
+        garage_door.openingsCount = status->openings;
+        break;
+    case GDO_CB_EVENT_UPDATE_TTC:
+        RINFO(TAG, "Time to close: %d", status->ttc_seconds);
+        break;
+    case GDO_CB_EVENT_PAIRED_DEVICES:
+        RINFO(TAG, "Event paired devices, %d remotes, %d keypads, %d wall controls, %d accessories, %d total",
+              status->paired_devices.total_remotes, status->paired_devices.total_keypads,
+              status->paired_devices.total_wall_controls, status->paired_devices.total_accessories,
+              status->paired_devices.total_all);
+        break;
+    default:
+        RINFO(TAG, "Event unknown: %d", event);
+        break;
+    }
+
+    // Save rolling code if we have exceeded max limit.
+    gdo_status.rolling_code = status->rolling_code;
+    ESP_LOGI(TAG, "Rolling code: %lu", gdo_status.rolling_code);
+    if (gdo_status.rolling_code >= (last_saved_code + MAX_CODES_WITHOUT_FLASH_WRITE))
+    {
+        save_rolling_code();
+    }
+}
+#endif
 
 /****************************************************************************
  * Initialize communications with garage door.
  */
 void setup_comms()
 {
+#ifndef USE_GDOLIB
     // Create packet queue
     pkt_q = xQueueCreate(10, sizeof(PacketAction));
+#else
+    gdo_config_t gdo_conf = {
+        .uart_num = UART_NUM_1,
+        .obst_from_status = true,
+        .invert_uart = true,
+        .uart_tx_pin = UART_TX_PIN,
+        .uart_rx_pin = UART_RX_PIN,
+        .obst_in_pin = INPUT_OBST_PIN,
+    };
+#endif
 
     if (doorControlType == 0)
         doorControlType = userConfig->getGDOSecurityType();
 
+#ifndef USE_GDOLIB
     if (doorControlType == 1)
     {
         RINFO(TAG, "=== Setting up comms for SECURITY+1.0 protocol");
@@ -194,12 +355,44 @@ void setup_comms()
         }
         force_recover.push_count = 0;
     }
+#else
+    if ((doorControlType == 1) || (doorControlType == 2))
+    {
+        gdo_init(&gdo_conf);
+        // read from flash, default of 0 if file not exist
+        uint32_t id_code = nvRam->read(nvram_id_code);
+        uint32_t rolling_code = nvRam->read(nvram_rolling, 0);
+        if (!id_code || !rolling_code)
+        {
+            RINFO(TAG, "generate new id code");
+            id_code = (random(0x1, 0xFFF) << 12) | 0x539;
+            nvRam->write(nvram_id_code, id_code);
+        }
+        RINFO(TAG, "id code %lu (0x%02lX)", id_code, id_code);
+
+        // last saved rolling code may be behind what the GDO thinks, so bump it up so that it will
+        // always be ahead of what the GDO thinks it should be, and save it.
+        rolling_code = (rolling_code != 0) ? rolling_code + MAX_CODES_WITHOUT_FLASH_WRITE : 0;
+        RINFO(TAG, "rolling code %lu (0x%02X)", rolling_code, rolling_code);
+        if (doorControlType == 2)
+        {
+            gdo_set_protocol(GDO_PROTOCOL_SEC_PLUS_V2);
+            gdo_set_client_id(id_code);
+            gdo_set_rolling_code(rolling_code);
+            save_rolling_code();
+        }
+        gdo_start(gdo_event_handler, NULL);
+        gdo_get_status(&gdo_status);
+        force_recover.push_count = 0;
+    }
+#endif
     else
     {
         RINFO(TAG, "=== Setting up comms for dry contact protocol");
         pinMode(UART_TX_PIN, OUTPUT);
     }
 
+#ifndef USE_GDOLIB
     /* pin-based obstruction detection
     // FALLING from https://github.com/ratgdo/esphome-ratgdo/blob/e248c705c5342e99201de272cb3e6dc0607a0f84/components/ratgdo/ratgdo.cpp#L54C14-L54C14
      */
@@ -207,7 +400,7 @@ void setup_comms()
     pinMode(INPUT_OBST_PIN, INPUT);
     pinMode(STATUS_OBST_PIN, OUTPUT);
     attachInterrupt(INPUT_OBST_PIN, isr_obstruction, FALLING);
-
+#endif
     comms_setup_done = true;
 }
 
@@ -216,18 +409,30 @@ void setup_comms()
  */
 void save_rolling_code()
 {
+#ifdef USE_GDOLIB
+    if (gdo_status.rolling_code != 0)
+        gdo_get_status(&gdo_status); // get most recent rolling code if we are not resetting it.
+    RINFO(TAG, "Save rolling code: %d", gdo_status.rolling_code);
+    nvRam->write(nvram_rolling, gdo_status.rolling_code);
+    last_saved_code = gdo_status.rolling_code;
+#else
     nvRam->write(nvram_rolling, rolling_code);
     last_saved_code = rolling_code;
+#endif
 }
 
 void reset_door()
 {
+#ifdef USE_GDOLIB
+    gdo_status.rolling_code = 0; // because sync_and_reboot writes this.
+#else
     rolling_code = 0; // because sync_and_reboot writes this.
+#endif
     nvRam->erase(nvram_rolling);
     nvRam->erase(nvram_id_code);
     nvRam->erase(nvram_has_motion);
 }
-
+#ifndef USE_GDOLIB
 /****************************************************************************
  * Sec+ 1.0 loop functions.
  */
@@ -379,8 +584,8 @@ void comms_loop_sec1()
             if (motionTriggers.bit.doorKey)
             {
                 garage_door.motion_timer = millis64() + MOTION_TIMER_DURATION;
-                garage_door.motion = true;
-                notify_homekit_motion();
+                // garage_door.motion = true;
+                notify_homekit_motion(true);
             }
         }
         // wall panel is sending out 0x31 (Door Button Release) when it starts up
@@ -549,14 +754,14 @@ void comms_loop_sec1()
                     }
                     RINFO(TAG, "status DOOR: %s", l);
 
-                    notify_homekit_current_door_state_change();
+                    notify_homekit_current_door_state_change(gd_currentstate);
                 }
 
                 static GarageDoorTargetState gd_TargetState;
                 if (garage_door.target_state != gd_TargetState)
                 {
                     gd_TargetState = garage_door.target_state;
-                    notify_homekit_target_door_state_change();
+                    notify_homekit_target_door_state_change(gd_TargetState);
                 }
 
                 break;
@@ -589,13 +794,13 @@ void comms_loop_sec1()
                     RINFO(TAG, "status LIGHT: %s", lightState ? "On" : "Off");
                     lastLightState = lightState;
 
-                    garage_door.light = (bool)lightState;
-                    notify_homekit_light();
+                    // garage_door.light = (bool)lightState;
+                    notify_homekit_light((bool)lightState);
                     if (motionTriggers.bit.lightKey)
                     {
                         garage_door.motion_timer = millis64() + MOTION_TIMER_DURATION;
-                        garage_door.motion = true;
-                        notify_homekit_motion();
+                        // garage_door.motion = true;
+                        notify_homekit_motion(true);
                     }
                 }
 
@@ -617,13 +822,13 @@ void comms_loop_sec1()
                         garage_door.current_lock = CURR_UNLOCKED;
                         garage_door.target_lock = TGT_UNLOCKED;
                     }
-                    notify_homekit_target_lock();
-                    notify_homekit_current_lock();
+                    notify_homekit_target_lock(garage_door.target_lock);
+                    notify_homekit_current_lock(garage_door.current_lock);
                     if (motionTriggers.bit.lockKey)
                     {
                         garage_door.motion_timer = millis64() + MOTION_TIMER_DURATION;
-                        garage_door.motion = true;
-                        notify_homekit_motion();
+                        // garage_door.motion = true;
+                        notify_homekit_motion(true);
                     }
                 }
 
@@ -819,18 +1024,18 @@ void comms_loop_sec2()
                     (current_state != garage_door.current_state))
                 {
                     RINFO(TAG, "Door target: %d, current: %d", target_state, current_state);
-                    garage_door.target_state = target_state;
-                    garage_door.current_state = current_state;
-
-                    notify_homekit_current_door_state_change();
-                    notify_homekit_target_door_state_change();
+                    // garage_door.target_state = target_state;
+                    // garage_door.current_state = current_state;
+                    //
+                    notify_homekit_current_door_state_change(current_state);
+                    notify_homekit_target_door_state_change(target_state);
                 }
 
                 if (pkt.m_data.value.status.light != garage_door.light)
                 {
                     RINFO(TAG, "Light Status %s", pkt.m_data.value.status.light ? "On" : "Off");
-                    garage_door.light = pkt.m_data.value.status.light;
-                    notify_homekit_light();
+                    // garage_door.light = pkt.m_data.value.status.light;
+                    notify_homekit_light(pkt.m_data.value.status.light);
                 }
 
                 LockCurrentState current_lock;
@@ -847,10 +1052,10 @@ void comms_loop_sec2()
                 }
                 if (current_lock != garage_door.current_lock)
                 {
-                    garage_door.target_lock = target_lock;
-                    garage_door.current_lock = current_lock;
-                    notify_homekit_target_lock();
-                    notify_homekit_current_lock();
+                    // garage_door.target_lock = target_lock;
+                    // garage_door.current_lock = current_lock;
+                    notify_homekit_target_lock(target_lock);
+                    notify_homekit_current_lock(current_lock);
                 }
 
                 status_done = true;
@@ -882,13 +1087,13 @@ void comms_loop_sec2()
                 if (lock != garage_door.target_lock)
                 {
                     RINFO(TAG, "Lock Cmd %d", lock);
-                    garage_door.target_lock = lock;
-                    notify_homekit_target_lock();
+                    // garage_door.target_lock = lock;
+                    notify_homekit_target_lock(lock);
                     if (motionTriggers.bit.lockKey)
                     {
                         garage_door.motion_timer = millis64() + MOTION_TIMER_DURATION;
-                        garage_door.motion = true;
-                        notify_homekit_motion();
+                        // garage_door.motion = true;
+                        notify_homekit_motion(true);
                     }
                 }
                 // Send a get status to make sure we are in sync
@@ -916,13 +1121,13 @@ void comms_loop_sec2()
                 if (l != garage_door.light)
                 {
                     RINFO(TAG, "Light Cmd %s", l ? "On" : "Off");
-                    garage_door.light = l;
-                    notify_homekit_light();
+                    // garage_door.light = l;
+                    notify_homekit_light(l);
                     if (motionTriggers.bit.lightKey)
                     {
                         garage_door.motion_timer = millis64() + MOTION_TIMER_DURATION;
-                        garage_door.motion = true;
-                        notify_homekit_motion();
+                        // garage_door.motion = true;
+                        notify_homekit_motion(true);
                     }
                 }
                 // Send a get status to make sure we are in sync
@@ -952,8 +1157,8 @@ void comms_loop_sec2()
                 garage_door.motion_timer = millis64() + MOTION_TIMER_DURATION;
                 if (!garage_door.motion)
                 {
-                    garage_door.motion = true;
-                    notify_homekit_motion();
+                    // garage_door.motion = true;
+                    notify_homekit_motion(true);
                 }
                 // Update status because things like light may have changed states
                 send_get_status();
@@ -970,8 +1175,8 @@ void comms_loop_sec2()
                 if (pkt.m_data.value.door_action.pressed && motionTriggers.bit.doorKey)
                 {
                     garage_door.motion_timer = millis64() + MOTION_TIMER_DURATION;
-                    garage_door.motion = true;
-                    notify_homekit_motion();
+                    // garage_door.motion = true;
+                    notify_homekit_motion(true);
                 }
                 break;
             }
@@ -1014,7 +1219,7 @@ void comms_loop_sec2()
         save_rolling_code();
     }
 }
-
+#endif
 void comms_loop_drycontact()
 {
     static GarageDoorCurrentState previousDoorState = GarageDoorCurrentState::UNKNOWN;
@@ -1045,8 +1250,8 @@ void comms_loop_drycontact()
             break;
         }
 
-        notify_homekit_current_door_state_change();
-        notify_homekit_target_door_state_change();
+        notify_homekit_current_door_state_change(garage_door.current_state);
+        notify_homekit_target_door_state_change(garage_door.target_state);
 
         previousDoorState = doorState;
 
@@ -1059,26 +1264,28 @@ void comms_loop()
 {
     if (!comms_setup_done)
         return;
-
+#ifndef USE_GDOLIB
     if (doorControlType == 1)
         comms_loop_sec1();
     else if (doorControlType == 2)
         comms_loop_sec2();
     else
+#endif
         comms_loop_drycontact();
 
+#ifndef USE_GDOLIB
     // Motion Clear Timer
     if (garage_door.motion && (millis64() > garage_door.motion_timer))
     {
         RINFO(TAG, "Motion Cleared");
-        garage_door.motion = false;
-        notify_homekit_motion();
+        // garage_door.motion = false;
+        notify_homekit_motion(false);
     }
-
     // Service the Obstruction Timer
     obstruction_timer();
+#endif
 }
-
+#ifndef USE_GDOLIB
 /**************************** CONTROLLER CODE *******************************
  * SECURITY+1.0
  */
@@ -1338,7 +1545,7 @@ void door_command_close()
 {
     door_command(DoorAction::Close);
 }
-
+#endif
 GarageDoorCurrentState open_door()
 {
     if (TTCtimer.active())
@@ -1362,11 +1569,19 @@ GarageDoorCurrentState open_door()
     if (garage_door.current_state == GarageDoorCurrentState::CURR_CLOSING)
     {
         RINFO(TAG, "Door is closing; do stop");
+#ifdef USE_GDOLIB
+        gdo_door_stop();
+#else
         door_command(DoorAction::Stop);
+#endif
         return GarageDoorCurrentState::CURR_STOPPED;
     }
     RINFO(TAG, "Opening door");
+#ifdef USE_GDOLIB
+    gdo_door_close();
+#else
     door_command(DoorAction::Open);
+#endif
     return GarageDoorCurrentState::CURR_OPENING;
 }
 
@@ -1416,14 +1631,22 @@ GarageDoorCurrentState close_door()
     if (garage_door.current_state == GarageDoorCurrentState::CURR_OPENING)
     {
         RINFO(TAG, "Door already opening; do stop");
+#ifdef USE_GDOLIB
+        gdo_door_stop();
+#else
         door_command(DoorAction::Stop);
+#endif
         return GarageDoorCurrentState::CURR_STOPPED;
     }
 
     if (userConfig->getTTCseconds() == 0)
     {
         RINFO(TAG, "Closing door");
+#ifdef USE_GDOLIB
+        gdo_door_close();
+#else
         door_command(DoorAction::Close);
+#endif
     }
     else
     {
@@ -1439,12 +1662,16 @@ GarageDoorCurrentState close_door()
         else
         {
             RINFO(TAG, "Delay door close by %d seconds", userConfig->getTTCseconds());
+#ifdef USE_GDOLIB
+            delayFnCall(userConfig->getTTCseconds() * 1000, (void (*)())gdo_door_close);
+#else
             delayFnCall(userConfig->getTTCseconds() * 1000, door_command_close);
+#endif
         }
     }
     return GarageDoorCurrentState::CURR_CLOSING;
 }
-
+#ifndef USE_GDOLIB
 void send_get_status()
 {
     // only used with SECURITY2.0
@@ -1478,7 +1705,27 @@ void send_get_openings()
         }
     }
 }
+#endif
 
+#ifdef USE_GDOLIB
+bool set_lock(bool value, bool verify)
+{
+    // return value: true = lock state changed, else state unchanged
+    if (verify && (garage_door.current_lock == ((value) ? LockCurrentState::CURR_LOCKED : LockCurrentState::CURR_UNLOCKED)))
+    {
+        RINFO(TAG, "Remote locks already %s; ignored request", (value) ? "locked" : "unlocked");
+        return false;
+    }
+
+    garage_door.target_lock = (value) ? TGT_LOCKED : TGT_UNLOCKED;
+    RINFO(TAG, "Set Garage Door Remote locks: %s", (value) ? "locked" : "unlocked");
+    if (value)
+        gdo_lock();
+    else
+        gdo_unlock();
+    return true;
+}
+#else
 bool set_lock(bool value, bool verify)
 {
     // return value: true = lock state changed, else state unchanged
@@ -1539,7 +1786,27 @@ bool set_lock(bool value, bool verify)
     }
     return true;
 }
+#endif
 
+#ifdef USE_GDOLIB
+bool set_light(bool value, bool verify)
+{
+    // return value: true = light state changed, else state unchanged
+    if (verify && (garage_door.light == value))
+    {
+        RINFO(TAG, "Light already %s; ignored request", (value) ? "on" : "off");
+        return false;
+    }
+
+    garage_door.light = value;
+    RINFO(TAG, "Set Garage Door Light: %s", (value) ? "on" : "off");
+    if (value)
+        gdo_light_on();
+    else
+        gdo_light_off();
+    return true;
+}
+#else
 bool set_light(bool value, bool verify)
 {
     // return value: true = light state changed, else state unchanged
@@ -1599,7 +1866,8 @@ bool set_light(bool value, bool verify)
     }
     return true;
 }
-
+#endif
+#ifndef USE_GDOLIB
 void manual_recovery()
 {
     // Don't check for manual recovery if in midst of a time-to-close delay
@@ -1653,13 +1921,13 @@ void obstruction_timer()
             if (garage_door.obstructed)
             {
                 RINFO(TAG, "Obstruction Clear");
-                garage_door.obstructed = false;
-                notify_homekit_obstruction();
+                // garage_door.obstructed = false;
+                notify_homekit_obstruction(false);
                 digitalWrite(STATUS_OBST_PIN, garage_door.obstructed);
                 if (motionTriggers.bit.obstruction)
                 {
-                    garage_door.motion = false;
-                    notify_homekit_motion();
+                    // garage_door.motion = false;
+                    notify_homekit_motion(false);
                 }
             }
         }
@@ -1680,13 +1948,13 @@ void obstruction_timer()
                     if (!garage_door.obstructed)
                     {
                         RINFO(TAG, "Obstruction Detected");
-                        garage_door.obstructed = true;
-                        notify_homekit_obstruction();
+                        // garage_door.obstructed = true;
+                        notify_homekit_obstruction(true);
                         digitalWrite(STATUS_OBST_PIN, garage_door.obstructed);
                         if (motionTriggers.bit.obstruction)
                         {
-                            garage_door.motion = true;
-                            notify_homekit_motion();
+                            // garage_door.motion = true;
+                            notify_homekit_motion(true);
                         }
                     }
                 }
@@ -1697,3 +1965,4 @@ void obstruction_timer()
         obstruction_sensor.low_count = 0;
     }
 }
+#endif

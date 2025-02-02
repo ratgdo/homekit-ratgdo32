@@ -443,64 +443,64 @@ boolean DEV_Info::update()
 /****************************************************************************
  * Garage Door Service Handler
  */
-void notify_homekit_target_door_state_change()
+void notify_homekit_target_door_state_change(GarageDoorTargetState state)
 {
     if (!isPaired)
         return;
 
     GDOEvent e;
     e.c = door->target;
-    e.value.u = garage_door.target_state;
+    e.value.u = (uint8_t)(garage_door.target_state = state);
     queueSendHelper(door->event_q, e, "target door");
 }
 
-void notify_homekit_current_door_state_change()
+void notify_homekit_current_door_state_change(GarageDoorCurrentState state)
 {
-    // Notify the vehicle presence code that door state is changing
-    if (garage_door.current_state == GarageDoorCurrentState::CURR_OPENING)
-        doorOpening();
-    if (garage_door.current_state == GarageDoorCurrentState::CURR_CLOSING)
-        doorClosing();
-
     if (!isPaired)
         return;
 
     GDOEvent e;
     e.c = door->current;
-    e.value.u = garage_door.current_state;
+    e.value.u = (uint8_t)(garage_door.current_state = state);
     queueSendHelper(door->event_q, e, "current door");
+
+    // Notify the vehicle presence code that door state is changing
+    if (garage_door.current_state == GarageDoorCurrentState::CURR_OPENING)
+        doorOpening();
+    if (garage_door.current_state == GarageDoorCurrentState::CURR_CLOSING)
+        doorClosing();
 }
 
-void notify_homekit_target_lock()
+void notify_homekit_target_lock(LockTargetState state)
 {
     if (!isPaired)
         return;
 
     GDOEvent e;
     e.c = door->lockTarget;
-    e.value.u = garage_door.target_lock;
+    e.value.u = (uint8_t)(garage_door.target_lock = state);
     queueSendHelper(door->event_q, e, "target lock");
 }
 
-void notify_homekit_current_lock()
+void notify_homekit_current_lock(LockCurrentState state)
 {
     if (!isPaired)
         return;
 
     GDOEvent e;
     e.c = door->lockCurrent;
-    e.value.u = garage_door.current_lock;
+    e.value.u = (uint8_t)(garage_door.current_lock = state);
     queueSendHelper(door->event_q, e, "current lock");
 }
 
-void notify_homekit_obstruction()
+void notify_homekit_obstruction(bool state)
 {
     if (!isPaired)
         return;
 
     GDOEvent e;
     e.c = door->obstruction;
-    e.value.b = garage_door.obstructed;
+    e.value.b = garage_door.obstructed = state;
     queueSendHelper(door->event_q, e, "obstruction");
 }
 
@@ -567,13 +567,13 @@ void DEV_GarageDoor::loop()
 /****************************************************************************
  * Light Service Handler
  */
-void notify_homekit_light()
+void notify_homekit_light(bool state)
 {
     if (!isPaired || !light)
         return;
 
     GDOEvent e;
-    e.value.b = garage_door.light;
+    e.value.b = garage_door.light = state;
     queueSendHelper(light->event_q, e, "light");
 }
 
@@ -648,13 +648,13 @@ void enable_service_homekit_motion()
     }
 }
 
-void notify_homekit_motion()
+void notify_homekit_motion(bool state)
 {
     if (!isPaired || !motion)
         return;
 
     GDOEvent e;
-    e.value.b = garage_door.motion;
+    e.value.b = garage_door.motion = state;
     queueSendHelper(motion->event_q, e, "motion");
 }
 
