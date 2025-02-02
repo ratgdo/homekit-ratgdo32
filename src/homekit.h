@@ -41,14 +41,14 @@ enum Light_t : uint8_t
 
 void setup_homekit();
 
-extern void notify_homekit_target_door_state_change();
-extern void notify_homekit_current_door_state_change();
-extern void notify_homekit_target_lock();
-extern void notify_homekit_current_lock();
-extern void notify_homekit_obstruction();
-extern void notify_homekit_light();
+extern void notify_homekit_target_door_state_change(GarageDoorTargetState state);
+extern void notify_homekit_current_door_state_change(GarageDoorCurrentState state);
+extern void notify_homekit_target_lock(LockTargetState state);
+extern void notify_homekit_current_lock(LockCurrentState state);
+extern void notify_homekit_obstruction(bool state);
+extern void notify_homekit_light(bool state);
 extern void enable_service_homekit_motion();
-extern void notify_homekit_motion();
+extern void notify_homekit_motion(bool state);
 
 extern void notify_homekit_vehicle_occupancy(bool vehicleDetected);
 extern void notify_homekit_vehicle_arriving(bool vehicleArriving);
