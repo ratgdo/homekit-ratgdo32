@@ -89,17 +89,17 @@ LOG::LOG()
     set_arduino_panic_handler(panic_handler, NULL);
 }
 
-void LOG::logToBuffer(const char *fmt, ...)
+void LOG::logToBuffer(const char *fmt, va_list args)
 {
     if (!lineBuffer)
     {
         static char buf[LINE_BUFFER_SIZE];
         // parse the format string into lineBuffer
-        va_list args;
-        va_start(args, fmt);
+        // va_list args;
+        // va_start(args, fmt);
         vsnprintf(buf, LINE_BUFFER_SIZE, fmt, args);
-        va_end(args);
-        // print line to the serial port
+        // va_end(args);
+        //  print line to the serial port
         if (!suppressSerialLog)
             Serial.print(buf);
         return;
@@ -107,11 +107,11 @@ void LOG::logToBuffer(const char *fmt, ...)
 
     xSemaphoreTakeRecursive(logMutex, portMAX_DELAY);
     // parse the format string into lineBuffer
-    va_list args;
-    va_start(args, fmt);
+    // va_list args;
+    // va_start(args, fmt);
     vsnprintf(lineBuffer, LINE_BUFFER_SIZE, fmt, args);
-    va_end(args);
-    // print line to the serial port
+    // va_end(args);
+    //  print line to the serial port
     if (!suppressSerialLog)
         Serial.print(lineBuffer);
 
@@ -297,20 +297,59 @@ void logToSyslog(char *message)
         PRI += SYSLOG_INFO;
     else if (*message == '!')
         PRI += SYSLOG_ERROR;
+    else if (*message == 'I')
+        PRI += SYSLOG_INFO;
+    else if (*message == 'E')
+        PRI += SYSLOG_ERROR;
+    else if (*message == 'W')
+        PRI += SYSLOG_WARN;
+    else if (*message == 'D')
+        PRI += SYSLOG_DEBUG;
+    else if (*message == 'V')
+        PRI += SYSLOG_DEBUG;
 
     char *app_name;
     char *msg;
+    static char unk[] = "unknown";
 
-    app_name = strtok(message, "]");
-    while (*app_name == ' ')
-        app_name++;
-    app_name = strtok(NULL, ":");
-    while (*app_name == ' ')
-        app_name++;
-    msg = strtok(NULL, "\r\n");
-    while (*msg == ' ')
-        msg++;
+    // Strip out the TAG name which is embedded in the log message.
+    // Can be bound by [timestamp] tagname: message
+    // So extract from the close square bracket to the colon.
+    // If no close square bracket, then message format may be
+    // (timestamp) tagname:
+    char *sqr = strchr(message, ']');
+    char *brk = strchr(message, ')');
+    if (sqr && brk)
+    {
+        if (sqr < brk)
+            app_name = strtok(message, "]");
+        else
+            app_name = strtok(message, ")");
+    }
+    else if (sqr)
+        app_name = strtok(message, "]");
+    else if (brk)
+        app_name = strtok(message, ")");
+    else
+        app_name = NULL;
 
+    if (app_name)
+    {
+        while (*app_name == ' ')
+            app_name++;
+        app_name = strtok(NULL, ":");
+        while (*app_name == ' ')
+            app_name++;
+        msg = strtok(NULL, "\r\n");
+        while (*msg == ' ')
+            msg++;
+    }
+    else
+    {
+        // neither a close close square or regular bracket then cannot determine tag name
+        app_name = unk;
+        msg = message;
+    }
     syslog.beginPacket(syslogIP, syslogPort);
     // Use RFC5424 Format
     syslog.printf("<%u>1 ", PRI); // PRI code

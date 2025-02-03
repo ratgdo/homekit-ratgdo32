@@ -18,6 +18,7 @@
 
 // ESP system includes
 #include <esp_core_dump.h>
+#include <esp_log.h>
 #include <ping/ping_sock.h>
 
 // RATGDO project includes
@@ -56,6 +57,11 @@ static esp_ping_handle_t ping;
 
 void service_timer_loop();
 
+void esp_log_hook(const char *fmt, va_list args)
+{
+    ratgdoLogger->logToBuffer(fmt, args);
+}
+
 /****************************************************************************
  * Initialize RATGDO
  */
@@ -92,6 +98,10 @@ void setup()
         crashCount = -1;
 
     load_all_config_settings();
+
+    // We will intercept calls to standard ESP_LOGx so we can route them through our logger
+    esp_log_level_set("*", (esp_log_level_t)userConfig->getEspLogLevel());  // defaults to ESP_LOG_ERROR
+    esp_log_set_vprintf((vprintf_like_t)esp_log_hook);
 
     if (softAPmode)
     {

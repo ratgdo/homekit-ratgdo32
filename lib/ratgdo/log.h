@@ -71,7 +71,13 @@ public:
     LOG(const LOG &obj) = delete;
     static LOG *getInstance() { return instancePtr; }
 
-    void logToBuffer(const char *fmt, ...);
+    void logToBuffer(const char *fmt, va_list args);
+    void logToBuffer(const char *fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        logToBuffer(fmt, args);
+        va_end(args);
+    };
     void printSavedLog(Print &outDevice = Serial, bool fromNVram = false);
     void printMessageLog(Print &outDevice = Serial);
     void printCrashLog(Print &outDevice = Serial);

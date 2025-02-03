@@ -69,6 +69,7 @@ constexpr char cfg_vehicleThreshold[] = "vehicleThreshold";
 constexpr char cfg_laserEnabled[] = "laserEnabled";
 constexpr char cfg_laserHomeKit[] = "laserHomeKit";
 constexpr char cfg_assistDuration[] = "assistDuration";
+constexpr char cfg_espLogLevel[] = "espLogLevel";
 
 constexpr char nvram_messageLog[] = "messageLog";
 constexpr char nvram_id_code[] = "id_code";
@@ -138,6 +139,7 @@ public:
     bool getLaserEnabled() { return std::get<bool>(get(cfg_laserEnabled)); };
     bool getLaserHomeKit() { return std::get<bool>(get(cfg_laserHomeKit)); };
     int getAssistDuration() { return std::get<int>(get(cfg_assistDuration)); };
+    int getEspLogLevel() { return std::get<int>(get(cfg_espLogLevel)); };
 };
 extern userSettings *userConfig;
 
