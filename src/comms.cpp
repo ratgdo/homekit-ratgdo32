@@ -225,6 +225,7 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
         RINFO(TAG, "Event door: %s, %.2f%%, target: %.2f%%", gdo_door_state_to_string(status->door),
               (float)status->door_position, (float)status->door_target);
         // RINFO(TAG, "Door State: %s", (magic_enum::enum_name(status->door)).data());
+        garage_door.active = true;
         notify_homekit_current_door_state_change(gdo_to_homekit_door_current_state[status->door]);
         break;
     case GDO_CB_EVENT_LEARN:
@@ -278,7 +279,7 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
 
     // Save rolling code if we have exceeded max limit.
     gdo_status.rolling_code = status->rolling_code;
-    ESP_LOGI(TAG, "Rolling code: %lu", gdo_status.rolling_code);
+    //ESP_LOGI(TAG, "Rolling code: %lu", gdo_status.rolling_code);
     if (gdo_status.rolling_code >= (last_saved_code + MAX_CODES_WITHOUT_FLASH_WRITE))
     {
         save_rolling_code();
@@ -1264,16 +1265,17 @@ void comms_loop()
 {
     if (!comms_setup_done)
         return;
-#ifndef USE_GDOLIB
+
+#ifdef USE_GDOLIB
+    comms_loop_drycontact();
+#else
     if (doorControlType == 1)
         comms_loop_sec1();
     else if (doorControlType == 2)
         comms_loop_sec2();
     else
-#endif
         comms_loop_drycontact();
 
-#ifndef USE_GDOLIB
     // Motion Clear Timer
     if (garage_door.motion && (millis64() > garage_door.motion_timer))
     {
@@ -1285,6 +1287,7 @@ void comms_loop()
     obstruction_timer();
 #endif
 }
+
 #ifndef USE_GDOLIB
 /**************************** CONTROLLER CODE *******************************
  * SECURITY+1.0
