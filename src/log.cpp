@@ -95,10 +95,7 @@ void LOG::logToBuffer(const char *fmt, va_list args)
     {
         static char buf[LINE_BUFFER_SIZE];
         // parse the format string into lineBuffer
-        // va_list args;
-        // va_start(args, fmt);
         vsnprintf(buf, LINE_BUFFER_SIZE, fmt, args);
-        // va_end(args);
         //  print line to the serial port
         if (!suppressSerialLog)
             Serial.print(buf);
@@ -107,10 +104,7 @@ void LOG::logToBuffer(const char *fmt, va_list args)
 
     xSemaphoreTakeRecursive(logMutex, portMAX_DELAY);
     // parse the format string into lineBuffer
-    // va_list args;
-    // va_start(args, fmt);
     vsnprintf(lineBuffer, LINE_BUFFER_SIZE, fmt, args);
-    // va_end(args);
     //  print line to the serial port
     if (!suppressSerialLog)
         Serial.print(lineBuffer);
@@ -131,9 +125,20 @@ void LOG::logToBuffer(const char *fmt, va_list args)
         msgBuffer->head += len;
     }
     msgBuffer->buffer[msgBuffer->head] = 0; // null terminate
-    // send it to subscribed browsers
-    SSEBroadcastState(lineBuffer, LOG_MESSAGE);
-    logToSyslog(lineBuffer);
+
+    static bool inFn = false;
+    if (!inFn)
+    {
+        // Control recursion... make sure we don't get into a loop if any
+        // of the functions we use here log a message.  This is known to happen
+        // in NetworkUDP code in error condition... used for SysLog.
+        inFn = true;
+        // send it to subscribed browsers
+        SSEBroadcastState(lineBuffer, LOG_MESSAGE);
+        // send it to syslog server
+        logToSyslog(lineBuffer);
+        inFn = false;
+    }
     xSemaphoreGiveRecursive(logMutex);
     return;
 }
