@@ -279,7 +279,7 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
 
     // Save rolling code if we have exceeded max limit.
     gdo_status.rolling_code = status->rolling_code;
-    //ESP_LOGI(TAG, "Rolling code: %lu", gdo_status.rolling_code);
+    // ESP_LOGI(TAG, "Rolling code: %lu", gdo_status.rolling_code);
     if (gdo_status.rolling_code >= (last_saved_code + MAX_CODES_WITHOUT_FLASH_WRITE))
     {
         save_rolling_code();
@@ -294,7 +294,7 @@ void setup_comms()
 {
 #ifndef USE_GDOLIB
     // Create packet queue
-    pkt_q = xQueueCreate(10, sizeof(PacketAction));
+    pkt_q = xQueueCreate(16, sizeof(PacketAction));
 #else
     gdo_config_t gdo_conf = {
         .uart_num = UART_NUM_1,
@@ -521,6 +521,7 @@ void comms_loop_sec1()
     {
         uint8_t ser_byte = sw_serial.read();
         last_rx = millis64();
+        // Serial.printf("RX: %lu\n", last_rx);
 
         if (!reading_msg)
         {
@@ -851,7 +852,7 @@ void comms_loop_sec1()
     while ((msgs = uxQueueMessagesWaiting(pkt_q)) > 0)
     {
         now = millis64();
-
+        /*
         // if there is no wall panel, no need to check 200ms since last rx
         // (yes some duped code here, but its clearer)
         if (!wallPanelDetected)
@@ -869,6 +870,13 @@ void comms_loop_sec1()
             okToSend &= (now - last_tx > 20);       // after 20ms since last tx
             okToSend &= (now - last_tx > cmdDelay); // after any command delays
         }
+        */
+        // Replacing above code and specifically removing test for <200ms for last rx when
+        // a digital wall panel is detected. I believe this was an attempt to avoid collision
+        // on the wire, but it is causing the above test to always return false?
+        okToSend = (now - last_tx > 50)           // wait at least 20ms since last tx
+                   && (now - last_rx > 50)        // and at least 20ms since last rx
+                   && (now - last_tx > cmdDelay); // and any specified delay from last tx
 
         // OK to send based on above rules
         if (okToSend)
@@ -1314,8 +1322,7 @@ bool transmitSec1(byte toSend)
 
     sw_serial.write(toSend);
     last_tx = millis64();
-
-    // RINFO(TAG, "SEC1 SEND BYTE: %02X",toSend);
+    // Serial.printf("TX: %lu\n", last_tx);
 
     // re-enable rx
     if (!poll_cmd)
@@ -1386,11 +1393,6 @@ bool process_PacketAction(PacketAction &pkt_ac)
             if (pkt_ac.pkt.m_data.value.cmd)
             {
                 success = transmitSec1(pkt_ac.pkt.m_data.value.cmd);
-                if (success)
-                {
-                    last_tx = millis64();
-                    // RINFO(TAG, "sending 0x%02X query", pkt_ac.pkt.m_data.value.cmd);
-                }
             }
             break;
         }
@@ -1401,7 +1403,6 @@ bool process_PacketAction(PacketAction &pkt_ac)
                 success = transmitSec1(secplus1Codes::DoorButtonPress);
                 if (success)
                 {
-                    last_tx = millis64();
                     RINFO(TAG, "sending DOOR button press");
                 }
             }
@@ -1410,7 +1411,6 @@ bool process_PacketAction(PacketAction &pkt_ac)
                 success = transmitSec1(secplus1Codes::DoorButtonRelease);
                 if (success)
                 {
-                    last_tx = millis64();
                     RINFO(TAG, "sending DOOR button release");
                 }
             }
@@ -1424,7 +1424,6 @@ bool process_PacketAction(PacketAction &pkt_ac)
                 success = transmitSec1(secplus1Codes::LightButtonPress);
                 if (success)
                 {
-                    last_tx = millis64();
                     RINFO(TAG, "sending LIGHT button press");
                 }
             }
@@ -1433,7 +1432,6 @@ bool process_PacketAction(PacketAction &pkt_ac)
                 success = transmitSec1(secplus1Codes::LightButtonRelease);
                 if (success)
                 {
-                    last_tx = millis64();
                     RINFO(TAG, "Sending LIGHT button release");
                 }
             }
@@ -1447,7 +1445,6 @@ bool process_PacketAction(PacketAction &pkt_ac)
                 success = transmitSec1(secplus1Codes::LockButtonPress);
                 if (success)
                 {
-                    last_tx = millis64();
                     RINFO(TAG, "sending LOCK button press");
                 }
             }
@@ -1456,7 +1453,6 @@ bool process_PacketAction(PacketAction &pkt_ac)
                 success = transmitSec1(secplus1Codes::LockButtonRelease);
                 if (success)
                 {
-                    last_tx = millis64();
                     RINFO(TAG, "sending LOCK button release");
                 }
             }
@@ -1581,7 +1577,7 @@ GarageDoorCurrentState open_door()
     }
     RINFO(TAG, "Opening door");
 #ifdef USE_GDOLIB
-    gdo_door_close();
+    gdo_door_open();
 #else
     door_command(DoorAction::Open);
 #endif
@@ -1747,7 +1743,7 @@ bool set_lock(bool value, bool verify)
     // SECURITY1.0
     if (doorControlType == 1)
     {
-        // this emulates the "look" button press+release
+        // this emulates the "lock" button press+release
         // - PRESS (0x34)
         // - DELAY 3000ms
         // - RELEASE (0x35)
