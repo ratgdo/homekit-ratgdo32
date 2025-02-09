@@ -221,7 +221,7 @@ userSettings::userSettings()
         {cfg_laserEnabled, {false, false, false, helperLaser}},
         {cfg_laserHomeKit, {false, false, true, helperLaser}},
         {cfg_assistDuration, {false, false, 60, NULL}},
-        {cfg_espLogLevel, {false, false, ESP_LOG_ERROR, NULL}},
+        {cfg_espLogLevel, {false, false, ESP_LOG_INFO, NULL}},
     };
 }
 
