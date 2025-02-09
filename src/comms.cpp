@@ -382,6 +382,10 @@ void setup_comms()
             gdo_set_rolling_code(rolling_code);
             save_rolling_code();
         }
+        else
+        {
+            gdo_set_protocol(GDO_PROTOCOL_SEC_PLUS_V1);
+        }
         gdo_start(gdo_event_handler, NULL);
         gdo_get_status(&gdo_status);
         force_recover.push_count = 0;
