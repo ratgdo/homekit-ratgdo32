@@ -34,7 +34,6 @@
 #include "../lib/ratgdo/secplus2.h"
 #else
 #include "gdo.h"
-// #include <magic_enum.hpp>
 #endif
 
 #include "comms.h"
@@ -214,26 +213,30 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
         break;
     case GDO_CB_EVENT_LIGHT:
         RINFO(TAG, "Event light: %s", gdo_light_state_to_string(status->light));
-        notify_homekit_light(status->light == gdo_light_state_t::GDO_LIGHT_STATE_ON);
+        garage_door.light = status->light == gdo_light_state_t::GDO_LIGHT_STATE_ON;
+        notify_homekit_light(garage_door.light);
         break;
     case GDO_CB_EVENT_LOCK:
         RINFO(TAG, "Event lock: %s", gdo_lock_state_to_string(status->lock));
-        notify_homekit_target_lock(gdo_to_homekit_lock_target_state[status->lock]);
-        notify_homekit_current_lock(gdo_to_homekit_lock_current_state[status->lock]);
+        garage_door.target_lock = gdo_to_homekit_lock_target_state[status->lock];
+        garage_door.current_lock = gdo_to_homekit_lock_current_state[status->lock];
+        notify_homekit_target_lock(garage_door.target_lock);
+        notify_homekit_current_lock(garage_door.current_lock);
         break;
     case GDO_CB_EVENT_DOOR_POSITION:
-        RINFO(TAG, "Event door: %s, %.2f%%, target: %.2f%%", gdo_door_state_to_string(status->door),
-              (float)status->door_position, (float)status->door_target);
-        // RINFO(TAG, "Door State: %s", (magic_enum::enum_name(status->door)).data());
+        RINFO(TAG, "Event door: %s, %3d%%, target: %3d%%", gdo_door_state_to_string(status->door),
+              +status->door_position / 100, (status->door_target >= 0) ? status->door_target / 100 : -1);
         garage_door.active = true;
-        notify_homekit_current_door_state_change(gdo_to_homekit_door_current_state[status->door]);
+        garage_door.current_state = gdo_to_homekit_door_current_state[status->door];
+        notify_homekit_current_door_state_change(garage_door.current_state);
         break;
     case GDO_CB_EVENT_LEARN:
         RINFO(TAG, "Event learn: %s", gdo_learn_state_to_string(status->learn));
         break;
     case GDO_CB_EVENT_OBSTRUCTION:
         RINFO(TAG, "Event obstruction: %s", gdo_obstruction_state_to_string(status->obstruction));
-        notify_homekit_obstruction(status->obstruction == gdo_obstruction_state_t::GDO_OBSTRUCTION_STATE_OBSTRUCTED);
+        garage_door.obstructed = status->obstruction == gdo_obstruction_state_t::GDO_OBSTRUCTION_STATE_OBSTRUCTED;
+        notify_homekit_obstruction(garage_door.obstructed);
         break;
     case GDO_CB_EVENT_MOTION:
         RINFO(TAG, "Event motion: %s", gdo_motion_state_to_string(status->motion));
@@ -247,7 +250,8 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
             userConfig->set(cfg_motionTriggers, motionTriggers.asInt);
             enable_service_homekit_motion();
         }
-        notify_homekit_motion(status->motion == gdo_motion_state_t::GDO_MOTION_STATE_DETECTED);
+        garage_door.motion = status->motion == gdo_motion_state_t::GDO_MOTION_STATE_DETECTED;
+        notify_homekit_motion(garage_door.motion);
         break;
     case GDO_CB_EVENT_BATTERY:
         RINFO(TAG, "Event battery: %s", gdo_battery_state_to_string(status->battery));
