@@ -112,33 +112,7 @@ void statusCallback(HS_STATUS status)
         RINFO(TAG, "Status: No WiFi Credentials, need to provision");
         break;
     case HS_WIFI_CONNECTING:
-#if (HS_MAJOR >= 2) && (HS_MINOR >= 1)
         RINFO(TAG, "Status: WiFi connecting");
-#else
-        // HomeSpan has not called WiFi.begin() yet, so we can set options here.
-        WiFi.setSleep(WIFI_PS_NONE); // Improves performance, at cost of power consumption
-        WiFi.hostname((const char *)device_name_rfc952);
-        if (userConfig->getStaticIP())
-        {
-            IPAddress ip;
-            IPAddress gw;
-            IPAddress nm;
-            IPAddress dns;
-            if (ip.fromString(userConfig->getLocalIP().c_str()) &&
-                gw.fromString(userConfig->getGatewayIP().c_str()) &&
-                nm.fromString(userConfig->getSubnetMask().c_str()) &&
-                dns.fromString(userConfig->getNameserverIP().c_str()))
-            {
-                RINFO(TAG, "Set static IP: %s, Mask: %s, Gateway: %s, DNS: %s",
-                      ip.toString().c_str(), nm.toString().c_str(), gw.toString().c_str(), dns.toString().c_str());
-                WiFi.config(ip, gw, nm, dns);
-            }
-            else
-            {
-                RINFO(TAG, "Failed to set static IP address, error parsing addresses");
-            }
-        }
-#endif
         break;
     case HS_PAIRING_NEEDED:
         RINFO(TAG, "Status: Need to pair");
@@ -155,11 +129,9 @@ void statusCallback(HS_STATUS status)
     case HS_FACTORY_RESET:
         RINFO(TAG, "Status: Factory Reset");
         break;
-#if (HS_MAJOR >= 2) && (HS_MINOR >= 1)
     case HS_WIFI_SCANNING:
         RINFO(TAG, "Status: WiFi Scanning");
         break;
-#endif
     default:
         RINFO(TAG, "HomeSpan Status: %s", homeSpan.statusString(status));
         break;
@@ -324,13 +296,8 @@ void setup_homekit()
     homeSpan.setQRID(&qrID[1]);
     homeSpan.setPairingCode("25102023"); // On Oct 25, 2023, Chamberlain announced they were disabling API
                                          // access for "unauthorized" third parties.
-
-#if (HS_MAJOR >= 2) && (HS_MINOR >= 1)
     homeSpan.setWifiBegin(wifiBegin);
     homeSpan.setConnectionCallback(connectionCallback);
-#else
-    homeSpan.setWifiCallbackAll(connectionCallback);
-#endif
     homeSpan.setStatusCallback(statusCallback);
 
     homeSpan.begin(Category::Bridges, device_name, device_name_rfc952, "ratgdo-ESP32");
