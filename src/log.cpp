@@ -30,17 +30,6 @@
 // Logger tag
 static const char *TAG = "ratgdo-logger";
 
-#ifndef UNIT_TEST
-void print_packet(uint8_t *pkt)
-{
-    RINFO(TAG, "decoded packet: [%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X]",
-          pkt[0], pkt[1], pkt[2], pkt[3], pkt[4], pkt[5], pkt[6], pkt[7], pkt[8], pkt[9],
-          pkt[10], pkt[11], pkt[12], pkt[13], pkt[14], pkt[15], pkt[16], pkt[17], pkt[18]);
-}
-#else  // UNIT_TEST
-void print_packet(uint8_t pkt[SECPLUS2_CODE_LEN]) {}
-#endif // UNIT_TEST
-
 // Construct the singleton object for logger access
 LOG *LOG::instancePtr = new LOG();
 LOG *ratgdoLogger = LOG::getInstance();
@@ -105,6 +94,19 @@ void LOG::logToBuffer(const char *fmt, va_list args)
     xSemaphoreTakeRecursive(logMutex, portMAX_DELAY);
     // parse the format string into lineBuffer
     vsnprintf(lineBuffer, LINE_BUFFER_SIZE, fmt, args);
+    // If timestamp is wrapped in () and not [] then message is from one of the ESP_LOGx() functions.
+    // Insert a period into the milliseconds timestamp, so number of seconds is easier to read.
+    if (strchr(lineBuffer, '(') - lineBuffer == 2)
+    {
+        char *closeBracket = strchr(lineBuffer, ')');
+        int i = closeBracket - lineBuffer;
+        if (i > 6)
+        {
+            memmove(&closeBracket[-2], &closeBracket[-3], LINE_BUFFER_SIZE - (i - 1));
+            closeBracket[-3] = '.';
+        }
+    }
+
     //  print line to the serial port
     if (!suppressSerialLog)
         Serial.print(lineBuffer);

@@ -23,8 +23,6 @@
 #include "HomeSpan.h"
 #include "utilities.h"
 
-void print_packet(uint8_t *pkt);
-
 #define CRASH_LOG_MSG_FILE "/crash_log"
 #define REBOOT_LOG_MSG_FILE "/reboot_log"
 
