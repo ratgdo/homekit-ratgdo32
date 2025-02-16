@@ -37,7 +37,23 @@
 // Logger tag
 static const char *TAG = "ratgdo-main";
 
-GarageDoor garage_door;
+GarageDoor garage_door = {
+    .active = false,
+    .current_state = (GarageDoorCurrentState)0xFF,
+    .target_state = (GarageDoorTargetState)0xFF,
+    .obstructed = false,
+    .has_motion_sensor = false,
+    .has_distance_sensor = false,
+#ifndef USE_GDOLIB
+    .motion_timer = 0,
+#endif
+    .motion = false,
+    .light = false,
+    .current_lock = (LockCurrentState)0xFF,
+    .target_lock = (LockTargetState)0xFF,
+    .openingsCount = 0,
+    .batteryState = 0,
+};
 
 // Track our memory usage
 uint32_t free_heap = (1024 * 1024);
@@ -100,7 +116,7 @@ void setup()
     load_all_config_settings();
 
     // We will intercept calls to standard ESP_LOGx so we can route them through our logger
-    esp_log_level_set("*", (esp_log_level_t)userConfig->getEspLogLevel());  // defaults to ESP_LOG_ERROR
+    esp_log_level_set("*", (esp_log_level_t)userConfig->getEspLogLevel());
     esp_log_set_vprintf((vprintf_like_t)esp_log_hook);
 
     if (softAPmode)
