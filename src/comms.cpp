@@ -192,7 +192,7 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
     switch (event)
     {
     case GDO_CB_EVENT_SYNCED:
-        RINFO(TAG, "Event synced: %s, protocol: %s", status->synced ? "true" : "false", gdo_protocol_type_to_string(status->protocol));
+        RINFO(TAG, "GDO event: synced: %s, protocol: %s", status->synced ? "true" : "false", gdo_protocol_type_to_string(status->protocol));
         if (status->protocol == GDO_PROTOCOL_SEC_PLUS_V2)
         {
             RINFO(TAG, "Client ID: %" PRIu32 ", Rolling code: %" PRIu32, status->client_id, status->rolling_code);
@@ -210,42 +210,49 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
                 gdo_sync();
             }
         }
+        else
+        {
+            //gdo_set_time_to_close(0);
+        }
         break;
     case GDO_CB_EVENT_LIGHT:
-        RINFO(TAG, "Event light: %s", gdo_light_state_to_string(status->light));
+        RINFO(TAG, "GDO event: light: %s", gdo_light_state_to_string(status->light));
         garage_door.light = status->light == gdo_light_state_t::GDO_LIGHT_STATE_ON;
         notify_homekit_light(garage_door.light);
         break;
     case GDO_CB_EVENT_LOCK:
-        RINFO(TAG, "Event lock: %s", gdo_lock_state_to_string(status->lock));
+        RINFO(TAG, "GDO event: lock: %s", gdo_lock_state_to_string(status->lock));
         garage_door.target_lock = gdo_to_homekit_lock_target_state[status->lock];
         garage_door.current_lock = gdo_to_homekit_lock_current_state[status->lock];
         notify_homekit_target_lock(garage_door.target_lock);
         notify_homekit_current_lock(garage_door.current_lock);
         break;
     case GDO_CB_EVENT_DOOR_POSITION:
-        RINFO(TAG, "Event door: %s, %3d%%, target: %3d%%", gdo_door_state_to_string(status->door),
+    {
+        GarageDoorCurrentState current_state = garage_door.current_state;
+        RINFO(TAG, "GDO event: door: %s, %3d%%, target: %3d%%", gdo_door_state_to_string(status->door),
               +status->door_position / 100, (status->door_target >= 0) ? status->door_target / 100 : -1);
         garage_door.active = true;
         garage_door.current_state = gdo_to_homekit_door_current_state[status->door];
-        notify_homekit_current_door_state_change(garage_door.current_state);
+        if (current_state != garage_door.current_state)
+            notify_homekit_current_door_state_change(garage_door.current_state);
         break;
+    }
     case GDO_CB_EVENT_LEARN:
-        RINFO(TAG, "Event learn: %s", gdo_learn_state_to_string(status->learn));
+        RINFO(TAG, "GDO event: learn: %s", gdo_learn_state_to_string(status->learn));
         break;
     case GDO_CB_EVENT_OBSTRUCTION:
-        RINFO(TAG, "Event obstruction: %s", gdo_obstruction_state_to_string(status->obstruction));
+        RINFO(TAG, "GDO event: obstruction: %s", gdo_obstruction_state_to_string(status->obstruction));
         garage_door.obstructed = status->obstruction == gdo_obstruction_state_t::GDO_OBSTRUCTION_STATE_OBSTRUCTED;
         notify_homekit_obstruction(garage_door.obstructed);
         break;
     case GDO_CB_EVENT_MOTION:
-        RINFO(TAG, "Event motion: %s", gdo_motion_state_to_string(status->motion));
+        RINFO(TAG, "GDO event: motion: %s", gdo_motion_state_to_string(status->motion));
         // We got a motion message, so we know we have a motion sensor
         // If it's not yet enabled, add the service
         if (!garage_door.has_motion_sensor)
         {
             RINFO(TAG, "Detected new Motion Sensor. Enabling Service");
-            garage_door.has_motion_sensor = true;
             motionTriggers.bit.motion = 1;
             userConfig->set(cfg_motionTriggers, motionTriggers.asInt);
             enable_service_homekit_motion();
@@ -254,30 +261,43 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
         notify_homekit_motion(garage_door.motion);
         break;
     case GDO_CB_EVENT_BATTERY:
-        RINFO(TAG, "Event battery: %s", gdo_battery_state_to_string(status->battery));
+        RINFO(TAG, "GDO event: battery: %s", gdo_battery_state_to_string(status->battery));
         garage_door.batteryState = status->battery;
         break;
     case GDO_CB_EVENT_BUTTON:
-        RINFO(TAG, "Button: %s", gdo_button_state_to_string(status->button));
+        RINFO(TAG, "GDO event: button: %s", gdo_button_state_to_string(status->button));
         break;
     case GDO_CB_EVENT_MOTOR:
-        RINFO(TAG, "Motor: %s", gdo_motor_state_to_string(status->motor));
+        RINFO(TAG, "GDO event: motor: %s", gdo_motor_state_to_string(status->motor));
         break;
     case GDO_CB_EVENT_OPENINGS:
-        RINFO(TAG, "Event openings: %d", status->openings);
+        RINFO(TAG, "GDO event: openings: %d", status->openings);
         garage_door.openingsCount = status->openings;
         break;
+    case GDO_CB_EVENT_SET_TTC:
+        RINFO(TAG, "GDO event: set Time to close: %d", status->ttc_seconds);
+        //userConfig->set(cfg_TTCseconds, status->ttc_seconds);
+        break;
     case GDO_CB_EVENT_UPDATE_TTC:
-        RINFO(TAG, "Time to close: %d", status->ttc_seconds);
+        RINFO(TAG, "GDO event: update Time to close: %d", status->ttc_seconds);
+        break;
+    case GDO_CB_EVENT_CANCEL_TTC:
+        RINFO(TAG, "GDO event: cancel time to close");
         break;
     case GDO_CB_EVENT_PAIRED_DEVICES:
-        RINFO(TAG, "Event paired devices, %d remotes, %d keypads, %d wall controls, %d accessories, %d total",
+        RINFO(TAG, "GDO event: paired devices, %d remotes, %d keypads, %d wall controls, %d accessories, %d total",
               status->paired_devices.total_remotes, status->paired_devices.total_keypads,
               status->paired_devices.total_wall_controls, status->paired_devices.total_accessories,
               status->paired_devices.total_all);
         break;
+    case GDO_CB_EVENT_OPEN_DURATION_MEASUREMENT:
+        RINFO(TAG, "GDO event: open duration: %dsecs", status->open_ms / 1000);
+        break;
+    case GDO_CB_EVENT_CLOSE_DURATION_MEASUREMENT:
+        RINFO(TAG, "GDO event: close duration: %dsecs", status->close_ms / 1000);
+        break;
     default:
-        RINFO(TAG, "Event unknown: %d", event);
+        RINFO(TAG, "GDO event: unknown: %d", event);
         break;
     }
 
@@ -1670,7 +1690,17 @@ GarageDoorCurrentState close_door()
         {
             RINFO(TAG, "Delay door close by %d seconds", userConfig->getTTCseconds());
 #ifdef USE_GDOLIB
-            delayFnCall(userConfig->getTTCseconds() * 1000, (void (*)())gdo_door_close);
+            /*
+            if (doorControlType == 2)
+            {
+                gdo_set_time_to_close(userConfig->getTTCseconds());
+                // gdo_door_close();
+            }
+            else
+            //*/
+            {
+                delayFnCall(userConfig->getTTCseconds() * 1000, (void (*)())gdo_door_close);
+            }
 #else
             delayFnCall(userConfig->getTTCseconds() * 1000, door_command_close);
 #endif
