@@ -175,6 +175,13 @@ bool helperLaser(const std::string &key, const std::string &value, configSetting
     return true;
 }
 
+bool helperLogLevel(const std::string &key, const std::string &value, configSetting *action)
+{
+    userConfig->set(key, value);
+    esp_log_level_set("*", (esp_log_level_t)userConfig->getLogLevel());
+    return true;
+}
+
 /****************************************************************************
  * User settings class
  */
@@ -221,7 +228,7 @@ userSettings::userSettings()
         {cfg_laserEnabled, {false, false, false, helperLaser}},
         {cfg_laserHomeKit, {false, false, true, helperLaser}},
         {cfg_assistDuration, {false, false, 60, NULL}},
-        {cfg_espLogLevel, {false, false, ESP_LOG_INFO, NULL}},
+        {cfg_logLevel, {false, false, ESP_LOG_INFO, helperLogLevel}}, // call fn to set log level
     };
 }
 

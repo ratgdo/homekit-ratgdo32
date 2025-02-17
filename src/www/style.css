@@ -40,6 +40,7 @@ input[type="radio"],
 input[type="checkbox"] {
     vertical-align: middle;
     accent-color: darkgoldenrod;
+    margin: 0px;
 }
 
 input.slider {
