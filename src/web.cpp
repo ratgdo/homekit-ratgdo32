@@ -470,6 +470,7 @@ void handle_status()
     ADD_BOOL(json, cfg_syslogEn, userConfig->getSyslogEn());
     ADD_STR(json, cfg_syslogIP, userConfig->getSyslogIP().c_str());
     ADD_INT(json, cfg_syslogPort, userConfig->getSyslogPort());
+    ADD_INT(json, cfg_logLevel, userConfig->getLogLevel());
     ADD_INT(json, cfg_TTCseconds, userConfig->getTTCseconds());
     ADD_INT(json, cfg_vehicleThreshold, userConfig->getVehicleThreshold());
     ADD_INT(json, cfg_motionTriggers, motionTriggers.asInt);
