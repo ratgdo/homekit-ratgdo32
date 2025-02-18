@@ -163,7 +163,7 @@ void web_loop()
     START_JSON(json);
     if (garage_door.active && garage_door.current_state != lastDoorState)
     {
-        RINFO(TAG, "Current Door State changing from %d to %d", lastDoorState, garage_door.current_state);
+        ESP_LOGI(TAG, "Current Door State changing from %d to %d", lastDoorState, garage_door.current_state);
         if (enableNTP && clockSet)
         {
             if (lastDoorState == 0xff)
@@ -224,14 +224,14 @@ void web_loop()
 
 void setup_web()
 {
-    RINFO(TAG, "=== Starting HTTP web server ===");
+    ESP_LOGI(TAG, "=== Starting HTTP web server ===");
     IRAM_START
     // IRAM heap is used only for allocating globals, to leave as much regular heap
     // available during operations.  We need to carefully monitor useage so as not
     // to exceed available IRAM.  We can adjust the LOG_BUFFER_SIZE (in log.h) if we
     // need to make more space available for initialization.
     json = (char *)malloc(JSON_BUFFER_SIZE);
-    RINFO(TAG, "Allocated buffer for JSON, size: %d", JSON_BUFFER_SIZE);
+    ESP_LOGI(TAG, "Allocated buffer for JSON, size: %d", JSON_BUFFER_SIZE);
     // We allocated json as a global block.  We are on dual core CPU.  We need to serialize access to the resource.
     jsonMutex = xSemaphoreCreateMutex();
     last_reported_paired = homekit_is_paired();
@@ -248,11 +248,11 @@ void setup_web()
     else if (garage_door.has_motion_sensor != (bool)motionTriggers.bit.motion)
     {
         // sync up web page tracking of whether we have motion sensor or not.
-        RINFO(TAG, "Motion trigger mismatch, reset to %d", (uint8_t)garage_door.has_motion_sensor);
+        ESP_LOGI(TAG, "Motion trigger mismatch, reset to %d", (uint8_t)garage_door.has_motion_sensor);
         motionTriggers.bit.motion = (uint8_t)garage_door.has_motion_sensor;
         userConfig->set(cfg_motionTriggers, motionTriggers.asInt);
     }
-    RINFO(TAG, "Motion triggers, motion : %d, obstruction: %d, light key: %d, door key: %d, lock key: %d, asInt: %d",
+    ESP_LOGI(TAG, "Motion triggers, motion : %d, obstruction: %d, light key: %d, door key: %d, lock key: %d, asInt: %d",
           motionTriggers.bit.motion,
           motionTriggers.bit.obstruction,
           motionTriggers.bit.lightKey,
@@ -262,7 +262,7 @@ void setup_web()
     lastDoorUpdateAt = 0;
     lastDoorState = (GarageDoorCurrentState)0xff;
 
-    RINFO(TAG, "Registering URI handlers");
+    ESP_LOGI(TAG, "Registering URI handlers");
     server.on("/update", HTTP_POST, handle_update, handle_firmware_upload);
     server.onNotFound(handle_everything);
     // here the list of headers to be recorded
@@ -285,17 +285,17 @@ void setup_web()
 
 void handle_notfound()
 {
-    RINFO(TAG, "Sending 404 Not Found for: %s with method: %s to client: %s", server.uri().c_str(), http_methods[server.method()], server.client().remoteIP().toString().c_str());
+    ESP_LOGI(TAG, "Sending 404 Not Found for: %s with method: %s to client: %s", server.uri().c_str(), http_methods[server.method()], server.client().remoteIP().toString().c_str());
     server.send_P(404, type_txt, response404);
     return;
 }
 
 String *ratgdoAuthenticate(HTTPAuthMethod mode, String enteredUsernameOrReq, String extraParams[])
 {
-    // RINFO(TAG, "Auth method: %d", mode);                // DIGEST_AUTH
-    // RINFO(TAG, "User: %s", enteredUsernameOrReq);       // Username
-    // RINFO(TAG, "Param 0: %s", extraParams[0].c_str());  // Realm
-    // RINFO(TAG, "Param 1: %s", extraParams[1].c_str());  // URI
+    // ESP_LOGI(TAG, "Auth method: %d", mode);                // DIGEST_AUTH
+    // ESP_LOGI(TAG, "User: %s", enteredUsernameOrReq);       // Username
+    // ESP_LOGI(TAG, "Param 0: %s", extraParams[0].c_str());  // Realm
+    // ESP_LOGI(TAG, "Param 1: %s", extraParams[1].c_str());  // URI
     String *pw = new String(nvRam->read(nvram_ratgdo_pw, "password").c_str());
     return pw;
 }
@@ -314,7 +314,7 @@ void handle_auth()
 void handle_reset()
 {
     AUTHENTICATE();
-    RINFO(TAG, "... reset requested");
+    ESP_LOGI(TAG, "... reset requested");
     homekit_unpair();
     server.client().setNoDelay(true);
     server.send_P(200, type_txt, PSTR("Device has been un-paired from HomeKit. Rebooting...\n"));
@@ -327,8 +327,8 @@ void handle_reset()
 
 void handle_reboot()
 {
-    RINFO(TAG, "System boot time:    %s", timeString(lastRebootAt));
-    RINFO(TAG, "Reboot requested at: %s", timeString());
+    ESP_LOGI(TAG, "System boot time:    %s", timeString(lastRebootAt));
+    ESP_LOGI(TAG, "Reboot requested at: %s", timeString());
     const char *resp = "Rebooting...\n";
     server.client().setNoDelay(true);
     server.send(200, type_txt, resp);
@@ -373,18 +373,18 @@ void load_page(const char *page)
             server.sendHeader(F("ETag"), crc32);
         if (method == HTTP_HEAD)
         {
-            RINFO(TAG, "Client %s requesting: %s (HTTP_HEAD, type: %s)", server.client().remoteIP().toString().c_str(), page, type);
+            ESP_LOGI(TAG, "Client %s requesting: %s (HTTP_HEAD, type: %s)", server.client().remoteIP().toString().c_str(), page, type);
             server.send_P(200, type, "", 0);
         }
         else
         {
-            RINFO(TAG, "Client %s requesting: %s (HTTP_GET, type: %s, length: %i)", server.client().remoteIP().toString().c_str(), page, type, length);
+            ESP_LOGI(TAG, "Client %s requesting: %s (HTTP_GET, type: %s, length: %i)", server.client().remoteIP().toString().c_str(), page, type, length);
             server.send_P(200, type, data, length);
         }
     }
     else
     {
-        RINFO(TAG, "Sending 304 not modified to client %s requesting: %s (method: %s, type: %s)", server.client().remoteIP().toString().c_str(), page, http_methods[method], type);
+        ESP_LOGI(TAG, "Sending 304 not modified to client %s requesting: %s (method: %s, type: %s)", server.client().remoteIP().toString().c_str(), page, http_methods[method], type);
         server.send_P(304, type, "", 0);
     }
     return;
@@ -396,11 +396,11 @@ void handle_everything()
     String page = server.uri();
     const char *uri = page.c_str();
 
-    // too verbose... RINFO(TAG, "Handle everything for %s", uri);
+    // too verbose... ESP_LOGI(TAG, "Handle everything for %s", uri);
     if (builtInUri.count(uri) > 0)
     {
         // requested page matches one of our built-in handlers
-        RINFO(TAG, "Client %s requesting: %s (method: %s)", server.client().remoteIP().toString().c_str(), uri, http_methods[method]);
+        ESP_LOGI(TAG, "Client %s requesting: %s (method: %s)", server.client().remoteIP().toString().c_str(), uri, http_methods[method]);
         if (method == builtInUri.at(uri).first)
             return builtInUri.at(uri).second();
         else
@@ -511,14 +511,14 @@ void handle_status()
 
     server.sendHeader(F("Cache-Control"), F("no-cache, no-store"));
     server.send_P(200, type_json, json);
-    RINFO(TAG, "JSON length: %d", strlen(json));
+    ESP_LOGI(TAG, "JSON length: %d", strlen(json));
     xSemaphoreGive(jsonMutex);
     return;
 }
 
 void handle_logout()
 {
-    RINFO(TAG, "Handle logout");
+    ESP_LOGI(TAG, "Handle logout");
     return server.requestAuthentication(DIGEST_AUTH, www_realm);
 }
 
@@ -572,7 +572,7 @@ bool helperCredentials(const std::string &key, const std::string &value, configS
     *strchr(newCredentials, '"') = (char)0;
     *strchr(newPassword, '"') = (char)0;
     // save values...
-    RINFO(TAG, "Set user credentials: %s : %s (%s)", newUsername, newPassword, newCredentials);
+    ESP_LOGI(TAG, "Set user credentials: %s : %s (%s)", newUsername, newPassword, newCredentials);
     userConfig->set(cfg_wwwUsername, newUsername);
     userConfig->set(cfg_wwwCredentials, newCredentials);
     nvRam->write(nvram_ratgdo_pw, newPassword);
@@ -602,7 +602,7 @@ bool helperUpdateUnderway(const std::string &key, const std::string &value, conf
     // null terminate the strings (at closing quote).
     *strchr(md5, '"') = (char)0;
     *strchr(uuid, '"') = (char)0;
-    // RINFO(TAG,"MD5: %s, UUID: %s, Size: %d", md5, uuid, atoi(size));
+    // ESP_LOGI(TAG,"MD5: %s, UUID: %s, Size: %d", md5, uuid, atoi(size));
     // save values...
     strlcpy(firmwareMD5, md5, sizeof(firmwareMD5));
     firmwareSize = atoi(size);
@@ -619,7 +619,7 @@ bool helperUpdateUnderway(const std::string &key, const std::string &value, conf
 
 bool helperFactoryReset(const std::string &key, const std::string &value, configSetting *action)
 {
-    RINFO(TAG, "Factory reset requested");
+    ESP_LOGI(TAG, "Factory reset requested");
     nvRam->erase();
     reset_door();
     homeSpan.processSerialCommand("F");
@@ -672,7 +672,7 @@ void handle_setgdo()
 
         if (setGDOhandlers.count(key))
         {
-            RINFO(TAG, "Call handler for Key: %s, Value: %s", key.c_str(), value.c_str());
+            ESP_LOGI(TAG, "Call handler for Key: %s, Value: %s", key.c_str(), value.c_str());
             actions = setGDOhandlers.at(key);
             if (actions.fn)
             {
@@ -683,7 +683,7 @@ void handle_setgdo()
         }
         else if (userConfig->contains(key))
         {
-            RINFO(TAG, "Configuration set for Key: %s, Value: %s", key.c_str(), value.c_str());
+            ESP_LOGI(TAG, "Configuration set for Key: %s, Value: %s", key.c_str(), value.c_str());
             actions = userConfig->getDetail(key);
             if (actions.fn)
             {
@@ -708,12 +708,12 @@ void handle_setgdo()
             break;
     }
 
-    RINFO(TAG, "SetGDO Complete");
+    ESP_LOGI(TAG, "SetGDO Complete");
 
     if (error)
     {
         // Simple error handling...
-        RINFO(TAG, "Sending %s, for: %s", response400invalid, server.uri().c_str());
+        ESP_LOGI(TAG, "Sending %s, for: %s", response400invalid, server.uri().c_str());
         server.send_P(400, type_txt, response400invalid);
         return;
     }
@@ -726,7 +726,7 @@ void handle_setgdo()
     {
         // Some settings require reboot to take effect
         server.send_P(200, type_html, PSTR("<p>Success. Reboot.</p>"));
-        RINFO(TAG, "SetGDO Restart required");
+        ESP_LOGI(TAG, "SetGDO Restart required");
         // Allow time to process send() before terminating web server...
         delay(500);
         server.stop();
@@ -758,12 +758,12 @@ void SSEheartbeat(SSESubscription *s)
             s->clientIP = INADDR_NONE;
             s->clientUUID.clear();
             s->SSEconnected = false;
-            RINFO(TAG, "Client %s timeout waiting to listen, remove SSE subscription.  Total subscribed: %d", s->clientIP.toString().c_str(), subscriptionCount);
+            ESP_LOGI(TAG, "Client %s timeout waiting to listen, remove SSE subscription.  Total subscribed: %d", s->clientIP.toString().c_str(), subscriptionCount);
             // no need to stop client socket because it is not live yet.
         }
         else
         {
-            RINFO(TAG, "Client %s not yet listening for SSE", s->clientIP.toString().c_str());
+            ESP_LOGI(TAG, "Client %s not yet listening for SSE", s->clientIP.toString().c_str());
         }
         return;
     }
@@ -810,7 +810,7 @@ void SSEheartbeat(SSESubscription *s)
         s->clientIP = INADDR_NONE;
         s->clientUUID.clear();
         s->SSEconnected = false;
-        RINFO(TAG, "Client %s not listening, remove SSE subscription. Total subscribed: %d", s->clientIP.toString().c_str(), subscriptionCount);
+        ESP_LOGI(TAG, "Client %s not listening, remove SSE subscription. Total subscribed: %d", s->clientIP.toString().c_str(), subscriptionCount);
     }
 }
 
@@ -818,7 +818,7 @@ void SSEHandler(uint8_t channel)
 {
     if (server.args() != 1)
     {
-        RINFO(TAG, "Sending %s, for: %s", response400missing, server.uri().c_str());
+        ESP_LOGI(TAG, "Sending %s, for: %s", response400missing, server.uri().c_str());
         server.send_P(400, type_txt, response400missing);
         return;
     }
@@ -826,7 +826,7 @@ void SSEHandler(uint8_t channel)
     SSESubscription &s = subscription[channel];
     if (s.clientUUID != server.arg(0))
     {
-        RINFO(TAG, "Client %s with IP %s tries to listen for SSE but not subscribed", server.arg(0).c_str(), client.remoteIP().toString().c_str());
+        ESP_LOGI(TAG, "Client %s with IP %s tries to listen for SSE but not subscribed", server.arg(0).c_str(), client.remoteIP().toString().c_str());
         return handle_notfound();
     }
     client.setNoDelay(true);
@@ -837,7 +837,7 @@ void SSEHandler(uint8_t channel)
     s.SSEfailCount = 0;
     s.heartbeatTimer.attach_ms(1000, [channel, &s]
                                { SSEheartbeat(&s); });
-    RINFO(TAG, "Client %s listening for SSE events on channel %d", client.remoteIP().toString().c_str(), channel);
+    ESP_LOGI(TAG, "Client %s listening for SSE events on channel %d", client.remoteIP().toString().c_str(), channel);
 }
 
 void handle_subscribe()
@@ -848,17 +848,17 @@ void handle_subscribe()
 
     if (subscriptionCount == SSE_MAX_CHANNELS)
     {
-        RINFO(TAG, "Client %s SSE Subscription declined, subscription count: %d", clientIP.toString().c_str(), subscriptionCount);
+        ESP_LOGI(TAG, "Client %s SSE Subscription declined, subscription count: %d", clientIP.toString().c_str(), subscriptionCount);
         for (channel = 0; channel < SSE_MAX_CHANNELS; channel++)
         {
-            RINFO(TAG, "Client %d: %s at %s", channel, subscription[channel].clientUUID.c_str(), subscription[channel].clientIP.toString().c_str());
+            ESP_LOGI(TAG, "Client %d: %s at %s", channel, subscription[channel].clientUUID.c_str(), subscription[channel].clientIP.toString().c_str());
         }
         return handle_notfound(); // We ran out of channels
     }
 
     if (clientIP == INADDR_NONE)
     {
-        RINFO(TAG, "Sending %s, for: %s as clientIP missing", response400invalid, server.uri().c_str());
+        ESP_LOGI(TAG, "Sending %s, for: %s as clientIP missing", response400invalid, server.uri().c_str());
         server.send_P(400, type_txt, response400invalid);
         return;
     }
@@ -866,7 +866,7 @@ void handle_subscribe()
     // check we were passed at least one arguement
     if (server.args() < 1)
     {
-        RINFO(TAG, "Sending %s, for: %s", response400missing, server.uri().c_str());
+        ESP_LOGI(TAG, "Sending %s, for: %s", response400missing, server.uri().c_str());
         server.send_P(400, type_txt, response400missing);
         return;
     }
@@ -890,7 +890,7 @@ void handle_subscribe()
             if (subscription[channel].SSEconnected)
             {
                 // Already connected.  We need to close it down as client will be reconnecting
-                RINFO(TAG, "SSE Subscribe - client %s with IP %s already connected on channel %d, remove subscription", server.arg(id).c_str(), clientIP.toString().c_str(), channel);
+                ESP_LOGI(TAG, "SSE Subscribe - client %s with IP %s already connected on channel %d, remove subscription", server.arg(id).c_str(), clientIP.toString().c_str(), channel);
                 subscription[channel].heartbeatTimer.detach();
                 subscription[channel].client.clear();
                 subscription[channel].client.stop();
@@ -898,7 +898,7 @@ void handle_subscribe()
             else
             {
                 // Subscribed but not connected yet, so nothing to close down.
-                RINFO(TAG, "SSE Subscribe - client %s with IP %s already subscribed but not connected on channel %d", server.arg(id).c_str(), clientIP.toString().c_str(), channel);
+                ESP_LOGI(TAG, "SSE Subscribe - client %s with IP %s already subscribed but not connected on channel %d", server.arg(id).c_str(), clientIP.toString().c_str(), channel);
             }
             break;
         }
@@ -914,14 +914,14 @@ void handle_subscribe()
     }
     subscription[channel] = {clientIP, server.client(), Ticker(), false, 0, server.arg(id), logViewer};
     SSEurl += std::to_string(channel);
-    RINFO(TAG, "SSE Subscription for client %s with IP %s: event bus location: %s, Total subscribed: %d", server.arg(id).c_str(), clientIP.toString().c_str(), SSEurl.c_str(), subscriptionCount);
+    ESP_LOGI(TAG, "SSE Subscription for client %s with IP %s: event bus location: %s, Total subscribed: %d", server.arg(id).c_str(), clientIP.toString().c_str(), SSEurl.c_str(), subscriptionCount);
     server.sendHeader(F("Cache-Control"), F("no-cache, no-store"));
     server.send_P(200, type_txt, SSEurl.c_str());
 }
 
 void handle_crashlog()
 {
-    RINFO(TAG, "Request to display crash log...");
+    ESP_LOGI(TAG, "Request to display crash log...");
     WiFiClient client = server.client();
     client.print(response200);
     ratgdoLogger->printCrashLog(client);
@@ -947,7 +947,7 @@ void handle_showrebootlog()
 void handle_clearcrashlog()
 {
     AUTHENTICATE();
-    RINFO(TAG, "Clear saved crash log");
+    ESP_LOGI(TAG, "Clear saved crash log");
     esp_core_dump_image_erase();
     crashCount = 0;
     server.send_P(200, type_txt, PSTR("Crash log cleared\n"));
@@ -956,22 +956,22 @@ void handle_clearcrashlog()
 #ifdef CRASH_DEBUG
 void handle_crash_oom()
 {
-    RINFO(TAG, "Attempting to use up all memory");
+    ESP_LOGI(TAG, "Attempting to use up all memory");
     server.send_P(200, type_txt, PSTR("Attempting to use up all memory\n"));
     delay(1000);
     for (int i = 0; i < 30; i++)
     {
-        RINFO(TAG, "malloc(1024)");
+        ESP_LOGI(TAG, "malloc(1024)");
         crashptr = malloc(1024);
     }
 }
 
 void handle_forcecrash()
 {
-    RINFO(TAG, "Attempting to null ptr deref");
+    ESP_LOGI(TAG, "Attempting to null ptr deref");
     server.send_P(200, type_txt, PSTR("Attempting to null ptr deref\n"));
     delay(1000);
-    RINFO(TAG, "Result: %s", test_str);
+    ESP_LOGI(TAG, "Result: %s", test_str);
 }
 #endif // CRASH_DEBUG
 
@@ -1001,7 +1001,7 @@ void SSEBroadcastState(const char *data, BroadcastType type)
             else if (type == RATGDO_STATUS)
             {
                 String IPaddrstr = IPAddress(subscription[i].clientIP).toString();
-                RINFO(TAG, "SSE send to client %s on channel %d, data: %s", IPaddrstr.c_str(), i, data);
+                ESP_LOGI(TAG, "SSE send to client %s on channel %d, data: %s", IPaddrstr.c_str(), i, data);
                 subscription[i].client.printf_P(PSTR("event: message\ndata: %s\n\n"), data);
             }
         }
@@ -1015,7 +1015,7 @@ void _setUpdaterError()
     StreamString str;
     Update.printError(str);
     _updaterError = str.c_str();
-    RINFO(TAG, "Update error: %s", str.c_str());
+    ESP_LOGI(TAG, "Update error: %s", str.c_str());
 }
 
 void handle_update()
@@ -1031,7 +1031,7 @@ void handle_update()
     {
         // Error logged in _setUpdaterError
         // TODO how to handle firmware upload failurem was... eboot_command_clear();
-        RERROR(TAG, "Firmware upload error. Aborting update, not rebooting");
+        ESP_LOGE(TAG, "Firmware upload error. Aborting update, not rebooting");
         server.send(400, "text/plain", _updaterError.c_str());
         return;
     }
@@ -1070,10 +1070,10 @@ void handle_firmware_upload()
         _authenticatedUpdate = !userConfig->getPasswordRequired() || server.authenticate(ratgdoAuthenticate);
         if (!_authenticatedUpdate)
         {
-            RINFO(TAG, "Unauthenticated Update");
+            ESP_LOGI(TAG, "Unauthenticated Update");
             return;
         }
-        RINFO(TAG, "Update: %s", upload.filename.c_str());
+        ESP_LOGI(TAG, "Update: %s", upload.filename.c_str());
         verify = !strcmp(server.arg("action").c_str(), "verify");
         size = atoi(server.arg("size").c_str());
         md5 = server.arg("md5").c_str();
@@ -1084,12 +1084,12 @@ void handle_firmware_upload()
             strlcpy(firmwareMD5, md5, sizeof(firmwareMD5));
 
         uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
-        RINFO(TAG, "Available space for upload: %lu", maxSketchSpace);
-        RINFO(TAG, "Firmware size: %s", (firmwareSize > 0) ? std::to_string(firmwareSize).c_str() : "Unknown");
-        RINFO(TAG, "Flash chip speed %d MHz", ESP.getFlashChipSpeed() / 1000000);
+        ESP_LOGI(TAG, "Available space for upload: %lu", maxSketchSpace);
+        ESP_LOGI(TAG, "Firmware size: %s", (firmwareSize > 0) ? std::to_string(firmwareSize).c_str() : "Unknown");
+        ESP_LOGI(TAG, "Flash chip speed %d MHz", ESP.getFlashChipSpeed() / 1000000);
         // struct eboot_command ebootCmd;
         // eboot_command_read(&ebootCmd);
-        // RINFO(TAG, "eboot_command: 0x%08X 0x%08X [0x%08X 0x%08X 0x%08X (%d)]", ebootCmd.magic, ebootCmd.action, ebootCmd.args[0], ebootCmd.args[1], ebootCmd.args[2], ebootCmd.args[2]);
+        // ESP_LOGI(TAG, "eboot_command: 0x%08X 0x%08X [0x%08X 0x%08X 0x%08X (%d)]", ebootCmd.magic, ebootCmd.action, ebootCmd.args[0], ebootCmd.args[1], ebootCmd.args[2], ebootCmd.args[2]);
         if (!verify)
         {
             // Close HomeKit server so we don't have to handle HomeKit network traffic during update
@@ -1107,13 +1107,13 @@ void handle_firmware_upload()
         {
             // uncomment for testing...
             // char firmwareMD5[] = "675cbfa11d83a792293fdc3beb199cXX";
-            RINFO(TAG, "Expected MD5: %s", firmwareMD5);
+            ESP_LOGI(TAG, "Expected MD5: %s", firmwareMD5);
             Update.setMD5(firmwareMD5);
             if (firmwareSize > 0)
             {
                 uploadProgress = 0;
                 nextPrintPercent = 10;
-                RINFO(TAG, "%s progress: 00%%", verify ? "Verify" : "Update");
+                ESP_LOGI(TAG, "%s progress: 00%%", verify ? "Verify" : "Update");
             }
         }
     }
@@ -1128,7 +1128,7 @@ void handle_firmware_upload()
             if (uploadPercent >= nextPrintPercent)
             {
                 Serial.printf("\n"); // newline after the dot dot dots
-                RINFO(TAG, "%s progress: %i%%", verify ? "Verify" : "Update", uploadPercent);
+                ESP_LOGI(TAG, "%s progress: %i%%", verify ? "Verify" : "Update", uploadPercent);
                 SSEheartbeat(firmwareUpdateSub); // keep SSE connection alive.
                 nextPrintPercent += 10;
                 // Report percentage to browser client if it is listening
@@ -1158,7 +1158,7 @@ void handle_firmware_upload()
         {
             if (Update.end(true))
             {
-                RINFO(TAG, "Upload size: %zu", upload.totalSize);
+                ESP_LOGI(TAG, "Upload size: %zu", upload.totalSize);
             }
             else
             {
@@ -1170,7 +1170,7 @@ void handle_firmware_upload()
     {
         if (!verify)
             Update.end();
-        RINFO(TAG, "%s was aborted", verify ? "Verify" : "Update");
+        ESP_LOGI(TAG, "%s was aborted", verify ? "Verify" : "Update");
     }
     delay(0);
 }

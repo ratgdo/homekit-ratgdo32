@@ -85,7 +85,7 @@ enum LockTargetState : uint8_t
     TGT_LOCKED = Characteristic::LockTargetState::LOCK,
 };
 
-#define MOTION_TIMER_DURATION 5000      // how long to keep HomeKit motion sensor active for
+#define MOTION_TIMER_DURATION 5000 // how long to keep HomeKit motion sensor active for
 
 struct GarageDoor
 {

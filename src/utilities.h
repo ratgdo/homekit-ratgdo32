@@ -42,12 +42,12 @@ extern bool get_auto_timezone();
     {              \
         HeapSelectIram ephemeral;
 #define IRAM_END(location)                                                 \
-    RINFO(TAG, "Free IRAM heap (%s): %d", location, ESP.getFreeHeap()); \
+    ESP_LOGI(TAG, "Free IRAM heap (%s): %d", location, ESP.getFreeHeap()); \
     }
 #else
 #define IRAM_START {
 #define IRAM_END(location)                                            \
-    RINFO(TAG, "Free heap (%s): %d", location, ESP.getFreeHeap()); \
+    ESP_LOGI(TAG, "Free heap (%s): %d", location, ESP.getFreeHeap()); \
     }
 #endif
 

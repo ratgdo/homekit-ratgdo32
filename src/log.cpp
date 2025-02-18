@@ -147,7 +147,7 @@ void LOG::logToBuffer(const char *fmt, va_list args)
 
 void LOG::saveMessageLog(bool toNVram)
 {
-    RINFO(TAG, "Save message log buffer%s", toNVram ? "to NVRAM" : "");
+    ESP_LOGI(TAG, "Save message log buffer%s", toNVram ? "to NVRAM" : "");
     xSemaphoreTakeRecursive(logMutex, portMAX_DELAY);
     // We start by rotating the circular buffer so it is all in order.
     uint16_t first = 0;
@@ -174,7 +174,7 @@ void LOG::saveMessageLog(bool toNVram)
 
 void LOG::printSavedLog(Print &outputDev, bool fromNVram)
 {
-    RINFO(TAG, "Print saved log%s", fromNVram ? " from NVRAM" : "");
+    ESP_LOGI(TAG, "Print saved log%s", fromNVram ? " from NVRAM" : "");
     if (fromNVram)
     {
         char *buf = (char *)malloc(sizeof(msgBuffer->buffer));

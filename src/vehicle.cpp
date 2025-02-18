@@ -51,26 +51,26 @@ void calculatePresence(int16_t distance);
 void setup_vehicle()
 {
     VL53L4CX_Error rc = VL53L4CX_ERROR_NONE;
-    RINFO(TAG, "=== Setup VL53L4CX time-of-flight sensor ===");
+    ESP_LOGI(TAG, "=== Setup VL53L4CX time-of-flight sensor ===");
 
     Wire.begin(19, 18);
     distanceSensor.begin();
     rc = distanceSensor.InitSensor(0x59);
     if (rc != VL53L4CX_ERROR_NONE)
     {
-        RERROR(TAG, "VL53L4CX failed to initialize error: %d", rc);
+        ESP_LOGE(TAG, "VL53L4CX failed to initialize error: %d", rc);
         return;
     }
     rc = distanceSensor.VL53L4CX_SetDistanceMode(VL53L4CX_DISTANCEMODE_LONG);
     if (rc != VL53L4CX_ERROR_NONE)
     {
-        RERROR(TAG, "VL53L4CX_SetDistanceMode error: %d", rc);
+        ESP_LOGE(TAG, "VL53L4CX_SetDistanceMode error: %d", rc);
         return;
     }
     rc = distanceSensor.VL53L4CX_StartMeasurement();
     if (rc != VL53L4CX_ERROR_NONE)
     {
-        RERROR(TAG, "VL53L4CX_StartMeasurement error: %d", rc);
+        ESP_LOGE(TAG, "VL53L4CX_StartMeasurement error: %d", rc);
         return;
     }
 
@@ -120,7 +120,7 @@ void vehicle_loop()
                         distance = MAX_DISTANCE;
                         break;
                     default:
-                        RERROR(TAG, "WARNING: Unhandled VL53L4CX RANGESTATUS value: %d", distanceData.RangeData[i].RangeStatus);
+                        ESP_LOGE(TAG, "WARNING: Unhandled VL53L4CX RANGESTATUS value: %d", distanceData.RangeData[i].RangeStatus);
                         break;
                     }
                 }
@@ -143,7 +143,7 @@ void vehicle_loop()
         vehicleArriving = false;
         strlcpy(vehicleStatus, vehicleDetected ? "Parked" : "Away", sizeof(vehicleStatus));
         vehicleStatusChange = true;
-        RINFO(TAG, "Vehicle status: %s", vehicleStatus);
+        ESP_LOGI(TAG, "Vehicle status: %s", vehicleStatus);
         notify_homekit_vehicle_arriving(vehicleArriving);
     }
     // Vehicle Departing Clear Timer
@@ -152,7 +152,7 @@ void vehicle_loop()
         vehicleDeparting = false;
         strlcpy(vehicleStatus, vehicleDetected ? "Parked" : "Away", sizeof(vehicleStatus));
         vehicleStatusChange = true;
-        RINFO(TAG, "Vehicle status: %s", vehicleStatus);
+        ESP_LOGI(TAG, "Vehicle status: %s", vehicleStatus);
         notify_homekit_vehicle_departing(vehicleDeparting);
     }
 }
@@ -228,7 +228,7 @@ void calculatePresence(int16_t distance)
             strlcpy(vehicleStatus, vehicleDetected ? "Parked" : "Away", sizeof(vehicleStatus));
         }
         vehicleStatusChange = true;
-        RINFO(TAG, "Vehicle status: %s", vehicleStatus);
+        ESP_LOGI(TAG, "Vehicle status: %s", vehicleStatus);
         notify_homekit_vehicle_occupancy(vehicleDetected);
     }
 }
@@ -251,6 +251,6 @@ void doorClosing()
     if ((millis64() > PRESENCE_DETECT_DURATION) && ((millis64() - lastChangeAt) < PRESENCE_DETECT_DURATION))
     {
         setArriveDepart(vehicleDetected);
-        RINFO(TAG, "Vehicle status: %s", vehicleStatus);
+        ESP_LOGI(TAG, "Vehicle status: %s", vehicleStatus);
     }
 }

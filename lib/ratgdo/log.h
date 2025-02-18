@@ -83,11 +83,3 @@ public:
 };
 
 extern LOG *ratgdoLogger;
-
-//#define RATGDO_PRINTF(message, ...) ratgdoLogger->logToBuffer(PSTR(message), ##__VA_ARGS__)
-
-//#define RINFO(tag, message, ...) RATGDO_PRINTF(">>> [%7lu.%03u] %s: " message "\n", (uint32_t)(esp_log_timestamp() / 1000LL), (uint16_t)(esp_log_timestamp() % 1000LL), tag, ##__VA_ARGS__)
-//#define RERROR(tag, message, ...) RATGDO_PRINTF("!!! [%7lu.%03u] %s: " message "\n", (uint32_t)(esp_log_timestamp() / 1000LL), (uint16_t)(esp_log_timestamp() % 1000LL), tag, ##__VA_ARGS__)
-
-#define RINFO(tag, message, ...) ESP_LOGI(tag, message, ##__VA_ARGS__)
-#define RERROR(tag, message, ...) ESP_LOGE(tag, message, ##__VA_ARGS__)

@@ -57,7 +57,7 @@ bool get_auto_timezone()
     WiFiClient client;
     HTTPClient http;
 
-    RINFO(TAG, "Get timezone automatically based on IP address");
+    ESP_LOGI(TAG, "Get timezone automatically based on IP address");
     if (http.begin(client, "http://ip-api.com/csv/?fields=timezone"))
     {
         // start connection and send HTTP header
@@ -68,7 +68,7 @@ bool get_auto_timezone()
             String tz = http.getString();
             tz.trim();
             userConfig->set(cfg_timeZone, tz.c_str());
-            RINFO(TAG, "Automatic timezone set to: %s", userConfig->getTimeZone().c_str());
+            ESP_LOGI(TAG, "Automatic timezone set to: %s", userConfig->getTimeZone().c_str());
             success = true;
         }
         http.end();
@@ -138,7 +138,7 @@ char *make_rfc952(char *dest, const char *src, int size)
 
 void load_all_config_settings()
 {
-    RINFO(TAG, "=== Load all config settings for %s", device_name);
+    ESP_LOGI(TAG, "=== Load all config settings for %s", device_name);
 
     userConfig->load();
     // Set globals...
@@ -153,54 +153,54 @@ void load_all_config_settings()
     rebootSeconds = userConfig->getRebootSeconds();
 
     // Now log what we have loaded
-    RINFO(TAG, "   deviceName:          %s", userConfig->getDeviceName().c_str());
-    RINFO(TAG, "   wifiChanged:         %s", userConfig->getWifiChanged() ? "true" : "false");
-    RINFO(TAG, "   wifiPower:           %d", userConfig->getWifiPower());
-    RINFO(TAG, "   wifiPhyMode:         %d", userConfig->getWifiPhyMode());
-    RINFO(TAG, "   staticIP:            %s", userConfig->getStaticIP() ? "true" : "false");
-    RINFO(TAG, "   localIP:             %s", userConfig->getLocalIP().c_str());
-    RINFO(TAG, "   subnetMask:          %s", userConfig->getSubnetMask().c_str());
-    RINFO(TAG, "   gatewayIP:           %s", userConfig->getGatewayIP().c_str());
-    RINFO(TAG, "   nameserverIP:        %s", userConfig->getNameserverIP().c_str());
-    RINFO(TAG, "   wwwPWrequired:       %s", userConfig->getPasswordRequired() ? "true" : "false");
-    RINFO(TAG, "   wwwUsername:         %s", userConfig->getwwwUsername().c_str());
-    RINFO(TAG, "   wwwCredentials:      %s", userConfig->getwwwCredentials().c_str());
-    RINFO(TAG, "   GDOSecurityType:     %d", userConfig->getGDOSecurityType());
-    RINFO(TAG, "   TTCseconds:          %d", userConfig->getTTCseconds());
-    RINFO(TAG, "   rebootSeconds:       %d", userConfig->getRebootSeconds());
-    RINFO(TAG, "   LEDidle:             %d", userConfig->getLEDidle());
-    RINFO(TAG, "   motionTriggers:      %d", userConfig->getMotionTriggers());
-    RINFO(TAG, "   enableNTP:           %s", userConfig->getEnableNTP() ? "true" : "false");
-    RINFO(TAG, "   doorUpdateAt:        %d", userConfig->getDoorUpdateAt());
-    RINFO(TAG, "   timeZone:            %s", userConfig->getTimeZone().c_str());
-    RINFO(TAG, "   softAPmode:          %s", userConfig->getSoftAPmode() ? "true" : "false");
-    RINFO(TAG, "   syslogEn:            %s", userConfig->getSyslogEn() ? "true" : "false");
-    RINFO(TAG, "   syslogIP:            %s", userConfig->getSyslogIP().c_str());
-    RINFO(TAG, "   syslogPort:          %d", userConfig->getSyslogPort());
-    RINFO(TAG, "   vehicleThreshold:    %d", userConfig->getVehicleThreshold());
-    RINFO(TAG, "   laserEnabled:        %s", userConfig->getLaserEnabled() ? "true" : "false");
-    RINFO(TAG, "   laserHomeKit:        %s", userConfig->getLaserHomeKit() ? "true" : "false");
-    RINFO(TAG, "   assistDuration:      %d", userConfig->getAssistDuration());
-    RINFO(TAG, "RFC952 device hostname: %s", device_name_rfc952);
+    ESP_LOGI(TAG, "   deviceName:          %s", userConfig->getDeviceName().c_str());
+    ESP_LOGI(TAG, "   wifiChanged:         %s", userConfig->getWifiChanged() ? "true" : "false");
+    ESP_LOGI(TAG, "   wifiPower:           %d", userConfig->getWifiPower());
+    ESP_LOGI(TAG, "   wifiPhyMode:         %d", userConfig->getWifiPhyMode());
+    ESP_LOGI(TAG, "   staticIP:            %s", userConfig->getStaticIP() ? "true" : "false");
+    ESP_LOGI(TAG, "   localIP:             %s", userConfig->getLocalIP().c_str());
+    ESP_LOGI(TAG, "   subnetMask:          %s", userConfig->getSubnetMask().c_str());
+    ESP_LOGI(TAG, "   gatewayIP:           %s", userConfig->getGatewayIP().c_str());
+    ESP_LOGI(TAG, "   nameserverIP:        %s", userConfig->getNameserverIP().c_str());
+    ESP_LOGI(TAG, "   wwwPWrequired:       %s", userConfig->getPasswordRequired() ? "true" : "false");
+    ESP_LOGI(TAG, "   wwwUsername:         %s", userConfig->getwwwUsername().c_str());
+    ESP_LOGI(TAG, "   wwwCredentials:      %s", userConfig->getwwwCredentials().c_str());
+    ESP_LOGI(TAG, "   GDOSecurityType:     %d", userConfig->getGDOSecurityType());
+    ESP_LOGI(TAG, "   TTCseconds:          %d", userConfig->getTTCseconds());
+    ESP_LOGI(TAG, "   rebootSeconds:       %d", userConfig->getRebootSeconds());
+    ESP_LOGI(TAG, "   LEDidle:             %d", userConfig->getLEDidle());
+    ESP_LOGI(TAG, "   motionTriggers:      %d", userConfig->getMotionTriggers());
+    ESP_LOGI(TAG, "   enableNTP:           %s", userConfig->getEnableNTP() ? "true" : "false");
+    ESP_LOGI(TAG, "   doorUpdateAt:        %d", userConfig->getDoorUpdateAt());
+    ESP_LOGI(TAG, "   timeZone:            %s", userConfig->getTimeZone().c_str());
+    ESP_LOGI(TAG, "   softAPmode:          %s", userConfig->getSoftAPmode() ? "true" : "false");
+    ESP_LOGI(TAG, "   syslogEn:            %s", userConfig->getSyslogEn() ? "true" : "false");
+    ESP_LOGI(TAG, "   syslogIP:            %s", userConfig->getSyslogIP().c_str());
+    ESP_LOGI(TAG, "   syslogPort:          %d", userConfig->getSyslogPort());
+    ESP_LOGI(TAG, "   vehicleThreshold:    %d", userConfig->getVehicleThreshold());
+    ESP_LOGI(TAG, "   laserEnabled:        %s", userConfig->getLaserEnabled() ? "true" : "false");
+    ESP_LOGI(TAG, "   laserHomeKit:        %s", userConfig->getLaserHomeKit() ? "true" : "false");
+    ESP_LOGI(TAG, "   assistDuration:      %d", userConfig->getAssistDuration());
+    ESP_LOGI(TAG, "RFC952 device hostname: %s", device_name_rfc952);
 
     // Only enable NTP client if not in soft AP mode.
     enableNTP = !softAPmode && userConfig->getEnableNTP();
     if (enableNTP)
     {
         sntp_set_time_sync_notification_cb(time_is_set);
-        RINFO(TAG, "Timezone: %s", userConfig->getTimeZone().c_str());
+        ESP_LOGI(TAG, "Timezone: %s", userConfig->getTimeZone().c_str());
         std::string tz = userConfig->getTimeZone();
         size_t pos = tz.find(';');
         if (pos != std::string::npos)
         {
             // semicolon may separate continent/city from posix TZ string
             // if no semicolon then no POSIX code, so use UTC
-            RINFO(TAG, "Set timezone: %s", tz.substr(pos + 1).c_str());
+            ESP_LOGI(TAG, "Set timezone: %s", tz.substr(pos + 1).c_str());
             configTzTime(tz.substr(pos + 1).c_str(), NTP_SERVER);
         }
         else
         {
-            RINFO(TAG, "Set timezone: UTC0");
+            ESP_LOGI(TAG, "Set timezone: UTC0");
             configTzTime("UTC0", NTP_SERVER);
         }
     }
