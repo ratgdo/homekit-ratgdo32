@@ -46,5 +46,8 @@
   "assistDuration" : 60,
   "qrPayload" : "X-HM://0042WZMX3RTGO",
   "batteryState" : 8,
-  "openingsCount" : 999
+  "openingsCount" : 999,
+  "logLevel" : 3,
+  "openDuration" : 25,
+  "closeDuration" : 20
 }

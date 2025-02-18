@@ -104,6 +104,8 @@ struct GarageDoor
     LockTargetState target_lock;
     uint16_t openingsCount;
     uint8_t batteryState;
+    uint16_t openDuration;
+    uint16_t closeDuration;
 };
 
 extern GarageDoor garage_door;

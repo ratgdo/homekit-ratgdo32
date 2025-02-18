@@ -53,6 +53,8 @@ GarageDoor garage_door = {
     .target_lock = (LockTargetState)0xFF,
     .openingsCount = 0,
     .batteryState = 0,
+    .openDuration = 0,
+    .closeDuration = 0,
 };
 
 // Track our memory usage
