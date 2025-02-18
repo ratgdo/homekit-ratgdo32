@@ -72,11 +72,11 @@ char *getServiceName(char *service_name, size_t max)
 void wifi_scan()
 {
     // scan for networks
-    RINFO(TAG, "Scanning for networks...");
+    ESP_LOGI(TAG, "Scanning for networks...");
     wifiNet_t wifiNet;
     wifiNets.clear();
     int nNets = std::min((int)WiFi.scanNetworks(), 127);
-    RINFO(TAG, "Found %d networks", nNets);
+    ESP_LOGI(TAG, "Found %d networks", nNets);
     for (int i = 0; i < nNets; i++)
     {
         wifiNet.ssid = WiFi.SSID(i);
@@ -84,7 +84,7 @@ void wifi_scan()
         wifiNet.rssi = WiFi.RSSI(i);
         memcpy(wifiNet.bssid, WiFi.BSSID(i), sizeof(wifiNet.bssid));
         wifiNet.encryptionType = WiFi.encryptionType(i);
-        RINFO(TAG, "Network: %s (Ch:%d, %ddBm) AP: %s, Encryption: %d",
+        ESP_LOGI(TAG, "Network: %s (Ch:%d, %ddBm) AP: %s, Encryption: %d",
               wifiNet.ssid.c_str(), wifiNet.channel, wifiNet.rssi, WiFi.BSSIDstr(i).c_str(), wifiNet.encryptionType);
         wifiNets.insert(wifiNet);
     }
@@ -95,22 +95,22 @@ void wifi_scan()
 void start_soft_ap()
 {
     softAPmode = true;
-    RINFO(TAG, "Start AP mode for: %s", device_name_rfc952);
+    ESP_LOGI(TAG, "Start AP mode for: %s", device_name_rfc952);
     WiFi.persistent(false);
     WiFi.setSleep(WIFI_PS_NONE); // Improves performance, at cost of power consumption
     bool apStarted = WiFi.softAP(device_name_rfc952);
     if (apStarted)
     {
-        RINFO(TAG, "AP started with IP %s", WiFi.softAPIP().toString().c_str());
+        ESP_LOGI(TAG, "AP started with IP %s", WiFi.softAPIP().toString().c_str());
     }
     else
     {
-        RINFO(TAG, "Error starting AP mode");
+        ESP_LOGI(TAG, "Error starting AP mode");
     }
 
     server.onNotFound(handle_softAPweb);
     server.begin();
-    RINFO(TAG, "Soft AP web server started");
+    ESP_LOGI(TAG, "Soft AP web server started");
     softAPinitialized = true;
     // wifi_scan();
     // Allow improv WiFi provisioning when soft AP mode active.
@@ -126,7 +126,7 @@ void soft_ap_loop()
 
     if (softAPmode && (millis64() > 10 * 60 * 1000))
     {
-        RINFO(TAG, "In Soft Access Point mode for over 10 minutes, reboot");
+        ESP_LOGI(TAG, "In Soft Access Point mode for over 10 minutes, reboot");
         sync_and_restart();
         return;
     }
@@ -140,7 +140,7 @@ void handle_softAPweb()
     if ((WiFi.getMode() & WIFI_AP) == WIFI_AP)
     {
         // If we are in Soft Access Point mode
-        RINFO(TAG, "WiFi Soft Access Point mode requesting: %s", page.c_str());
+        ESP_LOGI(TAG, "WiFi Soft Access Point mode requesting: %s", page.c_str());
         if (page == "/" || page == "/wifiap")
             return handle_wifiap();
         else if (page == "/wifinets")
@@ -176,7 +176,7 @@ void handle_wifinets()
     {
         previousSSID = WiFi.SSID();
     }
-    RINFO(TAG, "Number of WiFi networks: %d", wifiNets.size());
+    ESP_LOGI(TAG, "Number of WiFi networks: %d", wifiNets.size());
     String currentSSID = "";
     server.client().setNoDelay(true);
     server.sendContent(softAPhttpPreamble, strlen(softAPhttpPreamble));
@@ -217,7 +217,7 @@ void handle_setssid()
 {
     if (server.args() < 3)
     {
-        RINFO(TAG, "Sending %s, for: %s as invalid number of args", response400invalid, server.uri().c_str());
+        ESP_LOGI(TAG, "Sending %s, for: %s as invalid number of args", response400invalid, server.uri().c_str());
         server.send_P(400, type_txt, response400invalid);
         return;
     }
@@ -242,14 +242,14 @@ void handle_setssid()
     char *txtBuffer = (char *)malloc(TXT_BUFFER_SIZE);
     if (advanced)
     {
-        RINFO(TAG, "Requested WiFi SSID: %s (%d) at AP: %02x:%02x:%02x:%02x:%02x:%02x",
+        ESP_LOGI(TAG, "Requested WiFi SSID: %s (%d) at AP: %02x:%02x:%02x:%02x:%02x:%02x",
               ssid.c_str(), net, wifiNet.bssid[0], wifiNet.bssid[1], wifiNet.bssid[2], wifiNet.bssid[3], wifiNet.bssid[4], wifiNet.bssid[5]);
         snprintf_P(txtBuffer, TXT_BUFFER_SIZE, PSTR("Setting SSID to: %s locked to Access Point: %02x:%02x:%02x:%02x:%02x:%02x\nRATGDO rebooting.\nPlease wait 30 seconds and connect to RATGDO on new network."),
                    ssid.c_str(), wifiNet.bssid[0], wifiNet.bssid[1], wifiNet.bssid[2], wifiNet.bssid[3], wifiNet.bssid[4], wifiNet.bssid[5]);
     }
     else
     {
-        RINFO(TAG, "Requested WiFi SSID: %s (%d)", ssid.c_str(), net);
+        ESP_LOGI(TAG, "Requested WiFi SSID: %s (%d)", ssid.c_str(), net);
         snprintf_P(txtBuffer, TXT_BUFFER_SIZE, PSTR("Setting SSID to: %s\nRATGDO rebooting.\nPlease wait 30 seconds and connect to RATGDO on new network."), ssid.c_str());
     }
     server.client().setNoDelay(true);
@@ -266,12 +266,12 @@ void handle_setssid()
         previousSSID = WiFi.SSID();
         previousPSK = WiFi.psk();
         previousBSSID = WiFi.BSSIDstr();
-        RINFO(TAG, "Current SSID: %s / BSSID:%s", previousSSID.c_str(), previousBSSID.c_str());
+        ESP_LOGI(TAG, "Current SSID: %s / BSSID:%s", previousSSID.c_str(), previousBSSID.c_str());
         WiFi.disconnect();
     }
     if (connect_wifi(ssid, server.arg("pw"), (advanced) ? wifiNet.bssid : NULL))
     {
-        RINFO(TAG, "WiFi Successfully connects to SSID: %s", ssid);
+        ESP_LOGI(TAG, "WiFi Successfully connects to SSID: %s", ssid);
         homeSpan.setWifiCredentials(ssid.c_str(), server.arg("pw").c_str());
         // We should reset WiFi if changing networks or were not currently connected.
         if (!connected || previousBSSID != ssid)
@@ -284,10 +284,10 @@ void handle_setssid()
     }
     else
     {
-        RINFO(TAG, "WiFi Failed to connect to SSID: %s", ssid.c_str());
+        ESP_LOGI(TAG, "WiFi Failed to connect to SSID: %s", ssid.c_str());
         if (connected)
         {
-            RINFO(TAG, "Resetting WiFi to previous SSID: %s, removing any Access Point BSSID lock", previousSSID.c_str());
+            ESP_LOGI(TAG, "Resetting WiFi to previous SSID: %s, removing any Access Point BSSID lock", previousSSID.c_str());
             connect_wifi(previousSSID, previousPSK);
         }
         else
@@ -313,7 +313,7 @@ bool connect_wifi(const String &ssid, const String &password, const uint8_t *bss
 {
     uint8_t count = 0;
 
-    RINFO(TAG, "Attempt to connect to %s with pw %s", ssid.c_str(), password.c_str());
+    ESP_LOGI(TAG, "Attempt to connect to %s with pw %s", ssid.c_str(), password.c_str());
 
     WiFi.begin(ssid, password, 0, bssid);
 

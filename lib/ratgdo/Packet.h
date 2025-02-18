@@ -698,9 +698,9 @@ struct Packet
         int8_t ret = decode_wireline(pktbuf, &pkt_rolling, &pkt_remote_id, &pkt_data);
         if (ret < 0)
         {
-            RERROR(TAG, "Failed to decode packet");
+            ESP_LOGE(TAG, "Failed to decode packet");
         }
-        RINFO(TAG, "DECODED  %08lX %016" PRIX64 " %08lX", pkt_rolling, pkt_remote_id, pkt_data);
+        ESP_LOGI(TAG, "DECODED  %08lX %016" PRIX64 " %08lX", pkt_rolling, pkt_remote_id, pkt_data);
 
         uint16_t cmd = ((pkt_remote_id >> 24) & 0xF00) | (pkt_data & 0xFF);
 
@@ -879,7 +879,7 @@ struct Packet
 
         pkt_data |= (m_pkt_cmd & 0xFF);
 
-        RINFO(TAG, "ENCODING %08lX %016" PRIX64 " %08lX", m_rolling, fixed, pkt_data);
+        ESP_LOGI(TAG, "ENCODING %08lX %016" PRIX64 " %08lX", m_rolling, fixed, pkt_data);
         return encode_wireline(m_rolling, fixed, pkt_data, out_pktbuf);
     }
 
@@ -896,7 +896,7 @@ struct Packet
         char buf[buflen];
         m_data.to_string(buf, buflen);
 
-        RINFO(TAG, "PACKET(0x%lX @ 0x%lX) %s - %s", m_remote_id, m_rolling, PacketCommand::to_string(m_pkt_cmd), buf);
+        ESP_LOGI(TAG, "PACKET(0x%lX @ 0x%lX) %s - %s", m_remote_id, m_rolling, PacketCommand::to_string(m_pkt_cmd), buf);
     };
 
     PacketCommand m_pkt_cmd;

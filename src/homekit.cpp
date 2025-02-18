@@ -52,7 +52,7 @@ char qrPayload[21];
  */
 void wifiBegin(const char *ssid, const char *pw)
 {
-    RINFO(TAG, "Wifi begin for SSID: %s", ssid);
+    ESP_LOGI(TAG, "Wifi begin for SSID: %s", ssid);
     WiFi.setSleep(WIFI_PS_NONE); // Improves performance, at cost of power consumption
     WiFi.hostname((const char *)device_name_rfc952);
     if (userConfig->getStaticIP())
@@ -66,13 +66,13 @@ void wifiBegin(const char *ssid, const char *pw)
             nm.fromString(userConfig->getSubnetMask().c_str()) &&
             dns.fromString(userConfig->getNameserverIP().c_str()))
         {
-            RINFO(TAG, "Set static IP: %s, Mask: %s, Gateway: %s, DNS: %s",
+            ESP_LOGI(TAG, "Set static IP: %s, Mask: %s, Gateway: %s, DNS: %s",
                   ip.toString().c_str(), nm.toString().c_str(), gw.toString().c_str(), dns.toString().c_str());
             WiFi.config(ip, gw, nm, dns);
         }
         else
         {
-            RINFO(TAG, "Failed to set static IP address, error parsing addresses");
+            ESP_LOGI(TAG, "Failed to set static IP address, error parsing addresses");
         }
     }
     WiFi.begin(ssid, pw);
@@ -83,7 +83,7 @@ void connectionCallback(int count)
     if (rebooting)
         return;
 
-    RINFO(TAG, "WiFi established, count: %d, IP: %s, Mask: %s, Gateway: %s, DNS: %s", count, WiFi.localIP().toString().c_str(),
+    ESP_LOGI(TAG, "WiFi established, count: %d, IP: %s, Mask: %s, Gateway: %s, DNS: %s", count, WiFi.localIP().toString().c_str(),
           WiFi.subnetMask().toString().c_str(), WiFi.gatewayIP().toString().c_str(), WiFi.dnsIP().toString().c_str());
     userConfig->set(cfg_localIP, WiFi.localIP().toString().c_str());
     userConfig->set(cfg_gatewayIP, WiFi.gatewayIP().toString().c_str());
@@ -110,31 +110,31 @@ void statusCallback(HS_STATUS status)
     switch (status)
     {
     case HS_WIFI_NEEDED:
-        RINFO(TAG, "Status: No WiFi Credentials, need to provision");
+        ESP_LOGI(TAG, "Status: No WiFi Credentials, need to provision");
         break;
     case HS_WIFI_CONNECTING:
-        RINFO(TAG, "Status: WiFi connecting");
+        ESP_LOGI(TAG, "Status: WiFi connecting");
         break;
     case HS_PAIRING_NEEDED:
-        RINFO(TAG, "Status: Need to pair");
+        ESP_LOGI(TAG, "Status: Need to pair");
         isPaired = false;
         break;
     case HS_PAIRED:
-        RINFO(TAG, "Status: Paired");
+        ESP_LOGI(TAG, "Status: Paired");
         isPaired = true;
         break;
     case HS_REBOOTING:
         rebooting = true;
-        RINFO(TAG, "Status: Rebooting");
+        ESP_LOGI(TAG, "Status: Rebooting");
         break;
     case HS_FACTORY_RESET:
-        RINFO(TAG, "Status: Factory Reset");
+        ESP_LOGI(TAG, "Status: Factory Reset");
         break;
     case HS_WIFI_SCANNING:
-        RINFO(TAG, "Status: WiFi Scanning");
+        ESP_LOGI(TAG, "Status: WiFi Scanning");
         break;
     default:
-        RINFO(TAG, "HomeSpan Status: %s", homeSpan.statusString(status));
+        ESP_LOGI(TAG, "HomeSpan Status: %s", homeSpan.statusString(status));
         break;
     }
 }
@@ -275,7 +275,7 @@ char *toBase62(char *base62, size_t len, uint32_t base10)
 
 void setup_homekit()
 {
-    RINFO(TAG, "=== Setup HomeKit accessories and services ===");
+    ESP_LOGI(TAG, "=== Setup HomeKit accessories and services ===");
 
     homeSpan.setLogLevel(0);
     homeSpan.setSketchVersion(AUTO_VERSION);
@@ -294,10 +294,10 @@ void setup_homekit()
     uint32_t uid = (mac[3] << 16) + (mac[4] << 8) + mac[5];
     char qrID[6];
     toBase62(qrID, sizeof(qrID), uid); // always includes leading zeros
-    RINFO(TAG, "HomeKit pairing QR Code ID: %s", &qrID[1]);
+    ESP_LOGI(TAG, "HomeKit pairing QR Code ID: %s", &qrID[1]);
     HapQR qrCode;
     strlcpy(qrPayload, qrCode.get((uint32_t)25102023, &qrID[1], (uint8_t)Category::GarageDoorOpeners), sizeof(qrPayload));
-    RINFO(TAG, "HomeKit QR setup payload: %s", qrPayload);
+    ESP_LOGI(TAG, "HomeKit QR setup payload: %s", qrPayload);
     homeSpan.setQRID(&qrID[1]);
     homeSpan.setPairingCode("25102023"); // On Oct 25, 2023, Chamberlain announced they were disabling API
                                          // access for "unauthorized" third parties.
@@ -334,7 +334,7 @@ void setup_homekit()
     }
     else
     {
-        RINFO(TAG, "Dry contact mode. Disabling light switch service");
+        ESP_LOGI(TAG, "Dry contact mode. Disabling light switch service");
     }
 
     // only create motion if we know we have motion sensor(s)
@@ -345,7 +345,7 @@ void setup_homekit()
     }
     else
     {
-        RINFO(TAG, "No motion sensor. Skipping motion service");
+        ESP_LOGI(TAG, "No motion sensor. Skipping motion service");
     }
 
     // only create sensors if we know we have time-of-flight distance sensor
@@ -357,7 +357,7 @@ void setup_homekit()
     }
     else
     {
-        RINFO(TAG, "No vehicle presence sensor. Skipping motion and occupancy services");
+        ESP_LOGI(TAG, "No vehicle presence sensor. Skipping motion and occupancy services");
     }
 
     // Auto poll starts up a new FreeRTOS task to do the HomeKit comms
@@ -369,7 +369,7 @@ void queueSendHelper(QueueHandle_t q, GDOEvent e, const char *txt)
 {
     if (!q || xQueueSend(q, &e, 0) == errQUEUE_FULL)
     {
-        RERROR(TAG, "Could not queue homekit notify of %s state: %d", txt, e.value.u);
+        ESP_LOGE(TAG, "Could not queue homekit notify of %s state: %d", txt, e.value.u);
     }
 }
 
@@ -397,7 +397,7 @@ DEV_Info::DEV_Info(const char *name) : Service::AccessoryInformation()
 
 boolean DEV_Info::update()
 {
-    RINFO(TAG, "Request to identify accessory, flash LED, etc.");
+    ESP_LOGI(TAG, "Request to identify accessory, flash LED, etc.");
     // LED, Laser and Tone calls are all asynchronous.  We will illuminate LED and Laser
     // for 2 seconds, during which we will play tone.  Function will return after 1.5 seconds.
     led.flash(2000);
@@ -478,7 +478,7 @@ void notify_homekit_obstruction(bool state)
 
 DEV_GarageDoor::DEV_GarageDoor() : Service::GarageDoorOpener()
 {
-    RINFO(TAG, "Configuring HomeKit Garage Door Service");
+    ESP_LOGI(TAG, "Configuring HomeKit Garage Door Service");
     event_q = xQueueCreate(10, sizeof(GDOEvent));
     current = new Characteristic::CurrentDoorState(current->CLOSED);
     target = new Characteristic::TargetDoorState(target->CLOSED);
@@ -501,7 +501,7 @@ DEV_GarageDoor::DEV_GarageDoor() : Service::GarageDoorOpener()
 
 boolean DEV_GarageDoor::update()
 {
-    RINFO(TAG, "Garage Door Characteristics Update");
+    ESP_LOGI(TAG, "Garage Door Characteristics Update");
     GarageDoorCurrentState state = (target->getNewVal() == target->OPEN) ? open_door() : close_door();
     obstruction->setVal(false);
     current->setVal(state);
@@ -521,17 +521,17 @@ void DEV_GarageDoor::loop()
         GDOEvent e;
         xQueueReceive(event_q, &e, 0);
         if (e.c == current)
-            RINFO(TAG, "Garage door set CurrentDoorState: %d", e.value.u);
+            ESP_LOGI(TAG, "Garage door set CurrentDoorState: %d", e.value.u);
         else if (e.c == target)
-            RINFO(TAG, "Garage door set TargetDoorState: %d", e.value.u);
+            ESP_LOGI(TAG, "Garage door set TargetDoorState: %d", e.value.u);
         else if (e.c == obstruction)
-            RINFO(TAG, "Garage door set ObstructionDetected: %d", e.value.u);
+            ESP_LOGI(TAG, "Garage door set ObstructionDetected: %d", e.value.u);
         else if (e.c == lockCurrent)
-            RINFO(TAG, "Garage door set LockCurrentState: %d", e.value.u);
+            ESP_LOGI(TAG, "Garage door set LockCurrentState: %d", e.value.u);
         else if (e.c == lockTarget)
-            RINFO(TAG, "Garage door set LockTargetState: %d", e.value.u);
+            ESP_LOGI(TAG, "Garage door set LockTargetState: %d", e.value.u);
         else
-            RINFO(TAG, "Garage door set Unknown: %d", e.value.u);
+            ESP_LOGI(TAG, "Garage door set Unknown: %d", e.value.u);
         e.c->setVal(e.value.u);
     }
 }
@@ -563,9 +563,9 @@ DEV_Light::DEV_Light(Light_t type) : Service::LightBulb()
 {
     DEV_Light::type = type;
     if (type == Light_t::GDO_LIGHT)
-        RINFO(TAG, "Configuring HomeKit Light Service for GDO Light");
+        ESP_LOGI(TAG, "Configuring HomeKit Light Service for GDO Light");
     else if (type == Light_t::ASSIST_LASER)
-        RINFO(TAG, "Configuring HomeKit Light Service for Laser");
+        ESP_LOGI(TAG, "Configuring HomeKit Light Service for Laser");
     event_q = xQueueCreate(10, sizeof(GDOEvent));
     DEV_Light::on = new Characteristic::On(DEV_Light::on->OFF);
 }
@@ -580,12 +580,12 @@ boolean DEV_Light::update()
     {
         if (on->getNewVal<bool>())
         {
-            RINFO(TAG, "Turn parking assist laser on");
+            ESP_LOGI(TAG, "Turn parking assist laser on");
             laser.on();
         }
         else
         {
-            RINFO(TAG, "Turn parking assist laser off");
+            ESP_LOGI(TAG, "Turn parking assist laser off");
             laser.off();
         }
     }
@@ -599,9 +599,9 @@ void DEV_Light::loop()
         GDOEvent e;
         xQueueReceive(event_q, &e, 0);
         if (this->type == Light_t::GDO_LIGHT)
-            RINFO(TAG, "Light has turned %s", e.value.b ? "on" : "off");
+            ESP_LOGI(TAG, "Light has turned %s", e.value.b ? "on" : "off");
         else if (this->type == Light_t::ASSIST_LASER)
-            RINFO(TAG, "Parking assist laster has turned %s", e.value.b ? "on" : "off");
+            ESP_LOGI(TAG, "Parking assist laster has turned %s", e.value.b ? "on" : "off");
         DEV_Light::on->setVal(e.value.b);
     }
 }
@@ -652,7 +652,7 @@ void notify_homekit_vehicle_departing(bool vehicleDeparting)
 
 DEV_Motion::DEV_Motion(const char *name) : Service::MotionSensor()
 {
-    RINFO(TAG, "Configuring HomeKit Motion Service for %s", name);
+    ESP_LOGI(TAG, "Configuring HomeKit Motion Service for %s", name);
     event_q = xQueueCreate(10, sizeof(GDOEvent));
     strlcpy(this->name, name, sizeof(this->name));
     DEV_Motion::motion = new Characteristic::MotionDetected(motion->NOT_DETECTED);
@@ -664,7 +664,7 @@ void DEV_Motion::loop()
     {
         GDOEvent e;
         xQueueReceive(event_q, &e, 0);
-        RINFO(TAG, "%s %s", name, e.value.b ? "detected" : "reset");
+        ESP_LOGI(TAG, "%s %s", name, e.value.b ? "detected" : "reset");
         DEV_Motion::motion->setVal(e.value.b);
     }
 }
@@ -684,7 +684,7 @@ void notify_homekit_vehicle_occupancy(bool vehicleDetected)
 
 DEV_Occupancy::DEV_Occupancy() : Service::OccupancySensor()
 {
-    RINFO(TAG, "Configuring HomeKit Occupancy Service");
+    ESP_LOGI(TAG, "Configuring HomeKit Occupancy Service");
     event_q = xQueueCreate(10, sizeof(GDOEvent));
     DEV_Occupancy::occupied = new Characteristic::OccupancyDetected(occupied->NOT_DETECTED);
 }
@@ -695,7 +695,7 @@ void DEV_Occupancy::loop()
     {
         GDOEvent e;
         xQueueReceive(event_q, &e, 0);
-        RINFO(TAG, "Vehicle occupancy %s", e.value.b ? "detected" : "reset");
+        ESP_LOGI(TAG, "Vehicle occupancy %s", e.value.b ? "detected" : "reset");
         DEV_Occupancy::occupied->setVal(e.value.b);
     }
 }

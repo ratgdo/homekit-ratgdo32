@@ -69,13 +69,13 @@ bool helperWiFiPower(const std::string &key, const std::string &value, configSet
     // Only reboot if value has changed
     if (std::get<int>(action->value) != std::stoi(value))
     {
-        RINFO(TAG, "Setting WiFi power to: %s", value);
+        ESP_LOGI(TAG, "Setting WiFi power to: %s", value);
         userConfig->set(key, value);
         action->reboot = true;
     }
     else
     {
-        RINFO(TAG, "WiFi power unchanged at: %s", value);
+        ESP_LOGI(TAG, "WiFi power unchanged at: %s", value);
         action->reboot = false;
     }
     return true;
@@ -86,13 +86,13 @@ bool helperWiFiPhyMode(const std::string &key, const std::string &value, configS
     // Only reboot if value has changed
     if (std::get<int>(action->value) != std::stoi(value))
     {
-        RINFO(TAG, "Setting WiFi mode to: %s", value);
+        ESP_LOGI(TAG, "Setting WiFi mode to: %s", value);
         userConfig->set(key, value);
         action->reboot = true;
     }
     else
     {
-        RINFO(TAG, "WiFi mode unchanged at: %s", value);
+        ESP_LOGI(TAG, "WiFi mode unchanged at: %s", value);
         action->reboot = false;
     }
     return true;
@@ -138,15 +138,15 @@ bool helperTimeZone(const std::string &key, const std::string &value, configSett
     {
         // semicolon may separate continent/city from posix TZ string
         // if no semicolon then no POSIX code, so use UTC
-        RINFO(TAG, "Set timezone: %s", value.substr(pos + 1).c_str());
+        ESP_LOGI(TAG, "Set timezone: %s", value.substr(pos + 1).c_str());
         configTzTime(value.substr(pos + 1).c_str(), NTP_SERVER);
     }
     else
     {
-        RINFO(TAG, "Set timezone: UTC0");
+        ESP_LOGI(TAG, "Set timezone: UTC0");
         configTzTime("UTC0", NTP_SERVER);
     }
-    RINFO(TAG, "Local time: %s", timeString());
+    ESP_LOGI(TAG, "Local time: %s", timeString());
     return true;
 }
 
@@ -272,7 +272,7 @@ void userSettings::toFile(Print &file)
 
 void userSettings::save()
 {
-    RINFO(TAG, "Writing user configuration to NVRAM");
+    ESP_LOGI(TAG, "Writing user configuration to NVRAM");
     for (const auto &it : settings)
     {
         if (std::holds_alternative<std::string>(it.second.value))
@@ -294,9 +294,9 @@ void userSettings::load()
 {
     nvs_stats_t nvs_stats;
     nvs_get_stats(NULL, &nvs_stats);
-    RINFO(TAG, "NVRAM Used Entries: (%lu), Free Entries: (%lu), Total Entries: (%lu), Namespace Count: (%lu)",
-          nvs_stats.used_entries, nvs_stats.free_entries, nvs_stats.total_entries, nvs_stats.namespace_count);
-    RINFO(TAG, "Read user configuration from NVRAM");
+    ESP_LOGI(TAG, "NVRAM Used Entries: (%lu), Free Entries: (%lu), Total Entries: (%lu), Namespace Count: (%lu)",
+             nvs_stats.used_entries, nvs_stats.free_entries, nvs_stats.total_entries, nvs_stats.namespace_count);
+    ESP_LOGI(TAG, "Read user configuration from NVRAM");
     for (auto &it : settings)
     {
         if (std::holds_alternative<std::string>(it.second.value))
@@ -408,7 +408,7 @@ bool userSettings::set(const std::string &key, const char *value)
  */
 nvRamClass::nvRamClass()
 {
-    RINFO(TAG, "Constructor for NVRAM class");
+    ESP_LOGI(TAG, "Constructor for NVRAM class");
     // Initialize non volatile ram
     // We use this sparingly, most settings are saved in file system initialized below.
     esp_err_t err = nvs_flash_init();
@@ -423,7 +423,7 @@ nvRamClass::nvRamClass()
     err = nvs_open("ratgdo", NVS_READWRITE, &nvHandle);
     if (err != ESP_OK)
     {
-        RERROR(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
         nvHandle = 0;
     }
 }
@@ -433,12 +433,12 @@ void nvRamClass::checkStats()
     nvs_stats_t nvs_stats;
     if (esp_err_t err = nvs_get_stats(NULL, &nvs_stats) == ESP_OK)
     {
-        RINFO(TAG, "NVRAM Stats... UsedEntries = (%lu), FreeEntries = (%lu), TotalEntries = (%lu), Count = (%lu)\n",
-              nvs_stats.used_entries, nvs_stats.free_entries, nvs_stats.total_entries, nvs_stats.namespace_count);
+        ESP_LOGI(TAG, "NVRAM Stats... UsedEntries = (%lu), FreeEntries = (%lu), TotalEntries = (%lu), Count = (%lu)\n",
+                 nvs_stats.used_entries, nvs_stats.free_entries, nvs_stats.total_entries, nvs_stats.namespace_count);
     }
     else
     {
-        RERROR(TAG, "Error return from nvs_get_stats: %d", err);
+        ESP_LOGE(TAG, "Error return from nvs_get_stats: %d", err);
     }
 }
 
@@ -452,7 +452,7 @@ int32_t nvRamClass::read(const std::string &constKey, const int32_t dflt)
     esp_err_t err = nvs_get_i32(nvHandle, key.c_str(), &value);
     if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND)
     {
-        RERROR(TAG, "NVRAM get error for: %s (%s)", key.c_str(), esp_err_to_name(err));
+        ESP_LOGE(TAG, "NVRAM get error for: %s (%s)", key.c_str(), esp_err_to_name(err));
     }
     return value;
 }
@@ -477,7 +477,7 @@ std::string nvRamClass::read(const std::string &constKey, const std::string &dfl
     }
     else if (err != ESP_ERR_NVS_NOT_FOUND)
     {
-        RERROR(TAG, "NVRAM get error for: %s (%s)", key.c_str(), esp_err_to_name(err));
+        ESP_LOGE(TAG, "NVRAM get error for: %s (%s)", key.c_str(), esp_err_to_name(err));
     }
     return value;
 }
@@ -491,7 +491,7 @@ bool nvRamClass::write(const std::string &constKey, const int32_t value, bool co
     esp_err_t err = nvs_set_i32(nvHandle, key.c_str(), value);
     if (err != ESP_OK)
     {
-        RERROR(TAG, "NVRAM set error for: %s (%s)", key.c_str(), esp_err_to_name(err));
+        ESP_LOGE(TAG, "NVRAM set error for: %s (%s)", key.c_str(), esp_err_to_name(err));
         return false;
     }
     if (commit)
@@ -510,7 +510,7 @@ bool nvRamClass::readBlob(const std::string &constKey, char *value, size_t size)
     esp_err_t err = nvs_get_blob(nvHandle, key.c_str(), value, &size);
     if (err != ESP_OK)
     {
-        RERROR(TAG, "NVRAM get error for: %s (%s)", key.c_str(), esp_err_to_name(err));
+        ESP_LOGE(TAG, "NVRAM get error for: %s (%s)", key.c_str(), esp_err_to_name(err));
         return false;
     }
     return true;
@@ -525,7 +525,7 @@ bool nvRamClass::writeBlob(const std::string &constKey, const char *value, size_
     esp_err_t err = nvs_set_blob(nvHandle, key.c_str(), value, size);
     if (err != ESP_OK)
     {
-        RERROR(TAG, "NVRAM set error for: %s (%s)", key.c_str(), esp_err_to_name(err));
+        ESP_LOGE(TAG, "NVRAM set error for: %s (%s)", key.c_str(), esp_err_to_name(err));
         return false;
     }
     if (commit)
@@ -544,7 +544,7 @@ bool nvRamClass::write(const std::string &constKey, const std::string &value, bo
     esp_err_t err = nvs_set_str(nvHandle, key.c_str(), value.c_str());
     if (err != ESP_OK)
     {
-        RERROR(TAG, "NVRAM set error for: %s (%s)", key.c_str(), esp_err_to_name(err));
+        ESP_LOGE(TAG, "NVRAM set error for: %s (%s)", key.c_str(), esp_err_to_name(err));
         return false;
     }
     if (commit)
@@ -563,7 +563,7 @@ bool nvRamClass::erase(const std::string &constKey)
     esp_err_t err = nvs_erase_key(nvHandle, key.c_str());
     if (err != ESP_OK)
     {
-        RERROR(TAG, "NVRAM erase error for: %s (%s)", key.c_str(), esp_err_to_name(err));
+        ESP_LOGE(TAG, "NVRAM erase error for: %s (%s)", key.c_str(), esp_err_to_name(err));
         return false;
     }
     ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_commit(nvHandle));
@@ -575,7 +575,7 @@ void nvRamClass::erase()
     esp_err_t err = nvs_erase_all(nvHandle);
     if (err != ESP_OK)
     {
-        RERROR(TAG, "NVRAM erase_all error: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "NVRAM erase_all error: %s", esp_err_to_name(err));
         return;
     }
     ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_commit(nvHandle));

@@ -65,7 +65,7 @@ public:
         /* reduce noise in logs
         if (msg_ready)
         {
-            RINFO(TAG, "reader completed packet");
+            ESP_LOGI(TAG, "reader completed packet");
         }
         */
         return msg_ready;

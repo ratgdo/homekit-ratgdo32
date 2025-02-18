@@ -38,7 +38,7 @@ bool previousDryContactDoorClose = false;
 
 void setup_drycontact()
 {
-    RINFO(TAG, "=== Setting up dry contact protocol");
+    ESP_LOGI(TAG, "=== Setting up dry contact protocol");
 
     if (doorControlType == 0)
         doorControlType = userConfig->getGDOSecurityType();
@@ -122,23 +122,23 @@ void drycontact_loop()
 void onOpenSwitchPress()
 {
     dryContactDoorOpen = true;
-    RINFO(TAG, "Open switch pressed");
+    ESP_LOGI(TAG, "Open switch pressed");
 }
 
 void onCloseSwitchPress()
 {
     dryContactDoorClose = true;
-    RINFO(TAG, "Close switch pressed");
+    ESP_LOGI(TAG, "Close switch pressed");
 }
 
 void onOpenSwitchRelease()
 {
     dryContactDoorOpen = false;
-    RINFO(TAG, "Open switch released");
+    ESP_LOGI(TAG, "Open switch released");
 }
 
 void onCloseSwitchRelease()
 {
     dryContactDoorClose = false;
-    RINFO(TAG, "Close switch released");
+    ESP_LOGI(TAG, "Close switch released");
 }

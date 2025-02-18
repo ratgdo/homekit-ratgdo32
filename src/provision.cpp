@@ -48,7 +48,7 @@ void blink_led(int d, int times)
 
 void setup_improv()
 {
-    RINFO(TAG, "Disable HomeSpan logging and serial port input");
+    ESP_LOGI(TAG, "Disable HomeSpan logging and serial port input");
     // This is necessary so as not to interfere with Improv use of serial port
     homeSpan.setLogLevel(-1);
     homeSpan.setSerialInputDisable(true);

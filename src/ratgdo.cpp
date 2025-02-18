@@ -98,14 +98,14 @@ void setup()
     {
     case ESP_RST_POWERON:
     case ESP_RST_PWR_GLITCH:
-        RINFO(TAG, "System restart after power-on or power glitch: %d", r);
+        ESP_LOGI(TAG, "System restart after power-on or power glitch: %d", r);
         // RTC memory does not survive power interruption. Initialize values.
         rebootTime = 0;
         crashTime = 0;
         crashCount = 0;
         break;
     default:
-        RINFO(TAG, "System restart reason: %d", r);
+        ESP_LOGI(TAG, "System restart reason: %d", r);
         break;
     }
 
@@ -162,7 +162,7 @@ static void ping_success(esp_ping_handle_t hdl, void *args)
     esp_ping_get_profile(hdl, ESP_PING_PROF_SIZE, &recv_len, sizeof(recv_len));
     esp_ping_get_profile(hdl, ESP_PING_PROF_TIMEGAP, &elapsed_time, sizeof(elapsed_time));
     IPAddress ip_addr((uint32_t)target_addr.u_addr.ip4.addr);
-    RINFO(TAG, "Ping: %d bytes from %s icmp_seq=%d ttl=%d time=%dms",
+    ESP_LOGI(TAG, "Ping: %d bytes from %s icmp_seq=%d ttl=%d time=%dms",
           recv_len, ip_addr.toString().c_str(), seqno, ttl, elapsed_time);
     ping_timed_out = false;
 }
@@ -174,14 +174,14 @@ static void ping_timeout(esp_ping_handle_t hdl, void *args)
     esp_ping_get_profile(hdl, ESP_PING_PROF_SEQNO, &seqno, sizeof(seqno));
     esp_ping_get_profile(hdl, ESP_PING_PROF_IPADDR, &target_addr, sizeof(target_addr));
     IPAddress ip_addr((uint32_t)target_addr.u_addr.ip4.addr);
-    RINFO(TAG, "Ping from %s icmp_seq=%d timeout", ip_addr.toString().c_str(), seqno);
+    ESP_LOGI(TAG, "Ping from %s icmp_seq=%d timeout", ip_addr.toString().c_str(), seqno);
     ping_timed_out = true;
 }
 
 static void ping_end(esp_ping_handle_t hdl, void *args)
 {
     ping_failure = ping_timed_out;
-    RINFO(TAG, "Ping end: %s", (ping_failure) ? "failed" : "success");
+    ESP_LOGI(TAG, "Ping end: %s", (ping_failure) ? "failed" : "success");
 }
 
 static void ping_start()
@@ -189,7 +189,7 @@ static void ping_start()
     ip_addr_t addr;
     esp_ping_config_t ping_config = ESP_PING_DEFAULT_CONFIG();
     WiFi.gatewayIP().to_ip_addr_t(&addr);
-    RINFO(TAG, "Ping to: %s", WiFi.gatewayIP().toString().c_str());
+    ESP_LOGI(TAG, "Ping to: %s", WiFi.gatewayIP().toString().c_str());
     ping_config.target_addr = addr;
     ping_config.count = 2;
 
@@ -221,7 +221,7 @@ void service_timer_loop()
     if ((rebootSeconds != 0) && (rebootSeconds < current_millis / 1000))
     {
         // Reboot the system if we have reached time...
-        RINFO(TAG, "Rebooting system as %lu seconds expired", rebootSeconds);
+        ESP_LOGI(TAG, "Rebooting system as %lu seconds expired", rebootSeconds);
         sync_and_restart();
         return;
     }
@@ -229,13 +229,13 @@ void service_timer_loop()
     if (enableNTP && clockSet && lastRebootAt == 0)
     {
         lastRebootAt = time(NULL) - (current_millis / 1000);
-        RINFO(TAG, "Current System time: %s", timeString());
-        RINFO(TAG, "System boot time:    %s", timeString(lastRebootAt));
+        ESP_LOGI(TAG, "Current System time: %s", timeString());
+        ESP_LOGI(TAG, "System boot time:    %s", timeString(lastRebootAt));
         // Need to also set when last door open/close was
         if (userConfig->getDoorUpdateAt() != 0)
         {
             lastDoorUpdateAt = (((uint64_t)userConfig->getDoorUpdateAt() - time(NULL)) * 1000LL) + current_millis;
-            RINFO(TAG, "Last door update at: %s", timeString((uint64_t)userConfig->getDoorUpdateAt()));
+            ESP_LOGI(TAG, "Last door update at: %s", timeString((uint64_t)userConfig->getDoorUpdateAt()));
         }
     }
 
@@ -247,7 +247,7 @@ void service_timer_loop()
         if (free_heap < min_heap)
         {
             min_heap = free_heap;
-            RINFO(TAG, "Free heap dropped to %d", min_heap);
+            ESP_LOGI(TAG, "Free heap dropped to %d", min_heap);
         }
     }
 
@@ -256,7 +256,7 @@ void service_timer_loop()
         bool connected = (WiFi.status() == WL_CONNECTED);
         if (!connected)
         {
-            RERROR(TAG, "30 seconds since WiFi settings change, failed to connect");
+            ESP_LOGE(TAG, "30 seconds since WiFi settings change, failed to connect");
             userConfig->set(cfg_wifiPower, WIFI_POWER_MAX);
             userConfig->set(cfg_wifiPhyMode, 0);
             // TODO support WiFi TX Power & PhyMode... set changes immediately here
@@ -266,10 +266,10 @@ void service_timer_loop()
         }
         else
         {
-            RINFO(TAG, "30 seconds since WiFi settings change, successfully connected to access point");
+            ESP_LOGI(TAG, "30 seconds since WiFi settings change, successfully connected to access point");
             if (userConfig->getStaticIP())
             {
-                RINFO(TAG, "Connected with static IP, test gateway IP reachable");
+                ESP_LOGI(TAG, "Connected with static IP, test gateway IP reachable");
                 ping_start();
             }
             wifiConnectTimeout = 0;
@@ -284,7 +284,7 @@ void service_timer_loop()
         {
             // We timed out trying to ping gateway set by static IP, revert to DHCP
             ping_stop();
-            RINFO(TAG, "Unable to ping Gateway, reset to DHCP to acquire IP address and reconnect");
+            ESP_LOGI(TAG, "Unable to ping Gateway, reset to DHCP to acquire IP address and reconnect");
             userConfig->set(cfg_staticIP, false);
             IPAddress ip;
             ip.fromString("0.0.0.0");
