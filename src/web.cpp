@@ -210,6 +210,8 @@ void web_loop()
         ADD_INT_C(json, "batteryState", garage_door.batteryState, last_reported_garage_door.batteryState);
         ADD_INT_C(json, "openingsCount", garage_door.openingsCount, last_reported_garage_door.openingsCount);
     }
+    ADD_INT_C(json, "openDuration", garage_door.openDuration, last_reported_garage_door.openDuration);
+    ADD_INT_C(json, "closeDuration", garage_door.closeDuration, last_reported_garage_door.closeDuration);
     if (strlen(json) > 2)
     {
         // Have we added anything to the JSON string?
@@ -502,6 +504,14 @@ void handle_status()
     {
         ADD_INT(json, "batteryState", garage_door.batteryState);
         ADD_INT(json, "openingsCount", garage_door.openingsCount);
+    }
+    if (garage_door.openDuration)
+    {
+        ADD_INT(json, "openDuration", garage_door.openDuration);
+    }
+    if (garage_door.closeDuration)
+    {
+        ADD_INT(json, "closeDuration", garage_door.closeDuration);
     }
     END_JSON(json);
 

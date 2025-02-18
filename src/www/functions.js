@@ -373,6 +373,12 @@ function setElementsFromStatus(status) {
                 document.getElementById("secPlus2Row").style.display = "table-row";
                 document.getElementById(key).innerHTML = (value == 6) ? "Charging" : (value == 8) ? "Fully Charged" : "Unknown";
                 break;
+            case "openDuration":
+                document.getElementById(key).innerHTML = value + "&nbsp;seconds";
+                break;
+            case "closeDuration":
+                document.getElementById(key).innerHTML = value + "&nbsp;seconds";
+                break;
             default:
                 try {
                     document.getElementById(key).innerHTML = value;
