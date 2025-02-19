@@ -161,8 +161,8 @@
             onclick="setGDO('garageLightOn', (event.target.value === 'Light On') ? '1' : '0');">
           <input type="button" id="doorButton" value="Open Door"
             onclick="setGDO('garageDoorState', (event.target.value === 'Open Door') ? '1' : '0');">
-          <input type="button" id="lockButton" value="Lock Door"
-            onclick="setGDO('garageLockState', (event.target.value === 'Lock Door') ? '1' : '0');">
+          <input type="button" id="lockButton" value="Lock Remotes"
+            onclick="setGDO('garageLockState', (event.target.value === 'Lock Remotes') ? '1' : '0');">
           <input type="button" id="laserButton" value="Laser On" style="display:none;"
             onclick="setGDO('assistLaser', (event.target.value === 'Laser On') ? '1' : '0');">
         </div>
@@ -309,6 +309,13 @@
                   <span style="vertical-align: middle; font-size: 0.8em">
                     <span id="vehicleThresholdCM"></span>&nbsp;cm<span style="font-size: 0.8em;">&nbsp;(<span
                         id="vehicleThresholdInch"></span>&nbsp;inch)</span>
+                </td>
+              </tr>
+              <tr id="vehicleHomeKitRow" style="display:none;">
+                <td></td>
+                <td>&nbsp;
+                  <input type="checkbox" id="vehicleHomeKit" name="vehicleHomeKit" value="no">
+                  <label for="vehicleHomeKit">HomeKit Vehicle Motion Sensors</label>
                 </td>
               </tr>
               <tr id="laserSetting" style="display:none;">

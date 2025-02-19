@@ -168,6 +168,13 @@ bool helperVehicleThreshold(const std::string &key, const std::string &value, co
     return true;
 }
 
+bool helperVehicleHomeKit(const std::string &key, const std::string &value, configSetting *action)
+{
+    userConfig->set(key, value);
+    enable_service_homekit_vehicle(userConfig->getVehicleHomeKit());
+    return true;
+}
+
 bool helperLaser(const std::string &key, const std::string &value, configSetting *action)
 {
     userConfig->set(key, value);
@@ -225,8 +232,9 @@ userSettings::userSettings()
         {cfg_syslogIP, {false, false, "0.0.0.0", NULL}},
         {cfg_syslogPort, {false, false, 514, NULL}},
         {cfg_vehicleThreshold, {false, false, 100, helperVehicleThreshold}}, // call fn to set globals
+        {cfg_vehicleHomeKit, {false, false, false, helperVehicleHomeKit}},   // call fn to enable/disable HomeKit accessories
         {cfg_laserEnabled, {false, false, false, helperLaser}},
-        {cfg_laserHomeKit, {false, false, true, helperLaser}},
+        {cfg_laserHomeKit, {false, false, true, helperLaser}}, // call fn to enable/disable HomeKit accessories
         {cfg_assistDuration, {false, false, 60, NULL}},
         {cfg_logLevel, {false, false, ESP_LOG_INFO, helperLogLevel}}, // call fn to set log level
     };

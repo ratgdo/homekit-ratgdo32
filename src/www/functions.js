@@ -242,6 +242,7 @@ function setElementsFromStatus(status) {
             case "distanceSensor":
                 document.getElementById("vehicleRow").style.display = (value) ? "table-row" : "none";
                 document.getElementById("vehicleSetting").style.display = (value) ? "table-row" : "none";
+                document.getElementById("vehicleHomeKitRow").style.display = (value) ? "table-row" : "none";
                 document.getElementById("laserSetting").style.display = (value) ? "table-row" : "none";
                 break;
             case "vehicleThreshold":
@@ -252,6 +253,9 @@ function setElementsFromStatus(status) {
             case "vehicleDist":
                 document.getElementById(key).innerHTML = value;
                 document.getElementById("vehicleDistInch").innerHTML = Math.round(value / .254) / 10;
+                break;
+            case "vehicleHomeKit":
+                document.getElementById(key).checked = value;
                 break;
             case "laserEnabled":
                 document.getElementById(key).checked = value;
@@ -358,7 +362,7 @@ function setElementsFromStatus(status) {
                 break;
             case "garageLockState":
                 document.getElementById(key).innerHTML = value;
-                document.getElementById("lockButton").value = (value == "Unsecured") ? "Lock Door" : "Unlock Door";
+                document.getElementById("lockButton").value = (value == "Unsecured") ? "Lock Remotes" : "Unlock Remotes";
                 break;
             case "assistLaser":
                 document.getElementById("laserButton").value = (value == false) ? "Laser On" : "Laser Off";
@@ -892,6 +896,7 @@ async function saveSettings() {
     */
     let vehicleThreshold = Math.max(Math.min(parseInt(document.getElementById("vehicleThreshold").value), 300), 5);
     if (isNaN(vehicleThreshold)) vehicleThreshold = 0;
+    const vehicleHomeKit = (document.getElementById("vehicleHomeKit").checked) ? '1' : '0';
     const laserEnabled = (document.getElementById("laserEnabled").checked) ? '1' : '0';
     const laserHomeKit = (document.getElementById("laserHomeKit").checked) ? '1' : '0';
 
@@ -940,6 +945,7 @@ async function saveSettings() {
         */
         "TTCseconds", TTCseconds,
         "vehicleThreshold", vehicleThreshold,
+        "vehicleHomeKit", vehicleHomeKit,
         "laserEnabled", laserEnabled,
         "laserHomeKit", laserHomeKit,
         "assistDuration", assistDuration,

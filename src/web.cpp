@@ -498,6 +498,7 @@ void handle_status()
     }
     ADD_BOOL(json, cfg_laserEnabled, userConfig->getLaserEnabled());
     ADD_BOOL(json, cfg_laserHomeKit, userConfig->getLaserHomeKit());
+    ADD_BOOL(json, cfg_vehicleHomeKit, userConfig->getVehicleHomeKit());
     ADD_INT(json, cfg_assistDuration, userConfig->getAssistDuration());
     ADD_STR(json, "qrPayload", qrPayload);
     if (doorControlType == 2)

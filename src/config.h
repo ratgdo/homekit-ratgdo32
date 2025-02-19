@@ -66,6 +66,7 @@ constexpr char cfg_syslogEn[] = "syslogEn";
 constexpr char cfg_syslogIP[] = "syslogIP";
 constexpr char cfg_syslogPort[] = "syslogPort";
 constexpr char cfg_vehicleThreshold[] = "vehicleThreshold";
+constexpr char cfg_vehicleHomeKit[] = "vehicleHomeKit";
 constexpr char cfg_laserEnabled[] = "laserEnabled";
 constexpr char cfg_laserHomeKit[] = "laserHomeKit";
 constexpr char cfg_assistDuration[] = "assistDuration";
@@ -138,6 +139,7 @@ public:
     int getVehicleThreshold() { return std::get<int>(get(cfg_vehicleThreshold)); };
     bool getLaserEnabled() { return std::get<bool>(get(cfg_laserEnabled)); };
     bool getLaserHomeKit() { return std::get<bool>(get(cfg_laserHomeKit)); };
+    bool getVehicleHomeKit() { return std::get<bool>(get(cfg_vehicleHomeKit)); };
     int getAssistDuration() { return std::get<int>(get(cfg_assistDuration)); };
     int getLogLevel() { return std::get<int>(get(cfg_logLevel)); };
 };

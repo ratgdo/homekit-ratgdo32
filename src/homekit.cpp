@@ -67,7 +67,7 @@ void wifiBegin(const char *ssid, const char *pw)
             dns.fromString(userConfig->getNameserverIP().c_str()))
         {
             ESP_LOGI(TAG, "Set static IP: %s, Mask: %s, Gateway: %s, DNS: %s",
-                  ip.toString().c_str(), nm.toString().c_str(), gw.toString().c_str(), dns.toString().c_str());
+                     ip.toString().c_str(), nm.toString().c_str(), gw.toString().c_str(), dns.toString().c_str());
             WiFi.config(ip, gw, nm, dns);
         }
         else
@@ -84,7 +84,7 @@ void connectionCallback(int count)
         return;
 
     ESP_LOGI(TAG, "WiFi established, count: %d, IP: %s, Mask: %s, Gateway: %s, DNS: %s", count, WiFi.localIP().toString().c_str(),
-          WiFi.subnetMask().toString().c_str(), WiFi.gatewayIP().toString().c_str(), WiFi.dnsIP().toString().c_str());
+             WiFi.subnetMask().toString().c_str(), WiFi.gatewayIP().toString().c_str(), WiFi.dnsIP().toString().c_str());
     userConfig->set(cfg_localIP, WiFi.localIP().toString().c_str());
     userConfig->set(cfg_gatewayIP, WiFi.gatewayIP().toString().c_str());
     userConfig->set(cfg_subnetMask, WiFi.subnetMask().toString().c_str());
@@ -181,42 +181,45 @@ void createMotionAccessories()
     motion = new DEV_Motion("Motion");
 }
 
-void createVehicleAccessories()
+void enable_service_homekit_vehicle(bool enable)
 {
-    // Exit if already setup
-    if (arriving)
-        return;
-
-    // Define Motion Sensor accessory for vehicle arriving
-    new SpanAccessory(HOMEKIT_AID_ARRIVING);
-    new DEV_Info("Arriving");
-    arriving = new DEV_Motion("Arriving");
-
-    // Define Motion Sensor accessory for vehicle departing
-    new SpanAccessory(HOMEKIT_AID_DEPARTING);
-    new DEV_Info("Departing");
-    departing = new DEV_Motion("Departing");
-
-    // Define Motion Sensor accessory for vehicle occupancy (parked or away)
-    new SpanAccessory(HOMEKIT_AID_VEHICLE);
-    new DEV_Info("Vehicle");
-    vehicle = new DEV_Occupancy();
-}
-
-void enable_service_homekit_vehicle()
-{
-    // only create if not already created
-    if (!garage_door.has_distance_sensor)
+    if (enable)
     {
-        nvRam->write(nvram_has_distance, 1);
-        garage_door.has_distance_sensor = true;
-        createVehicleAccessories();
-        if (!enable_service_homekit_laser(true))
+        if (!vehicle) // using "vehicle" as proxy for all three motion sensors
         {
-            // if enabling laser did not update database then we need to do it now.
+            // Define Motion Sensor accessory for vehicle arriving
+            new SpanAccessory(HOMEKIT_AID_ARRIVING);
+            new DEV_Info("Arriving");
+            arriving = new DEV_Motion("Arriving");
+
+            // Define Motion Sensor accessory for vehicle departing
+            new SpanAccessory(HOMEKIT_AID_DEPARTING);
+            new DEV_Info("Departing");
+            departing = new DEV_Motion("Departing");
+
+            // Define Motion Sensor accessory for vehicle occupancy (parked or away)
+            new SpanAccessory(HOMEKIT_AID_VEHICLE);
+            new DEV_Info("Vehicle");
+            vehicle = new DEV_Occupancy();
+
             homeSpan.updateDatabase();
         }
     }
+    else if (vehicle) // using "vehicle" as proxy for all three motion sensors
+    {
+        // Delete the accessories, if they exists
+        ESP_LOGI(TAG, "Deleting HomeKit Motion and Occupancy Accessories for vehicle presense");
+        homeSpan.deleteAccessory(HOMEKIT_AID_VEHICLE);
+        vehicle = nullptr;
+        homeSpan.deleteAccessory(HOMEKIT_AID_ARRIVING);
+        arriving = nullptr;
+        homeSpan.deleteAccessory(HOMEKIT_AID_DEPARTING);
+        departing = nullptr;
+
+        homeSpan.updateDatabase();
+    }
+
+    enable_service_homekit_laser(userConfig->getLaserEnabled() && userConfig->getLaserHomeKit());
 }
 
 bool enable_service_homekit_laser(bool enable)
@@ -237,6 +240,7 @@ bool enable_service_homekit_laser(bool enable)
     else if (assistLaser)
     {
         // Delete the accessory, if it exists
+        ESP_LOGI(TAG, "Deleting HomeKit Light Switch for Laser");
         if (homeSpan.deleteAccessory(HOMEKIT_AID_LASER))
         {
             assistLaser = nullptr;
@@ -352,8 +356,7 @@ void setup_homekit()
     garage_door.has_distance_sensor = (bool)nvRam->read(nvram_has_distance);
     if (garage_door.has_distance_sensor)
     {
-        createVehicleAccessories();
-        enable_service_homekit_laser(true);
+        enable_service_homekit_vehicle(userConfig->getVehicleHomeKit());
     }
     else
     {

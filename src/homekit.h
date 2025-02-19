@@ -54,7 +54,7 @@ extern void notify_homekit_vehicle_occupancy(bool vehicleDetected);
 extern void notify_homekit_vehicle_arriving(bool vehicleArriving);
 extern void notify_homekit_vehicle_departing(bool vehicleDeparting);
 extern void notify_homekit_laser(bool on);
-extern void enable_service_homekit_vehicle();
+extern void enable_service_homekit_vehicle(bool enable);
 extern bool enable_service_homekit_laser(bool enable);
 
 extern void homekit_unpair();
