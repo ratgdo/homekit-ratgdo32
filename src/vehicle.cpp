@@ -74,8 +74,10 @@ void setup_vehicle()
         return;
     }
 
-    enable_service_homekit_vehicle();
+    garage_door.has_distance_sensor = true;
+    nvRam->write(nvram_has_distance, 1);
     vehicleThresholdDistance = userConfig->getVehicleThreshold() * 10; // convert centimeters to millimeters
+    enable_service_homekit_vehicle(userConfig->getVehicleHomeKit());
     vehicle_setup_done = true;
 }
 

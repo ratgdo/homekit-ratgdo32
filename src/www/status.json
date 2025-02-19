@@ -43,6 +43,7 @@
   "vehicleDist" : 100,
   "laserEnabled" : false,
   "laserHomeKit" : true,
+  "vehicleHomeKit" : true,
   "assistDuration" : 60,
   "qrPayload" : "X-HM://0042WZMX3RTGO",
   "batteryState" : 8,
