@@ -179,9 +179,9 @@ void send_get_status();
 void send_get_openings();
 bool transmitSec1(byte toSend);
 bool transmitSec2(PacketAction &pkt_ac);
-void manual_recovery();
 void obstruction_timer();
 #endif
+void manual_recovery();
 
 #ifdef USE_GDOLIB
 /****************************************************************************
@@ -210,10 +210,6 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
                 gdo_sync();
             }
         }
-        else
-        {
-            // gdo_set_time_to_close(0);
-        }
         break;
     case GDO_CB_EVENT_LIGHT:
         ESP_LOGI(TAG, "GDO event: light: %s", gdo_light_state_to_string(status->light));
@@ -235,7 +231,11 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
         garage_door.active = true;
         garage_door.current_state = gdo_to_homekit_door_current_state[status->door];
         if (current_state != garage_door.current_state)
+        {
             notify_homekit_current_door_state_change(garage_door.current_state);
+            if (status->door == GDO_DOOR_STATE_CLOSED && doorControlType == 2 && userConfig->getBuiltInTTC())
+                gdo_set_time_to_close(0);
+        }
         break;
     }
     case GDO_CB_EVENT_LEARN:
@@ -266,6 +266,8 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
         break;
     case GDO_CB_EVENT_BUTTON:
         ESP_LOGI(TAG, "GDO event: button: %s", gdo_button_state_to_string(status->button));
+        if (status->button == GDO_BUTTON_STATE_PRESSED)
+            manual_recovery();
         break;
     case GDO_CB_EVENT_MOTOR:
         ESP_LOGI(TAG, "GDO event: motor: %s", gdo_motor_state_to_string(status->motor));
@@ -275,14 +277,15 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
         garage_door.openingsCount = status->openings;
         break;
     case GDO_CB_EVENT_SET_TTC:
-        ESP_LOGI(TAG, "GDO event: set Time to close: %d", status->ttc_seconds);
-        // userConfig->set(cfg_TTCseconds, status->ttc_seconds);
+        ESP_LOGI(TAG, "GDO event: set time-to-close: %d", status->ttc_seconds);
         break;
     case GDO_CB_EVENT_UPDATE_TTC:
-        ESP_LOGI(TAG, "GDO event: update Time to close: %d", status->ttc_seconds);
+        ESP_LOGI(TAG, "GDO event: update time-to-close: %d", status->ttc_seconds);
         break;
     case GDO_CB_EVENT_CANCEL_TTC:
-        ESP_LOGI(TAG, "GDO event: cancel time to close");
+        ESP_LOGI(TAG, "GDO event: cancel time-to-close");
+        if (doorControlType == 2 && userConfig->getBuiltInTTC())
+            gdo_set_time_to_close(0);
         break;
     case GDO_CB_EVENT_PAIRED_DEVICES:
         ESP_LOGI(TAG, "GDO event: paired devices, %d remotes, %d keypads, %d wall controls, %d accessories, %d total",
@@ -1607,6 +1610,8 @@ GarageDoorCurrentState open_door()
     }
     ESP_LOGI(TAG, "Opening door");
 #ifdef USE_GDOLIB
+    if (doorControlType == 2 && userConfig->getBuiltInTTC())
+        gdo_set_time_to_close(0);
     gdo_door_open();
 #else
     door_command(DoorAction::Open);
@@ -1692,14 +1697,11 @@ GarageDoorCurrentState close_door()
         {
             ESP_LOGI(TAG, "Delay door close by %d seconds", userConfig->getTTCseconds());
 #ifdef USE_GDOLIB
-            /*
-            if (doorControlType == 2)
+            if (doorControlType == 2 && userConfig->getBuiltInTTC())
             {
                 gdo_set_time_to_close(userConfig->getTTCseconds());
-                // gdo_door_close();
             }
             else
-            //*/
             {
                 delayFnCall(userConfig->getTTCseconds() * 1000, (void (*)())gdo_door_close);
             }
@@ -1906,7 +1908,7 @@ bool set_light(bool value, bool verify)
     return true;
 }
 #endif
-#ifndef USE_GDOLIB
+
 void manual_recovery()
 {
     // Don't check for manual recovery if in midst of a time-to-close delay
@@ -1935,6 +1937,7 @@ void manual_recovery()
     }
 }
 
+#ifndef USE_GDOLIB
 /*************************** OBSTRUCTION DETECTION **************************
  *
  */

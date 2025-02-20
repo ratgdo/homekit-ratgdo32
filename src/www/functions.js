@@ -214,6 +214,7 @@ function setElementsFromStatus(status) {
                 document.getElementById("gdosec1").checked = (value == 1);
                 document.getElementById("gdosec2").checked = (value == 2);
                 document.getElementById("gdodrycontact").checked = (value == 3);
+                document.getElementById("builtInTTCrow").style.display = (value == 2) ? "table-row" : "none";
                 break;
             case "deviceName":
                 document.getElementById(key).innerHTML = value;
@@ -238,6 +239,9 @@ function setElementsFromStatus(status) {
                 document.getElementById(key).value = (value <= 10) ? value : (value - 10) / 5 + 10;
                 document.getElementById("TTCsecondsValue").innerHTML = value;
                 document.getElementById("TTCwarning").style.display = (value < 5) ? "inline" : "none";
+                break;
+            case "builtInTTC":
+                document.getElementById(key).checked = value;
                 break;
             case "distanceSensor":
                 document.getElementById("vehicleRow").style.display = (value) ? "table-row" : "none";
@@ -869,10 +873,10 @@ async function saveSettings() {
     let TTCseconds = Math.max(parseInt(document.getElementById("TTCseconds").value), 0);
     if (isNaN(TTCseconds)) TTCseconds = 0;
     TTCseconds = (TTCseconds <= 10) ? TTCseconds : ((TTCseconds - 10) * 5) + 10;
-
     let msg = (TTCseconds < 5) ? "WARNING: You have requested a time-to-close delay of less than 5 seconds. " +
         "This violates US Consumer Product Safety Act Regulations, section 1211.14, unattended operation requirements.\n\n" +
         "By selecting a " + TTCseconds + " seconds delay you accept all responsibility and liability for injury or any other loss.\n\n" : "";
+    const builtInTTC = (document.getElementById("builtInTTC").checked) ? '1' : '0';
 
     if (!confirm(msg + 'Save Settings. Reboot may be required, are you sure?')) {
         return;
@@ -944,6 +948,7 @@ async function saveSettings() {
         "wifiPower", wifiPower,
         */
         "TTCseconds", TTCseconds,
+        "builtInTTC", builtInTTC,
         "vehicleThreshold", vehicleThreshold,
         "vehicleHomeKit", vehicleHomeKit,
         "laserEnabled", laserEnabled,
