@@ -216,17 +216,6 @@
                 </td>
               </tr>
               <tr>
-                <td class="label">Door Close Delay:</td>
-                <td>&nbsp;
-                  <input type="range" min="0" max="20" value="5" id="TTCseconds" name="TTCseconds" class="slider"
-                    style="width:150px;">
-                  <span style="vertical-align: middle; font-size: 0.8em"><span
-                      id="TTCsecondsValue"></span>&nbsp;Seconds&nbsp;<a id="TTCwarning"
-                      style="display: none; color: red;" href="https://www.law.cornell.edu/cfr/text/16/1211.14"
-                      target="_blank">WARNING</a></span>
-                </td>
-              </tr>
-              <tr>
                 <td class="label">Require Password:</td>
                 <td>&nbsp;
                   <input type="checkbox" id="pwreq" name="pwreq" value="no">
@@ -284,12 +273,27 @@
                   <label for="logLevel5">Verbose</label>
                 </td>
               </tr>
-              <!-- Setting motion triggers no longer reboots, even initializing first time.
               <tr>
-                <td style="font-size: 0.65em;"><br><u>Reboot may be required:</u></td>
-                <td></td>
+                <td colspan="2">&nbsp;</td>
               </tr>
-              -->
+              <tr>
+                <td class="label">Door Close Delay:</td>
+                <td>&nbsp;
+                  <input type="range" min="0" max="20" value="5" id="TTCseconds" name="TTCseconds" class="slider"
+                    style="width:150px;">
+                  <span style="vertical-align: middle; font-size: 0.8em"><span
+                      id="TTCsecondsValue"></span>&nbsp;Seconds&nbsp;<a id="TTCwarning"
+                      style="display: none; color: red;" href="https://www.law.cornell.edu/cfr/text/16/1211.14"
+                      target="_blank">WARNING</a></span>
+                </td>
+              </tr>
+              <tr id="builtInTTCrow" style="display:none;">
+                <td></td>
+                <td>&nbsp;
+                  <input type="checkbox" id="builtInTTC" name="builtInTTC" value="no" checked>
+                  <label for="builtInTTC">Use GDO built-in time-to-close</label>
+                </td>
+              </tr>
               <tr>
                 <td class="label">Motion Triggers:</td>
                 <td>&nbsp;
@@ -315,7 +319,7 @@
                 <td></td>
                 <td>&nbsp;
                   <input type="checkbox" id="vehicleHomeKit" name="vehicleHomeKit" value="no">
-                  <label for="vehicleHomeKit">HomeKit Vehicle Motion Sensors</label>
+                  <label for="vehicleHomeKit">HomeKit Vehicle Occupancy & Motion</label>
                 </td>
               </tr>
               <tr id="laserSetting" style="display:none;">

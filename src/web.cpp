@@ -474,6 +474,7 @@ void handle_status()
     ADD_INT(json, cfg_syslogPort, userConfig->getSyslogPort());
     ADD_INT(json, cfg_logLevel, userConfig->getLogLevel());
     ADD_INT(json, cfg_TTCseconds, userConfig->getTTCseconds());
+    ADD_BOOL(json, cfg_builtInTTC, userConfig->getBuiltInTTC());
     ADD_INT(json, cfg_vehicleThreshold, userConfig->getVehicleThreshold());
     ADD_INT(json, cfg_motionTriggers, motionTriggers.asInt);
     ADD_INT(json, cfg_LEDidle, userConfig->getLEDidle());
