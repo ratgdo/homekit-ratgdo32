@@ -131,14 +131,6 @@ When you save settings from this page the ratgdo device will either return immed
 
 This updates the name reported to HomeKit and for mDNS device discovery.  The default name is _Garage Door ABCDEF_ where the last 6 characters are set to the MAC address of the ratgdo device. Changing the name after pairing with HomeKit does not change the name within HomeKit or Apple Home.  The maximum length is 31 characters.  For network hostname the length is truncated to 23 characters and all spaces are replaced with a hyphen.
 
-### Door Close Delay
-
-You can select up-to 60 second delay before door starts closing. During the delay period the garage door lights will flash and you may hear the relay clicking. On ratgdo32-disco boards you will also hear audible beeping. Default time-to-close delay is 5 seconds.
-
-> [!WARNING]
-> The US Consumer Product Safety Act Regulations, section 1211.14, unattended operation requirements [16 CFR § 1211.14](https://www.law.cornell.edu/cfr/text/16/1211.14), state that there must be a minimum delay of 5 seconds before the door closes.
-> The regulation also requires that the light flash with audible beeping.  If you select a time-to-close delay of under 5 seconds then a warning is shown in the web settings page and you accept all responsibility and liability for injury or any other loss.
-
 ### Require Password
 
 If selected then all the action buttons _except reboot_, and access to the settings page, will require authentication.  Default is not required.
@@ -153,6 +145,23 @@ This setting allows you to send the ratgdo logs to a syslog server.  Enter the I
 
 > [!NOTE]
 > If your ratgdo is on an IoT VLAN or otherwise isolated VLAN, then you need to make sure it has access to your syslog server.  If the syslog server is on a separate VLAN, you need to allow UDP port 514 through the firewall.
+
+### Log Level
+
+You can select the verbosity of log messages from none to verbose.  Default is _Info_ level.  If you are diagnosing a problem then you should change this to _Debug_ level.
+
+### Door Close Delay
+
+You can select up-to 60 second delay before door starts closing. During the delay period the garage door lights will flash and you may hear the relay clicking. On ratgdo32-disco boards you will also hear audible beeping. Default time-to-close delay is 5 seconds.
+
+On doors that support Sec+ 2.0 you have the option to select the built-in time-to-close delay feature.
+
+> [!NOTE]
+> The built-in TTC feature operates slightly differently than ratgdo's timer.  If you set the TTC to e.g. 20 seconds, then on requesting a door close it will wait, in silence, for 20 seconds then sound its internal beeper and flash the lights for 10 seconds before closing the door... thus 30 seconds before the door closes.  The TTC timer in ratgdo will immediately sound its buzzer and flash lights, and close the door after 20 seconds.
+
+> [!WARNING]
+> The US Consumer Product Safety Act Regulations, section 1211.14, unattended operation requirements [16 CFR § 1211.14](https://www.law.cornell.edu/cfr/text/16/1211.14), state that there must be a minimum delay of 5 seconds before the door closes.
+> The regulation also requires that the light flash with audible beeping.  If you select a time-to-close delay of under 5 seconds then a warning is shown in the web settings page and you accept all responsibility and liability for injury or any other loss.
 
 ### Motion Triggers
 
@@ -183,6 +192,10 @@ zero disables parking assist laser.  Parking assist is triggered if an arriving 
 ### Door Protocol
 
 Set the protocol for your model of garage door opener.  This defaults to Security+ 2.0 and you should only change this if necessary.  Note that the changing the door protocol also resets the door opener rolling codes and whether there is a motion sensor (this will be automatically detected after reset).
+
+### Enable hardwired open/close control
+
+For Security+ 1.0 and Security +2.0 it is possible to repurpose the sensors used for dry-contact door open / close to buttons that trigger a door open / close action.  Select this check box to enable this option.
 
 ### WiFi Version _(not supported on ratgdo32 boards)_
 
