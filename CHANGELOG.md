@@ -4,6 +4,29 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v3.1.0 (2025-03-07)
+
+Version 3.1 includes major change to garage door opener (GDO) communications.  We now use GDOLIB from [Gelidus Research](https://github.com/GelidusResearch/gdolib).
+This has major benefit in separating out the details of communicating with the garage door from the HomeKit and ratgdo user interface, greatly simplifying our code.
+As this is a major change, thorough testing is required.
+
+### What's Changed
+
+* Feature: Updated [HomeSpan](https://github.com/HomeSpan/HomeSpan) to version 2.1.1
+* Feature: Use [GDOLIB](https://github.com/GelidusResearch/gdolib) for garage door communications
+* Feature: For Sec+2.0 use GDO's built-in Time-to-Close (TTC).  Option on user interface to disable and use ratgdo timer.
+* Feature: Add user option to disable HomeKit motion and occupancy accessories for vehicle presence.
+* Feature: Add door opening and closing duration to web page (calculated first time door operated after reboot).
+* Feature: Added message log level to user interface, defaults to INFO.
+* Bugfix: Dry contact should be working now, fixes issue #41
+* Other: Replace all our RINFO()/RERROR() message log macros with standard ESP_LOGx() macros.
+
+Note: The built-in TTC feature operates slightly differently than ratgdo's timer.  If you set the TTC to e.g. 20 seconds, then on requesting a door close it will wait, in silence, for 20 seconds then sound its internal beeper and flash the lights for 10 seconds before closing the door... thus 30 seconds before the door closes.  The TTC timer in ratgdo will immediately sound its buzzer and flash lights, and close the door after 20 seconds.
+
+### Known Issues
+
+* Still testing... Future updates MAY include breaking changes requiring a flash erase and re-upload.
+
 ## v3.0.7 (2025-02-07)
 
 ### What's Changed
