@@ -217,6 +217,8 @@ function setElementsFromStatus(status) {
                 document.getElementById("builtInTTCrow").style.display = (value == 2) ? "table-row" : "none";
                 document.getElementById("lockButton").style.display = (value != 3) ? "inline-block" : "none";
                 document.getElementById("lightButton").style.display = (value != 3) ? "inline-block" : "none";
+                document.getElementById("lockLightRow").style.display = (value != 3) ? "table-row" : "none";
+                document.getElementById("durationRow").style.display = (value != 3) ? "table-row" : "none";
                 break;
             case "deviceName":
                 document.getElementById(key).innerHTML = value;
