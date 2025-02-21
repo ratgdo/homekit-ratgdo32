@@ -215,6 +215,8 @@ function setElementsFromStatus(status) {
                 document.getElementById("gdosec2").checked = (value == 2);
                 document.getElementById("gdodrycontact").checked = (value == 3);
                 document.getElementById("builtInTTCrow").style.display = (value == 2) ? "table-row" : "none";
+                document.getElementById("lockButton").style.display = (value != 3) ? "inline-block" : "none";
+                document.getElementById("lightButton").style.display = (value != 3) ? "inline-block" : "none";
                 break;
             case "deviceName":
                 document.getElementById(key).innerHTML = value;
