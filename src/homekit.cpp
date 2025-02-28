@@ -29,7 +29,9 @@
 #include "softAP.h"
 #include "led.h"
 #include "vehicle.h"
+#ifndef USE_GDOLIB
 #include "drycontact.h"
+#endif
 
 // Logger tag
 static const char *TAG = "ratgdo-homekit";
@@ -98,7 +100,9 @@ void connectionCallback(int count)
         }
         setup_vehicle();
         setup_comms();
+#ifndef USE_GDOLIB
         setup_drycontact();
+#endif
         setup_web();
     }
     // beep on completing startup.

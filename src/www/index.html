@@ -354,12 +354,19 @@
               <tr>
                 <td class="label">Door Protocol:</td>
                 <td>&nbsp;
-                  <input type="radio" id="gdosec1" name="gdosecuritysetting" value="1">
+                  <input type="radio" id="gdosec1" name="gdosecuritysetting" value="1" onclick="toggleDCOpenClose(this)">
                   <label for="gdosec1">Sec+</label>
-                  <input type="radio" id="gdosec2" name="gdosecuritysetting" value="2">
+                  <input type="radio" id="gdosec2" name="gdosecuritysetting" value="2" onclick="toggleDCOpenClose(this)">
                   <label for="gdosec2">Sec+ 2.0</label>
-                  <input type="radio" id="gdodrycontact" name="gdosecuritysetting" value="3">
+                  <input type="radio" id="gdodrycontact" name="gdosecuritysetting" value="3" onclick="toggleDCOpenClose(this)">
                   <label for="gdodrycontact">Dry Contact</label>
+                </td>
+              </tr>
+              <tr id="dcOpenCloseRow" style="display:none;">
+                <td></td>
+                <td>&nbsp;
+                  <input type="checkbox" id="dcOpenClose" name="dcOpenClose" value="no">
+                  <label for="dcOpenClose">Enable hardwired open/close control</label>
                 </td>
               </tr>
               <!-- TODO add support for selecting WiFi PhyMode and WiFi TX Power

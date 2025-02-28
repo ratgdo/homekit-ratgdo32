@@ -12,6 +12,7 @@
  *
  */
 
+ #ifndef USE_GDOLIB
 // RATGDO project includes
 #include "ratgdo.h"
 #include "config.h"
@@ -142,3 +143,4 @@ void onCloseSwitchRelease()
     dryContactDoorClose = false;
     ESP_LOGI(TAG, "Close switch released");
 }
+#endif

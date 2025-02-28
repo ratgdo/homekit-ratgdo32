@@ -238,6 +238,7 @@ userSettings::userSettings()
         {cfg_laserHomeKit, {false, false, true, helperLaser}}, // call fn to enable/disable HomeKit accessories
         {cfg_assistDuration, {false, false, 60, NULL}},
         {cfg_logLevel, {false, false, ESP_LOG_INFO, helperLogLevel}}, // call fn to set log level
+        {cfg_dcOpenClose, {true, false, false, NULL}},
     };
 }
 

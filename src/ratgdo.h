@@ -39,10 +39,11 @@ const gpio_num_t UART_TX_PIN = GPIO_NUM_17;
 const gpio_num_t UART_RX_PIN = GPIO_NUM_21;
 const gpio_num_t LED_BUILTIN = GPIO_NUM_2;
 const gpio_num_t INPUT_OBST_PIN = GPIO_NUM_4;
-const gpio_num_t STATUS_DOOR_PIN = GPIO_NUM_26;       // output door status, HIGH for open, LOW for closed
-const gpio_num_t STATUS_OBST_PIN = GPIO_NUM_25;       // output for obstruction status, HIGH for obstructed, LOW for clear
-const gpio_num_t DRY_CONTACT_OPEN_PIN = GPIO_NUM_13;  // dry contact for opening door
-const gpio_num_t DRY_CONTACT_CLOSE_PIN = GPIO_NUM_14; // dry contact for closing door
+const gpio_num_t DRY_CONTACT_OPEN_PIN = GPIO_NUM_13;  // open door contact sensor
+const gpio_num_t DRY_CONTACT_CLOSE_PIN = GPIO_NUM_14; // closed door contact sensor
+const gpio_num_t LIGHT_PIN = GPIO_NUM_27;             // control a light
+const gpio_num_t DISCRETE_OPEN_PIN = GPIO_NUM_26;     // alternative (or in addition) to toggle, can use discrete open control
+const gpio_num_t DISCRETE_CLOSE_PIN = GPIO_NUM_25;    // alternative (or in addition) to toggle, can use discrete close control
 
 const gpio_num_t BEEPER_PIN = GPIO_NUM_33;
 const gpio_num_t LASER_PIN = GPIO_NUM_23;

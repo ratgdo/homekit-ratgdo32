@@ -51,5 +51,6 @@
   "openingsCount" : 999,
   "logLevel" : 3,
   "openDuration" : 25,
-  "closeDuration" : 20
+  "closeDuration" : 20,
+  "dcOpenClose" : false
 }

@@ -31,7 +31,9 @@
 #include "softAP.h"
 #include "led.h"
 #include "vehicle.h"
+#ifndef USE_GDOLIB
 #include "drycontact.h"
+#endif
 #include "provision.h"
 
 // Logger tag
@@ -141,7 +143,9 @@ void setup()
 void loop()
 {
     comms_loop();
+#ifndef USE_GDOLIB
     drycontact_loop();
+#endif
     web_loop();
     soft_ap_loop();
     improv_loop();
@@ -165,7 +169,7 @@ static void ping_success(esp_ping_handle_t hdl, void *args)
     esp_ping_get_profile(hdl, ESP_PING_PROF_TIMEGAP, &elapsed_time, sizeof(elapsed_time));
     IPAddress ip_addr((uint32_t)target_addr.u_addr.ip4.addr);
     ESP_LOGI(TAG, "Ping: %d bytes from %s icmp_seq=%d ttl=%d time=%dms",
-          recv_len, ip_addr.toString().c_str(), seqno, ttl, elapsed_time);
+             recv_len, ip_addr.toString().c_str(), seqno, ttl, elapsed_time);
     ping_timed_out = false;
 }
 
