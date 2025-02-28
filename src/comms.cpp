@@ -39,7 +39,9 @@
 #include "comms.h"
 #include "config.h"
 #include "led.h"
+#ifndef USE_GDOLIB
 #include "drycontact.h"
+#endif
 
 static const char *TAG = "ratgdo-comms";
 
@@ -139,9 +141,9 @@ uint64_t last_tx;
 
 bool wallplateBooting = false;
 bool wallPanelDetected = false;
-#endif
+// #endif
 GarageDoorCurrentState doorState = GarageDoorCurrentState::UNKNOWN;
-#ifndef USE_GDOLIB
+// #ifndef USE_GDOLIB
 uint8_t lightState;
 uint8_t lockState;
 
@@ -321,24 +323,13 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
  */
 void setup_comms()
 {
-#ifndef USE_GDOLIB
-    // Create packet queue
-    pkt_q = xQueueCreate(16, sizeof(PacketAction));
-#else
-    gdo_config_t gdo_conf = {
-        .uart_num = UART_NUM_1,
-        .obst_from_status = true,
-        .invert_uart = true,
-        .uart_tx_pin = UART_TX_PIN,
-        .uart_rx_pin = UART_RX_PIN,
-        .obst_in_pin = INPUT_OBST_PIN,
-    };
-#endif
-
     if (doorControlType == 0)
         doorControlType = userConfig->getGDOSecurityType();
 
 #ifndef USE_GDOLIB
+    // Create packet queue
+    pkt_q = xQueueCreate(16, sizeof(PacketAction));
+
     if (doorControlType == 1)
     {
         ESP_LOGI(TAG, "=== Setting up comms for SECURITY+1.0 protocol");
@@ -385,9 +376,33 @@ void setup_comms()
         }
         force_recover.push_count = 0;
     }
+    else
+    {
+        ESP_LOGI(TAG, "=== Setting up comms for dry contact protocol");
+        pinMode(UART_TX_PIN, OUTPUT);
+    }
 #else
     if ((doorControlType == 1) || (doorControlType == 2))
     {
+        gdo_config_t gdo_conf = {
+            .uart_num = UART_NUM_1,
+            .obst_from_status = true,
+            .invert_uart = true,
+            .uart_tx_pin = UART_TX_PIN,
+            .uart_rx_pin = UART_RX_PIN,
+            .obst_in_pin = INPUT_OBST_PIN,
+            .obst_tp_pin = GPIO_NUM_0,  // only used for testing obstruction sensor
+            .dc_open_pin = GPIO_NUM_0,  // disable dry-contact
+            .dc_close_pin = GPIO_NUM_0, // disable dry-contact
+            .dc_discrete_open_pin = GPIO_NUM_0,
+            .dc_discrete_close_pin = GPIO_NUM_0,
+        };
+        if (userConfig->getDCOpenClose())
+        {
+            // Enable dry-contact (to trigger door open/close)
+            gdo_conf.dc_open_pin = DRY_CONTACT_OPEN_PIN;
+            gdo_conf.dc_close_pin = DRY_CONTACT_CLOSE_PIN;
+        }
         gdo_init(&gdo_conf);
         // read from flash, default of 0 if file not exist
         uint32_t id_code = nvRam->read(nvram_id_code);
@@ -419,12 +434,30 @@ void setup_comms()
         gdo_get_status(&gdo_status);
         force_recover.push_count = 0;
     }
-#endif
     else
     {
-        ESP_LOGI(TAG, "=== Setting up comms for dry contact protocol");
-        pinMode(UART_TX_PIN, OUTPUT);
+        // door control is dry contact
+        gdo_config_t gdo_conf = {
+            .uart_num = UART_NUM_1, // not used for dry contact
+            .obst_from_status = false,
+            .invert_uart = true, // not used for dry contact
+            .uart_tx_pin = UART_TX_PIN,
+            .uart_rx_pin = UART_RX_PIN, // not used for dry contact
+            .obst_in_pin = INPUT_OBST_PIN,
+            .obst_tp_pin = GPIO_NUM_0, // only used for testing obstruction sensor
+            .dc_open_pin = DRY_CONTACT_OPEN_PIN,
+            .dc_close_pin = DRY_CONTACT_CLOSE_PIN,
+            .dc_discrete_open_pin = DISCRETE_OPEN_PIN,
+            .dc_discrete_close_pin = DISCRETE_CLOSE_PIN,
+        };
+        gdo_set_protocol(GDO_PROTOCOL_DRY_CONTACT);
+        // gdo_set_obst_test_pulse_timer(10000, true); // only used for testing obstruction sensor
+        gdo_init(&gdo_conf);
+        gdo_start(gdo_event_handler, NULL);
+        gdo_get_status(&gdo_status);
+        force_recover.push_count = 0;
     }
+#endif
 
 #ifndef USE_GDOLIB
     /* pin-based obstruction detection
@@ -1261,7 +1294,7 @@ void comms_loop_sec2()
         save_rolling_code();
     }
 }
-#endif
+
 void comms_loop_drycontact()
 {
     static GarageDoorCurrentState previousDoorState = GarageDoorCurrentState::UNKNOWN;
@@ -1301,15 +1334,13 @@ void comms_loop_drycontact()
         ESP_LOGI(TAG, "Door state updated: Current: %d, Target: %d", garage_door.current_state, garage_door.target_state);
     }
 }
-
+#endif
 void comms_loop()
 {
     if (!comms_setup_done)
         return;
 
-#ifdef USE_GDOLIB
-    comms_loop_drycontact();
-#else
+#ifndef USE_GDOLIB
     if (doorControlType == 1)
         comms_loop_sec1();
     else if (doorControlType == 2)
@@ -1636,7 +1667,11 @@ void delayFnCall(uint32_t ms, void (*callback)())
                             if (iterations % 2 == 0)
                             {
                                 // If light is on, turn it off.  If off, turn it on.
-                                set_light((iterations % 4) != 0, false);
+                                if (doorControlType != 3)
+                                {
+                                    // dry contact cannot control lights
+                                    set_light((iterations % 4) != 0, false);
+                                }
                             }
                             tone(BEEPER_PIN, 1300, 125);
                             iterations--;
@@ -1645,7 +1680,10 @@ void delayFnCall(uint32_t ms, void (*callback)())
                         {
                             TTCtimer.detach();
                             // Turn light off. It will turn on as part of the door close action and then go off after a timeout
-                            set_light(false);
+                            if (doorControlType != 3) {
+                                // dry contact cannot control lights
+                                set_light(false);
+                            }
                             if (callback)
                             {
                                 ESP_LOGI(TAG,"Calling delayed function 0x%08lX", (uint32_t)callback);

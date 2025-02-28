@@ -500,6 +500,7 @@ void handle_status()
     ADD_BOOL(json, cfg_laserEnabled, userConfig->getLaserEnabled());
     ADD_BOOL(json, cfg_laserHomeKit, userConfig->getLaserHomeKit());
     ADD_BOOL(json, cfg_vehicleHomeKit, userConfig->getVehicleHomeKit());
+    ADD_BOOL(json, cfg_dcOpenClose, userConfig->getDCOpenClose());
     ADD_INT(json, cfg_assistDuration, userConfig->getAssistDuration());
     ADD_STR(json, "qrPayload", qrPayload);
     if (doorControlType == 2)
@@ -817,12 +818,12 @@ void SSEheartbeat(SSESubscription *s)
     {
         subscriptionCount--;
         s->heartbeatTimer.detach();
+        ESP_LOGI(TAG, "Client %s not listening, remove SSE subscription. Total subscribed: %d", s->clientIP.toString().c_str(), subscriptionCount);
         s->client.clear();
         s->client.stop();
         s->clientIP = INADDR_NONE;
         s->clientUUID.clear();
         s->SSEconnected = false;
-        ESP_LOGI(TAG, "Client %s not listening, remove SSE subscription. Total subscribed: %d", s->clientIP.toString().c_str(), subscriptionCount);
     }
 }
 
