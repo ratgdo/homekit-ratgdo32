@@ -73,6 +73,7 @@ constexpr char cfg_laserHomeKit[] = "laserHomeKit";
 constexpr char cfg_assistDuration[] = "assistDuration";
 constexpr char cfg_logLevel[] = "logLevel";
 constexpr char cfg_dcOpenClose[] = "dcOpenClose";
+constexpr char cfg_dcDebounceDuration[] = "dcDebounceDuration";
 
 constexpr char nvram_messageLog[] = "messageLog";
 constexpr char nvram_id_code[] = "id_code";
@@ -146,6 +147,7 @@ public:
     int getAssistDuration() { return std::get<int>(get(cfg_assistDuration)); };
     int getLogLevel() { return std::get<int>(get(cfg_logLevel)); };
     bool getDCOpenClose() { return std::get<bool>(get(cfg_dcOpenClose)); };
+    int getDCDebounceDuration() { return std::get<int>(get(cfg_dcDebounceDuration)); };
 };
 extern userSettings *userConfig;
 

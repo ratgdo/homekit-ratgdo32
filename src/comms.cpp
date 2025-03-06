@@ -449,6 +449,7 @@ void setup_comms()
             .dc_close_pin = DRY_CONTACT_CLOSE_PIN,
             .dc_discrete_open_pin = DISCRETE_OPEN_PIN,
             .dc_discrete_close_pin = DISCRETE_CLOSE_PIN,
+            .dc_debounce_ms = (uint32_t)userConfig->getDCDebounceDuration(),
         };
         gdo_set_protocol(GDO_PROTOCOL_DRY_CONTACT);
         // gdo_set_obst_test_pulse_timer(10000, true); // only used for testing obstruction sensor

@@ -163,7 +163,7 @@ void web_loop()
     START_JSON(json);
     if (garage_door.active && garage_door.current_state != lastDoorState)
     {
-        ESP_LOGI(TAG, "Current Door State changing from %d to %d", lastDoorState, garage_door.current_state);
+        ESP_LOGI(TAG, "Current Door State changing from %s to %s", DOOR_STATE(lastDoorState), DOOR_STATE(garage_door.current_state));
         if (enableNTP && clockSet)
         {
             if (lastDoorState == 0xff)
@@ -501,6 +501,7 @@ void handle_status()
     ADD_BOOL(json, cfg_laserHomeKit, userConfig->getLaserHomeKit());
     ADD_BOOL(json, cfg_vehicleHomeKit, userConfig->getVehicleHomeKit());
     ADD_BOOL(json, cfg_dcOpenClose, userConfig->getDCOpenClose());
+    ADD_INT(json, cfg_dcDebounceDuration, userConfig->getDCDebounceDuration());
     ADD_INT(json, cfg_assistDuration, userConfig->getAssistDuration());
     ADD_STR(json, "qrPayload", qrPayload);
     if (doorControlType == 2)
