@@ -214,7 +214,7 @@ function setElementsFromStatus(status) {
                 document.getElementById("lastRebootAt").innerHTML = date.toLocaleString();
                 break;
             case "GDOSecurityType":
-                document.getElementById(key).innerHTML = (value == 1) ? "Sec+ " : (value == 2) ? "Sec+ 2.0" : "Dry Contact";
+                document.getElementById(key).innerHTML = (value == 1) ? "Sec+" : (value == 2) ? "Sec+&nbsp;2.0" : "Dry&nbsp;Contact";
                 document.getElementById("gdosec1").checked = (value == 1);
                 document.getElementById("gdosec2").checked = (value == 2);
                 document.getElementById("gdodrycontact").checked = (value == 3);
@@ -391,7 +391,7 @@ function setElementsFromStatus(status) {
                 break;
             case "batteryState":
                 document.getElementById("secPlus2Row").style.display = "table-row";
-                document.getElementById(key).innerHTML = (value == 6) ? "Charging" : (value == 8) ? "Fully Charged" : "Unknown";
+                document.getElementById(key).innerHTML = (value == 6) ? "Charging" : (value == 8) ? "Fully&nbsp;Charged" : "Unknown";
                 break;
             case "openDuration":
                 document.getElementById(key).innerHTML = value + "&nbsp;seconds";

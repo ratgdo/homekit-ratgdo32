@@ -23,7 +23,7 @@ function findStartTime(text) {
 
     let i = text.indexOf(':', text.indexOf('Server uptime')) + 2;
     let j = search(text, regex, i);
-    upTime = Number(text.substring(i, j));
+    upTime = Number(text.substring(i, j)) * 1000;
 
     i = text.indexOf('Server time');
     if (i >= 0) {
@@ -144,12 +144,12 @@ async function loadLogs() {
                 if (bootTime) {
                     let date = new Date();
                     date.setTime(bootTime);
-                    elem.insertAdjacentHTML('beforebegin', `<pre style="margin: 0px; color : darkgoldenrod">Server started at:  ${date.toUTCString()}</pre>`);
+                    elem.insertAdjacentHTML('beforebegin', `<pre style="margin: 0px; color:darkgoldenrod; font-size: 0.8em;">Server started at:  ${date.toUTCString()}</pre>`);
                     date.setTime(serverTime);
-                    elem.insertAdjacentHTML('beforebegin', `<pre style="margin: 0px; color : darkgoldenrod">Server shutdown at: ${date.toUTCString()}</pre>`);
+                    elem.insertAdjacentHTML('beforebegin', `<pre style="margin: 0px; color:darkgoldenrod; font-size: 0.8em;">Server shutdown at: ${date.toUTCString()}</pre>`);
                 }
                 if (upTime) {
-                    elem.insertAdjacentHTML('beforebegin', `<pre style="margin: 0px; color : darkgoldenrod">Server upTime:      ${msToTime(upTime)}</pre>`);
+                    elem.insertAdjacentHTML('beforebegin', `<pre style="margin: 0px; color:darkgoldenrod; font-size: 0.8em;">Server upTime:      ${msToTime(upTime)}</pre>`);
                 }
                 elem.innerText = insertTimeStamp(text, bootTime);
             })
@@ -169,12 +169,12 @@ async function loadLogs() {
                 if (bootTime) {
                     let date = new Date();
                     date.setTime(bootTime);
-                    elem.insertAdjacentHTML('beforeend', `<pre style="margin: 0px; color : darkgoldenrod">Server started at: ${date.toUTCString()}</pre>`);
+                    elem.insertAdjacentHTML('beforeend', `<pre style="margin: 0px; color:darkgoldenrod; font-size: 0.8em;">Server started at: ${date.toUTCString()}</pre>`);
                     date.setTime(serverTime);
-                    elem.insertAdjacentHTML('beforeend', `<pre style="margin: 0px; color : darkgoldenrod">Server crashed at: ${date.toUTCString()}</pre>`);
+                    elem.insertAdjacentHTML('beforeend', `<pre style="margin: 0px; color:darkgoldenrod; font-size: 0.8em;">Server crashed at: ${date.toUTCString()}</pre>`);
                 }
                 if (upTime) {
-                    elem.insertAdjacentHTML('beforeend', `<pre style="margin: 0px; color : darkgoldenrod">Server upTime:     ${msToTime(upTime)}</pre>`);
+                    elem.insertAdjacentHTML('beforeend', `<pre style="margin: 0px; color:darkgoldenrod; font-size: 0.8em;">Server upTime:     ${msToTime(upTime)}</pre>`);
                 }
                 document.getElementById("crashlog").innerText = insertTimeStamp(text, bootTime);
             })
@@ -222,12 +222,12 @@ async function loadLogs() {
                 if (bootTime) {
                     let date = new Date();
                     date.setTime(bootTime);
-                    elem.insertAdjacentHTML('beforebegin', `<pre style="margin: 0px; color : darkgoldenrod">Server started at:   ${date.toUTCString()}</pre>`);
+                    elem.insertAdjacentHTML('beforebegin', `<pre style="margin: 0px; color:darkgoldenrod; font-size: 0.8em;">Server started at:   ${date.toUTCString()}</pre>`);
                     date.setTime(serverTime);
-                    elem.insertAdjacentHTML('beforebegin', `<pre style="margin: 0px; color : darkgoldenrod">Server current time: ${date.toUTCString()}</pre>`);
+                    elem.insertAdjacentHTML('beforebegin', `<pre style="margin: 0px; color:darkgoldenrod; font-size: 0.8em;">Server current time: ${date.toUTCString()}</pre>`);
                 }
                 if (upTime) {
-                    elem.insertAdjacentHTML('beforebegin', `<pre style="margin: 0px; color : darkgoldenrod">Server upTime:       ${msToTime(upTime)}</pre>`);
+                    elem.insertAdjacentHTML('beforebegin', `<pre style="margin: 0px; color:darkgoldenrod; font-size: 0.8em;">Server upTime:       ${msToTime(upTime)}</pre>`);
                 }
                 elem.insertAdjacentText('afterbegin', insertTimeStamp(text, serverBootTime));
                 let divElem = document.getElementById("logTab");
