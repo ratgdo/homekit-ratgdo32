@@ -27,6 +27,9 @@
 #include "led.h"
 #include "homekit.h"
 #include "vehicle.h"
+#ifdef USE_GDOLIB
+#include "gdo.h"
+#endif
 
 // Logger tag
 static const char *TAG = "ratgdo-config";
@@ -103,6 +106,20 @@ bool helperGDOSecurityType(const std::string &key, const std::string &value, con
     // Call fn to reset door
     userConfig->set(key, value);
     reset_door();
+    return true;
+}
+
+bool helperBuiltInTTC(const std::string &key, const std::string &value, configSetting *action)
+{
+    userConfig->set(key, value);
+#ifdef USE_GDOLIB
+    if (!userConfig->getBuiltInTTC())
+    {
+        // We have just disabled use of GDO's built-in time-to-close.
+        ESP_LOGI(TAG, "Disable built-in TTC, set to: %d", userConfig->getTTCseconds() < 60 ? 0 : userConfig->getTTCseconds());
+        gdo_set_time_to_close(userConfig->getTTCseconds() < 60 ? 0 : userConfig->getTTCseconds());
+    }
+#endif
     return true;
 }
 
@@ -218,7 +235,7 @@ userSettings::userSettings()
         {cfg_wwwCredentials, {false, false, "10d3c00fa1e09696601ef113b99f8a87", NULL}},
         {cfg_GDOSecurityType, {true, false, 2, helperGDOSecurityType}}, // call fn to reset door
         {cfg_TTCseconds, {false, false, 5, NULL}},
-        {cfg_builtInTTC, {false, false, true, NULL}},
+        {cfg_builtInTTC, {false, false, false, helperBuiltInTTC}},
         {cfg_rebootSeconds, {true, true, 0, NULL}},
         {cfg_LEDidle, {false, false, 0, helperLEDidle}},               // call fn to set LED object
         {cfg_motionTriggers, {false, false, 0, helperMotionTriggers}}, // call fn to enable HomeSpan service
