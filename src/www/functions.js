@@ -245,7 +245,7 @@ function setElementsFromStatus(status) {
                 document.getElementById("rebootHours").value = value / 60 / 60;
                 break;
             case "TTCseconds":
-                document.getElementById(key).value = (value <= 10) ? value : (value - 10) / 5 + 10;
+                document.getElementById(key).value = (value <= 10) ? value : (value <= 20) ? (value - 10) / 5 + 10 : 300;
                 document.getElementById("TTCsecondsValue").innerHTML = value;
                 document.getElementById("TTCwarning").style.display = (value < 5) ? "inline" : "none";
                 break;
@@ -884,7 +884,7 @@ function setMotionTriggers(bitset) {
 async function saveSettings() {
     let TTCseconds = Math.max(parseInt(document.getElementById("TTCseconds").value), 0);
     if (isNaN(TTCseconds)) TTCseconds = 0;
-    TTCseconds = (TTCseconds <= 10) ? TTCseconds : ((TTCseconds - 10) * 5) + 10;
+    TTCseconds = (TTCseconds <= 10) ? TTCseconds : (TTCseconds <= 20) ? ((TTCseconds - 10) * 5) + 10 : 300;
     let msg = (TTCseconds < 5) ? "WARNING: You have requested a time-to-close delay of less than 5 seconds. " +
         "This violates US Consumer Product Safety Act Regulations, section 1211.14, unattended operation requirements.\n\n" +
         "By selecting a " + TTCseconds + " seconds delay you accept all responsibility and liability for injury or any other loss.\n\n" : "";
