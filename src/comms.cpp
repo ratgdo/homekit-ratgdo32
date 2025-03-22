@@ -232,7 +232,7 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
                  +status->door_position / 100, (status->door_target >= 0) ? status->door_target / 100 : -1);
         garage_door.active = true;
         garage_door.current_state = gdo_to_homekit_door_current_state[status->door];
-        if (current_state != garage_door.current_state)
+        if ((current_state != garage_door.current_state) && (status->door != GDO_DOOR_STATE_UNKNOWN))
         {
             notify_homekit_current_door_state_change(garage_door.current_state);
             if (status->door == GDO_DOOR_STATE_CLOSED && doorControlType == 2 && userConfig->getBuiltInTTC())
@@ -279,13 +279,13 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
         garage_door.openingsCount = status->openings;
         break;
     case GDO_CB_EVENT_SET_TTC:
-        ESP_LOGI(TAG, "GDO event: set time-to-close: %d", status->ttc_seconds);
+        ESP_LOGI(TAG, "GDO event: set TTC: %d", status->ttc_seconds);
         break;
     case GDO_CB_EVENT_UPDATE_TTC:
-        ESP_LOGI(TAG, "GDO event: update time-to-close: %d", status->ttc_seconds);
+        ESP_LOGI(TAG, "GDO event: update TTC: %d", status->ttc_seconds);
         break;
     case GDO_CB_EVENT_CANCEL_TTC:
-        ESP_LOGI(TAG, "GDO event: cancel time-to-close");
+        ESP_LOGI(TAG, "GDO event: cancel TTC");
         if (doorControlType == 2 && userConfig->getBuiltInTTC())
             gdo_set_time_to_close(0);
         break;
@@ -396,6 +396,7 @@ void setup_comms()
             .dc_close_pin = GPIO_NUM_0, // disable dry-contact
             .dc_discrete_open_pin = GPIO_NUM_0,
             .dc_discrete_close_pin = GPIO_NUM_0,
+            .use_sw_serial = (doorControlType == 2),
         };
         if (userConfig->getDCOpenClose())
         {
@@ -776,7 +777,7 @@ void comms_loop_sec1()
                 if ((garage_door.current_state == CURR_CLOSING) && (TTCtimer.active()))
                 {
                     // We are in a time-to-close delay timeout, cancel the timeout
-                    ESP_LOGI(TAG, "Canceling time-to-close delay timer");
+                    ESP_LOGI(TAG, "Canceling TTC delay timer");
                     TTCtimer.detach();
                 }
 
@@ -1071,7 +1072,7 @@ void comms_loop_sec2()
                 if ((current_state == CURR_CLOSING) && (TTCtimer.active()))
                 {
                     // We are in a time-to-close delay timeout, cancel the timeout
-                    ESP_LOGI(TAG, "Canceling time-to-close delay timer");
+                    ESP_LOGI(TAG, "Canceling TTC delay timer");
                     TTCtimer.detach();
                 }
 
@@ -1616,7 +1617,7 @@ GarageDoorCurrentState open_door()
     {
         // We are in a time-to-close delay timeout.
         // Effect of open is to cancel the timeout (leaving door open)
-        ESP_LOGI(TAG, "Canceling time-to-close delay timer");
+        ESP_LOGI(TAG, "Canceling TTC delay timer");
         TTCtimer.detach();
         // Reset light to state it was at before delay start.
         set_light(TTCwasLightOn);
@@ -1726,7 +1727,7 @@ GarageDoorCurrentState close_door()
         if (TTCtimer.active())
         {
             // We are in a time-to-close delay timeout, cancel the timeout
-            ESP_LOGI(TAG, "Canceling time-to-close delay timer");
+            ESP_LOGI(TAG, "Canceling TTC delay timer");
             TTCtimer.detach();
             // Reset light to state it was at before delay start.
             set_light(TTCwasLightOn);
