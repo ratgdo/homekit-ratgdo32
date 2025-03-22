@@ -52,5 +52,6 @@
   "logLevel" : 3,
   "openDuration" : 25,
   "closeDuration" : 20,
-  "dcOpenClose" : false
+  "dcOpenClose" : false,
+  "useSWserial" : true
 }
