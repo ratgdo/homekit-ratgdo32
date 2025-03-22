@@ -279,7 +279,7 @@
               <tr>
                 <td class="label">Door Close Delay:</td>
                 <td>&nbsp;
-                  <input type="range" min="0" max="20" value="5" id="TTCseconds" name="TTCseconds" class="slider"
+                  <input type="range" min="0" max="21" value="5" id="TTCseconds" name="TTCseconds" class="slider"
                     style="width:150px;">
                   <span style="vertical-align: middle; font-size: 0.8em"><span
                       id="TTCsecondsValue"></span>&nbsp;Seconds&nbsp;<a id="TTCwarning"
@@ -689,9 +689,9 @@
     TTCslider = document.getElementById("TTCseconds");
     TTCtext = document.getElementById("TTCsecondsValue");
     TTCwarning = document.getElementById("TTCwarning");
-    TTCtext.innerHTML = (TTCslider.value <= 10) ? TTCslider.value : ((TTCslider.value - 10) * 5) + 10;
+    TTCtext.innerHTML = (TTCslider.value <= 10) ? TTCslider.value : (TTCslider.value <=20) ? ((TTCslider.value - 10) * 5) + 10 : 300;
     TTCslider.oninput = function () {
-      TTCtext.innerHTML = (this.value <= 10) ? this.value : ((this.value - 10) * 5) + 10;
+      TTCtext.innerHTML = (this.value <= 10) ? this.value : (this.value <= 20) ? ((this.value - 10) * 5) + 10 : 300;
       TTCwarning.style.display = (this.value < 5) ? "inline" : "none";
     };
 
