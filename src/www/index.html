@@ -354,11 +354,14 @@
               <tr>
                 <td class="label">Door Protocol:</td>
                 <td>&nbsp;
-                  <input type="radio" id="gdosec1" name="gdosecuritysetting" value="1" onclick="toggleDCOpenClose(this)">
+                  <input type="radio" id="gdosec1" name="gdosecuritysetting" value="1"
+                    onclick="toggleDCOpenClose(this)">
                   <label for="gdosec1">Sec+</label>
-                  <input type="radio" id="gdosec2" name="gdosecuritysetting" value="2" onclick="toggleDCOpenClose(this)">
+                  <input type="radio" id="gdosec2" name="gdosecuritysetting" value="2"
+                    onclick="toggleDCOpenClose(this)">
                   <label for="gdosec2">Sec+ 2.0</label>
-                  <input type="radio" id="gdodrycontact" name="gdosecuritysetting" value="3" onclick="toggleDCOpenClose(this)">
+                  <input type="radio" id="gdodrycontact" name="gdosecuritysetting" value="3"
+                    onclick="toggleDCOpenClose(this)">
                   <label for="gdodrycontact">Dry Contact</label>
                 </td>
               </tr>
@@ -367,6 +370,13 @@
                 <td>&nbsp;
                   <input type="checkbox" id="dcOpenClose" name="dcOpenClose" value="no">
                   <label for="dcOpenClose">Enable hardwired open/close control</label>
+                </td>
+              </tr>
+              <tr id="useSWserialRow" style="display:none;">
+                <td></td>
+                <td>&nbsp;
+                  <input type="checkbox" id="useSWserial" name="useSWserial" value="no">
+                  <label for="useSWserial">Use software serial emulation rather than h/w UART</label>
                 </td>
               </tr>
               <!-- TODO add support for selecting WiFi PhyMode and WiFi TX Power
@@ -689,7 +699,7 @@
     TTCslider = document.getElementById("TTCseconds");
     TTCtext = document.getElementById("TTCsecondsValue");
     TTCwarning = document.getElementById("TTCwarning");
-    TTCtext.innerHTML = (TTCslider.value <= 10) ? TTCslider.value : (TTCslider.value <=20) ? ((TTCslider.value - 10) * 5) + 10 : 300;
+    TTCtext.innerHTML = (TTCslider.value <= 10) ? TTCslider.value : (TTCslider.value <= 20) ? ((TTCslider.value - 10) * 5) + 10 : 300;
     TTCslider.oninput = function () {
       TTCtext.innerHTML = (this.value <= 10) ? this.value : (this.value <= 20) ? ((this.value - 10) * 5) + 10 : 300;
       TTCwarning.style.display = (this.value < 5) ? "inline" : "none";

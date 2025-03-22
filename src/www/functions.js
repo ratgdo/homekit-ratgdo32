@@ -129,6 +129,7 @@ function toggleSyslog() {
 
 function toggleDCOpenClose(radio) {
     document.getElementById("dcOpenCloseRow").style.display = (radio.value != 3) ? "table-row" : "none";
+    document.getElementById("useSWserialRow").style.display = (radio.value != 3) ? "table-row" : "none";
 }
 
 // enable laser
@@ -224,6 +225,8 @@ function setElementsFromStatus(status) {
                 document.getElementById("lockLightRow").style.display = (value != 3) ? "table-row" : "none";
                 document.getElementById("durationRow").style.display = (value != 3) ? "table-row" : "none";
                 document.getElementById("dcOpenCloseRow").style.display = (value != 3) ? "table-row" : "none";
+                document.getElementById("useSWserialRow").style.display = (value != 3) ? "table-row" : "none";
+
                 break;
             case "deviceName":
                 document.getElementById(key).innerHTML = value;
@@ -277,9 +280,8 @@ function setElementsFromStatus(status) {
                 document.getElementById("parkAssist").style.display = (value) ? "table-row" : "none";
                 break;
             case "laserHomeKit":
-                document.getElementById(key).checked = value;
-                break;
             case "dcOpenClose":
+            case "useSWserial":
                 document.getElementById(key).checked = value;
                 break;
             case "assistDuration":
@@ -916,6 +918,7 @@ async function saveSettings() {
     const laserEnabled = (document.getElementById("laserEnabled").checked) ? '1' : '0';
     const laserHomeKit = (document.getElementById("laserHomeKit").checked) ? '1' : '0';
     const dcOpenClose = (document.getElementById("dcOpenClose").checked) ? '1' : '0';
+    const useSWserial = (document.getElementById("useSWserial").checked) ? '1' : '0';
 
 
     let assistDuration = Math.max(Math.min(parseInt(document.getElementById("assistDuration").value), 300), 0);
@@ -981,7 +984,8 @@ async function saveSettings() {
         "syslogEn", syslogEn,
         "syslogIP", syslogIP,
         "syslogPort", syslogPort,
-        "logLevel", logLevel
+        "logLevel", logLevel,
+        "useSWserial", useSWserial,
     );
     if (reboot) {
         countdown(rebootSeconds, "Settings saved, RATGDO device rebooting...&nbsp;");

@@ -396,7 +396,7 @@ void setup_comms()
             .dc_close_pin = GPIO_NUM_0, // disable dry-contact
             .dc_discrete_open_pin = GPIO_NUM_0,
             .dc_discrete_close_pin = GPIO_NUM_0,
-            .use_sw_serial = (doorControlType == 2),
+            .use_sw_serial = userConfig->getUseSWserial(),
         };
         if (userConfig->getDCOpenClose())
         {

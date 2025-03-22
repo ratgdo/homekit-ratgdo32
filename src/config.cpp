@@ -257,6 +257,7 @@ userSettings::userSettings()
         {cfg_logLevel, {false, false, ESP_LOG_INFO, helperLogLevel}}, // call fn to set log level
         {cfg_dcOpenClose, {true, false, false, NULL}},
         {cfg_dcDebounceDuration, {false, false, 50, NULL}},
+        {cfg_useSWserial, {true, false, true, NULL}},
     };
 }
 
