@@ -234,7 +234,21 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
         garage_door.current_state = gdo_to_homekit_door_current_state[status->door];
         if ((current_state != garage_door.current_state) && (status->door != GDO_DOOR_STATE_UNKNOWN))
         {
+            // If we are opening or closing then we have to also set the target state.
+            if (status->door == GDO_DOOR_STATE_OPENING)
+            {
+                garage_door.target_state = TGT_OPEN;
+                notify_homekit_target_door_state_change(TGT_OPEN);
+            }
+            else if (status->door == GDO_DOOR_STATE_CLOSING)
+            {
+                garage_door.target_state = TGT_CLOSED;
+                notify_homekit_target_door_state_change(TGT_CLOSED);
+            }
+
             notify_homekit_current_door_state_change(garage_door.current_state);
+
+            // If we are using Sec+2.0 built-in time-to-close then reset the TTC to zero when door is closed
             if (status->door == GDO_DOOR_STATE_CLOSED && doorControlType == 2 && userConfig->getBuiltInTTC())
                 gdo_set_time_to_close(0);
         }
