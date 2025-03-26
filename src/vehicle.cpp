@@ -31,7 +31,7 @@ bool vehicle_setup_done = false;
 VL53L4CX distanceSensor(&Wire, SHUTDOWN_PIN);
 
 static const int MIN_DISTANCE = 25;   // ignore bugs crawling on the distance sensor
-static const int MAX_DISTANCE = 3000; // 3 meters, maximum range of the sensor
+static const int MAX_DISTANCE = 4500; // 4.5 meters, maximum range of the sensor
 
 int16_t vehicleDistance = 0;
 int16_t vehicleThresholdDistance = 1000; // set by user
@@ -55,6 +55,7 @@ void setup_vehicle()
 
     Wire.begin(19, 18);
     distanceSensor.begin();
+    distanceSensor.VL53L4CX_Off();
     rc = distanceSensor.InitSensor(0x59);
     if (rc != VL53L4CX_ERROR_NONE)
     {
@@ -87,10 +88,11 @@ void vehicle_loop()
         return;
 
     uint8_t dataReady = 0;
-    if ((distanceSensor.VL53L4CX_GetMeasurementDataReady(&dataReady) == 0) && (dataReady > 0))
+    VL53L4CX_Error err = VL53L4CX_ERROR_NONE;
+    if (((err = distanceSensor.VL53L4CX_GetMeasurementDataReady(&dataReady)) == VL53L4CX_ERROR_NONE) && (dataReady > 0))
     {
         VL53L4CX_MultiRangingData_t distanceData;
-        if (distanceSensor.VL53L4CX_GetMultiRangingData(&distanceData) == VL53L4CX_ERROR_NONE)
+        if ((err = distanceSensor.VL53L4CX_GetMultiRangingData(&distanceData)) == VL53L4CX_ERROR_NONE)
         {
             if (distanceData.NumberOfObjectsFound > 0)
             {
@@ -110,19 +112,23 @@ void vehicle_loop()
                     // 6:  VL53L4CX_RANGESTATUS_RANGE_VALID_NO_WRAP_CHECK_FAIL
                     switch (distanceData.RangeData[i].RangeStatus)
                     {
+                    case VL53L4CX_RANGESTATUS_WRAP_TARGET_FAIL:
+                    case VL53L4CX_RANGESTATUS_TARGET_PRESENT_LACK_OF_SIGNAL:
+                        // Unusual, but docs say that range data is valid.
+                        ESP_LOGD(TAG, "Unusual VL53L4CX Range Status: %d, Range: %d", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
+                        // fall through...
                     case VL53L4CX_RANGESTATUS_RANGE_VALID:
                     case VL53L4CX_RANGESTATUS_RANGE_VALID_MIN_RANGE_CLIPPED:
                     case VL53L4CX_RANGESTATUS_RANGE_VALID_NO_WRAP_CHECK_FAIL:
                         distance = std::max(distance, distanceData.RangeData[i].RangeMilliMeter);
                         break;
                     case VL53L4CX_RANGESTATUS_OUTOFBOUNDS_FAIL:
-                    case VL53L4CX_RANGESTATUS_WRAP_TARGET_FAIL:
-                    case VL53L4CX_RANGESTATUS_TARGET_PRESENT_LACK_OF_SIGNAL:
-                        // Bad data... assume no object, or if is one is past MAX_DISTANCE range.
+                        // Target below threshold... assume no object.
+                        ESP_LOGD(TAG, "Unusual VL53L4CX Range Status: %d, Range: %d", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
                         distance = MAX_DISTANCE;
                         break;
                     default:
-                        ESP_LOGE(TAG, "WARNING: Unhandled VL53L4CX RANGESTATUS value: %d", distanceData.RangeData[i].RangeStatus);
+                        ESP_LOGE(TAG, "WARNING: Unhandled VL53L4CX RANGESTATUS value: %d, Range: %d", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
                         break;
                     }
                 }
@@ -133,9 +139,18 @@ void vehicle_loop()
                 // No objects found, assume maximum range for purpose of calculating vehicle presence.
                 calculatePresence(MAX_DISTANCE);
             }
+            // And start the sensor measuring again...
+            distanceSensor.VL53L4CX_ClearInterruptAndStartMeasurement();
         }
-        // And start the sensor measuring again...
-        distanceSensor.VL53L4CX_ClearInterruptAndStartMeasurement();
+        else
+        {
+            ESP_LOGE(TAG, "VL53L4CX_GetMultiRangingData reports error: %d", err);
+        }
+    }
+    else
+    {
+        if (err)
+            ESP_LOGE(TAG, "VL53L4CX_GetMeasurementDataReady reports error: %d", err);
     }
 
     uint64_t current_millis = millis64();
