@@ -168,6 +168,11 @@ void printTaskInfo(const char *buf)
 };
 #endif
 
+void printLogInfo(const char *buf)
+{
+    ratgdoLogger->printMessageLog(Serial);
+}
+
 /****************************************************************************
  * Initialize HomeKit (with HomeSpan)
  */
@@ -318,6 +323,7 @@ void setup_homekit()
 #ifdef CONFIG_FREERTOS_USE_TRACE_FACILITY
     new SpanUserCommand('t', "- print FreeRTOS task info", printTaskInfo);
 #endif
+    new SpanUserCommand('l', "- print RATGDO buffered message log", printLogInfo);
 
     // Define a bridge (as more than 3 accessories)
     new SpanAccessory(HOMEKIT_AID_BRIDGE);
