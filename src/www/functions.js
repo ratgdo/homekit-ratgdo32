@@ -219,7 +219,7 @@ function setElementsFromStatus(status) {
                 document.getElementById("gdosec1").checked = (value == 1);
                 document.getElementById("gdosec2").checked = (value == 2);
                 document.getElementById("gdodrycontact").checked = (value == 3);
-                document.getElementById("builtInTTCrow").style.display = (value == 2) ? "table-row" : "none";
+                document.getElementById("builtInTTCrow").style.display = (value == 2 && status.builtInTTC) ? "table-row" : "none";
                 document.getElementById("lockButton").style.display = (value != 3) ? "inline-block" : "none";
                 document.getElementById("lightButton").style.display = (value != 3) ? "inline-block" : "none";
                 document.getElementById("lockLightRow").style.display = (value != 3) ? "table-row" : "none";
