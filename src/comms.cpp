@@ -492,6 +492,9 @@ void setup_comms()
  */
 void save_rolling_code()
 {
+    if (doorControlType != 2)
+        return;
+
 #ifdef USE_GDOLIB
     if (gdo_status.rolling_code != 0)
         gdo_get_status(&gdo_status); // get most recent rolling code if we are not resetting it.
