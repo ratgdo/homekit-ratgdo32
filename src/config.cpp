@@ -206,6 +206,14 @@ bool helperLogLevel(const std::string &key, const std::string &value, configSett
     return true;
 }
 
+bool helperUseSWserial(const std::string &key, const std::string &value, configSetting *action)
+{
+    // We must shutdown the GDOLIB tasks before changing the useSWserial setting.
+    gdo_deinit();
+    userConfig->set(key, value);
+    return true;
+}
+
 /****************************************************************************
  * User settings class
  */
@@ -257,7 +265,7 @@ userSettings::userSettings()
         {cfg_logLevel, {false, false, ESP_LOG_INFO, helperLogLevel}}, // call fn to set log level
         {cfg_dcOpenClose, {true, false, false, NULL}},
         {cfg_dcDebounceDuration, {false, false, 50, NULL}},
-        {cfg_useSWserial, {true, false, true, NULL}},
+        {cfg_useSWserial, {true, false, true, helperUseSWserial}}, // call fn to shut down GDO before switch
     };
 }
 
