@@ -19,6 +19,11 @@ jobs:
         with:
             submodules: true
 
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
       - name: Tag
         id: tag
         uses: JinoArch/get-latest-tag@latest
@@ -92,9 +97,12 @@ jobs:
             ~/.cache/pip
             ~/.platformio/.cache
           key: ${{ runner.os }}-pio
-      - uses: actions/setup-python@v4
+
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: '3.13'
+  
       - name: Install PlatformIO Core
         run: |
             pip install --upgrade pip
