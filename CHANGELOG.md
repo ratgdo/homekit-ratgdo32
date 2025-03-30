@@ -4,16 +4,34 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
-## v3.1.0 (2025-03-07)
+## v3.1.4 (2025-03-30)
 
-Version 3.1 includes major change to garage door opener (GDO) communications.  We now use GDOLIB from [Gelidus Research](https://github.com/GelidusResearch/gdolib).
-This has major benefit in separating out the details of communicating with the garage door from the HomeKit and ratgdo user interface, greatly simplifying our code.
+Version 3.1.x include major change to garage door opener (GDO) communications.  This has major benefit in separating out the details of communicating with the garage door from HomeKit and the ratgdo user interface, greatly simplifying our code.
+
+### What's Changed
+
+* Feature: Allow selection between software serial port emulation and hardware UART.  May help with issue #48
+* Feature: Add debug terminal command to print out buffered message log
+* Bugfix: Default to always use ratgdo's own timer for door time-to-close (TTC) and not the TTC built-in to garage door opener.  Partially fixes issue #50
+* Bugfix: Remove user interface setting for built-in time-to-close, also addresses issue #50
+* Bugfix: Garage door opening/closing status not reported correctly to HomeKit, fixes issue #53
+* Buffix: Sec+ 1.0 garage door was unexpectedly opening on reboot when switching between hardware UART and s/w serial
+* Other: Add additional debug and error checking to assist with fixing issue #51
+
+### Known Issues
+
+* Still testing... Future updates MAY include breaking changes requiring a flash erase and re-upload.
+
+## v3.1.0 - v3.1.3 (2025-03-07)
+
+Version 3.1.x include major change to garage door opener (GDO) communications.  This has major benefit in separating out the details of communicating with the garage door from HomeKit and the ratgdo user interface, greatly simplifying our code.
+
 As this is a major change, thorough testing is required.
 
 ### What's Changed
 
 * Feature: Updated [HomeSpan](https://github.com/HomeSpan/HomeSpan) to version 2.1.1
-* Feature: Use [GDOLIB](https://github.com/GelidusResearch/gdolib) for garage door communications
+* Feature: Use new [library](https://github.com/dkerr64/gdolib) for garage door communications
 * Feature: For Sec+2.0 use GDO's built-in Time-to-Close (TTC).  Option on user interface to disable and use ratgdo timer.
 * Feature: Add user option to disable HomeKit motion and occupancy accessories for vehicle presence.
 * Feature: Add door opening and closing duration to web page (calculated first time door operated after reboot).
