@@ -154,11 +154,6 @@ You can select the verbosity of log messages from none to verbose.  Default is _
 
 You can select up-to 60 second delay before door starts closing. During the delay period the garage door lights will flash and you may hear the relay clicking. On ratgdo32-disco boards you will also hear audible beeping. Default time-to-close delay is 5 seconds.
 
-On doors that support Sec+ 2.0 you have the option to select the built-in time-to-close delay feature.
-
-> [!NOTE]
-> The built-in TTC feature operates slightly differently than ratgdo's timer.  If you set the TTC to e.g. 20 seconds, then on requesting a door close it will wait, in silence, for 20 seconds then sound its internal beeper and flash the lights for 10 seconds before closing the door... thus 30 seconds before the door closes.  The TTC timer in ratgdo will immediately sound its buzzer and flash lights, and close the door after 20 seconds.
-
 > [!WARNING]
 > The US Consumer Product Safety Act Regulations, section 1211.14, unattended operation requirements [16 CFR § 1211.14](https://www.law.cornell.edu/cfr/text/16/1211.14), state that there must be a minimum delay of 5 seconds before the door closes.
 > The regulation also requires that the light flash with audible beeping.  If you select a time-to-close delay of under 5 seconds then a warning is shown in the web settings page and you accept all responsibility and liability for injury or any other loss.
@@ -196,6 +191,10 @@ Set the protocol for your model of garage door opener.  This defaults to Securit
 ### Enable hardwired open/close control
 
 For Security+ 1.0 and Security +2.0 it is possible to repurpose the sensors used for dry-contact door open / close to buttons that trigger a door open / close action.  Select this check box to enable this option.
+
+### Use software serial emulation rather than h/w UART
+
+For Security+ 1.0 and Security+ 2.0, communications with the garage door uses a serial port. This can be either the ESP32's built-in hardware UART or a software emulation of a UART.  Software emulation is required for Security+ 2.0 to allow for automatic sensing and changing of the baud rate... without this, the ratgdo cannot detect button presses at the garage door wall panel controler.  For Security+ 1.0, software emulation is optional.  If you experience communication errors you can try changing to use hardware UART.
 
 ### WiFi Version _(not supported on ratgdo32 boards)_
 
@@ -236,7 +235,7 @@ During early development there were several reports that the ratgdo device would
 
 ### Reset Door
 
-This button resets the Sec+ 2.0 rolling codes and whether your door opener has a motion sensor. This may be necessary if the ratgdo device gets out-of-sync with what the door opener expects.  Selecting this button requires the ratgdo to reboot and does not save any new settings.
+This button resets the Security+  2.0 rolling codes and whether your door opener has a motion sensor. This may be necessary if the ratgdo device gets out-of-sync with what the door opener expects.  Selecting this button requires the ratgdo to reboot and does not save any new settings.
 
 ### Set WiFi SSID
 
