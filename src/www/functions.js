@@ -130,6 +130,7 @@ function toggleSyslog() {
 function toggleDCOpenClose(radio) {
     document.getElementById("dcOpenCloseRow").style.display = (radio.value != 3) ? "table-row" : "none";
     document.getElementById("useSWserialRow").style.display = (radio.value != 3) ? "table-row" : "none";
+    document.getElementById("dcDebounceDurationRow").style.display = (radio.value == 3) ? "table-row" : "none";
 }
 
 // enable laser
@@ -226,7 +227,7 @@ function setElementsFromStatus(status) {
                 document.getElementById("durationRow").style.display = (value != 3) ? "table-row" : "none";
                 document.getElementById("dcOpenCloseRow").style.display = (value != 3) ? "table-row" : "none";
                 document.getElementById("useSWserialRow").style.display = (value != 3) ? "table-row" : "none";
-
+                document.getElementById("dcDebounceDurationRow").style.display = (value == 3) ? "table-row" : "none";
                 break;
             case "deviceName":
                 document.getElementById(key).innerHTML = value;
@@ -287,6 +288,10 @@ function setElementsFromStatus(status) {
             case "assistDuration":
                 document.getElementById(key).value = value;
                 document.getElementById("assistValue").innerHTML = value;
+                break;
+            case "dcDebounceDuration":
+                document.getElementById(key).value = value;
+                document.getElementById("dcDebounceValue").innerHTML = value;
                 break;
             case "firmwareVersion":
                 document.getElementById(key).innerHTML = value;
@@ -924,6 +929,9 @@ async function saveSettings() {
     let assistDuration = Math.max(Math.min(parseInt(document.getElementById("assistDuration").value), 300), 0);
     if (isNaN(assistDuration)) assistDuration = 0;
 
+    let dcDebounceDuration = Math.max(Math.min(parseInt(document.getElementById("dcDebounceDuration").value), 1000), 50);
+    if (isNaN(dcDebounceDuration)) dcDebounceDuration = 50;
+
     const syslogEn = (document.getElementById("syslogEn").checked) ? '1' : '0';
     let syslogIP = document.getElementById("syslogIP").value.substring(0, 15);
     if (syslogIP.length == 0) syslogIP = serverStatus.syslogIP;
@@ -986,6 +994,7 @@ async function saveSettings() {
         "syslogPort", syslogPort,
         "logLevel", logLevel,
         "useSWserial", useSWserial,
+        "dcDebounceDuration", dcDebounceDuration,
     );
     if (reboot) {
         countdown(rebootSeconds, "Settings saved, RATGDO device rebooting...&nbsp;");

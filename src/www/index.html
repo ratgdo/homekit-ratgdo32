@@ -337,7 +337,7 @@
                 <td>
                   <table class="settings" id="parkAssist" style="display: none;">
                     <tr>
-                      <td class="label">Assist Duration:</td>
+                      <td class="label">Assist&nbsp;Duration:</td>
                       <td>&nbsp;
                         <input type="range" min="0" max="300" value="60" step="5" id="assistDuration"
                           name="assistDuration" class="slider" style="width:100px;">
@@ -352,7 +352,7 @@
                 <td></td>
               </tr>
               <tr>
-                <td class="label">Door Protocol:</td>
+                <td class="label">Door&nbsp;Protocol:</td>
                 <td>&nbsp;
                   <input type="radio" id="gdosec1" name="gdosecuritysetting" value="1"
                     onclick="toggleDCOpenClose(this)">
@@ -363,6 +363,21 @@
                   <input type="radio" id="gdodrycontact" name="gdosecuritysetting" value="3"
                     onclick="toggleDCOpenClose(this)">
                   <label for="gdodrycontact">Dry Contact</label>
+                </td>
+              </tr>
+              <tr id="dcDebounceDurationRow" style="display:none;">
+                <td></td>
+                <td>
+                  <table class="settings">
+                    <tr>
+                      <td class="label">Debounce&nbsp;Duration:</td>
+                      <td>&nbsp;
+                        <input type="range" min="50" max="1000" value="50" step="50" id="dcDebounceDuration"
+                          name="dcDebounceDuration" class="slider" style="width:100px;">
+                        <span style="vertical-align: middle;"><span id="dcDebounceValue"></span>&nbsp;ms</span>
+                      </td>
+                    </tr>
+                  </table>
                 </td>
               </tr>
               <tr id="dcOpenCloseRow" style="display:none;">
@@ -721,6 +736,14 @@
     PAslider.oninput = function () {
       PAtext.innerHTML = this.value;
     };
+
+    DBslider = document.getElementById("dcDebounceDuration");
+    DBtext = document.getElementById("dcDebounceValue");
+    DBtext.innerHTML = DBslider.value;
+    DBslider.oninput = function () {
+      DBtext.innerHTML = this.value;
+    };
+
   </script>
 </body>
 
