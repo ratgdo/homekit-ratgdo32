@@ -19,11 +19,6 @@ jobs:
         with:
             submodules: true
 
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-
       - name: Tag
         id: tag
         uses: JinoArch/get-latest-tag@latest
@@ -98,7 +93,6 @@ jobs:
             ~/.platformio/.cache
           key: ${{ runner.os }}-pio
 
-      - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
