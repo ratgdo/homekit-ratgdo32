@@ -173,6 +173,13 @@ void printLogInfo(const char *buf)
     ratgdoLogger->printMessageLog(Serial);
 }
 
+#ifdef CRASH_DEBUG
+extern void delayFnCall(uint32_t ms, void (*callback)());
+void testDelayFn(const char *buf)
+{
+    delayFnCall(5000, (void (*)())NULL);
+}
+#endif
 /****************************************************************************
  * Initialize HomeKit (with HomeSpan)
  */
@@ -324,6 +331,9 @@ void setup_homekit()
     new SpanUserCommand('t', "- print FreeRTOS task info", printTaskInfo);
 #endif
     new SpanUserCommand('l', "- print RATGDO buffered message log", printLogInfo);
+#ifdef CRASH_DEBUG
+    new SpanUserCommand('z', "- test function", testDelayFn);
+#endif
 
     // Define a bridge (as more than 3 accessories)
     new SpanAccessory(HOMEKIT_AID_BRIDGE);
