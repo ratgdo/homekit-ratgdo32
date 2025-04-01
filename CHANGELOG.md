@@ -4,6 +4,16 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v3.1.6 (2025-04-01)
+
+Version 3.1.x include major change to garage door opener (GDO) communications.  This has major benefit in separating out the details of communicating with the garage door from HomeKit and the ratgdo user interface, greatly simplifying our code.
+
+### What's Changed
+
+* Feature: Allow user setting for dry contact debounce timer from 50ms to 1000ms
+* Bugfix: HomeKit door status not always correct, reported in issue #57
+* Bugfix: Fis time-to-close light flashing to work as intended (flash every 1/2 second)
+
 ## v3.1.5 (2025-03-31)
 
 Version 3.1.x include major change to garage door opener (GDO) communications.  This has major benefit in separating out the details of communicating with the garage door from HomeKit and the ratgdo user interface, greatly simplifying our code.
