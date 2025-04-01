@@ -1878,19 +1878,11 @@ bool set_lock(bool value, bool verify)
 #ifdef USE_GDOLIB
 bool set_light(bool value, bool verify)
 {
-    // return value: true = light state changed, else state unchanged
-    if (verify && (garage_door.light == value))
-    {
-        ESP_LOGI(TAG, "Light already %s; ignored request", (value) ? "on" : "off");
-        return false;
-    }
-
-    garage_door.light = value;
     ESP_LOGI(TAG, "Set Garage Door Light: %s", (value) ? "on" : "off");
     if (value)
-        gdo_light_on();
+        gdo_light_on_check(verify);
     else
-        gdo_light_off();
+        gdo_light_off_check(verify);
     return true;
 }
 #else
