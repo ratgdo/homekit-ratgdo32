@@ -188,6 +188,10 @@ zero disables parking assist laser.  Parking assist is triggered if an arriving 
 
 Set the protocol for your model of garage door opener.  This defaults to Security+ 2.0 and you should only change this if necessary.  Note that the changing the door protocol also resets the door opener rolling codes and whether there is a motion sensor (this will be automatically detected after reset).
 
+### Debounce duration
+
+For Dry Contact door protocol, set the sensor debounce duration.  When the door opens or closes it can take time for the sensor switch to settle into its correct state.  You can set this between 50 and 1000 milliseconds.  You can observe the log messages when door reaches closed or open state to get an idea of what the correct setting should be for your door.
+
 ### Enable hardwired open/close control
 
 For Security+ 1.0 and Security +2.0 it is possible to repurpose the sensors used for dry-contact door open / close to buttons that trigger a door open / close action.  Select this check box to enable this option.
@@ -308,6 +312,15 @@ It is possible to query status, monitor and reboot/reset the ratgdo device from 
 curl -s http://<ip-address>/status.json
 ```
 Status is returned as JSON formatted text.
+
+### Set a ratgdo setting value
+
+```
+curl -X POST http://<ip-address>/setgdo \
+   -H "Content-Type: application/x-www-form-urlencoded" \
+   -d "<setting>=<value>&<setting2>=<value2>"
+```
+Set one of more values for ratgdo settings.  Note that some settings require a reboot, the web page settings page identifies which require a reboot.  For a full list of settings see the [status.json](https://github.com/ratgdo/homekit-ratgdo32/blob/main/src/www/status.json) file.  You can also see the settings object in a browser JavaScript Console.
 
 ### Reboot ratgdo device
 
