@@ -449,11 +449,25 @@ void notify_homekit_current_door_state_change(GarageDoorCurrentState state)
     e.value.u = (uint8_t)(garage_door.current_state = state);
     queueSendHelper(door->event_q, e, "current door");
 
-    // Notify the vehicle presence code that door state is changing
-    if (garage_door.current_state == GarageDoorCurrentState::CURR_OPENING)
-        doorOpening();
-    if (garage_door.current_state == GarageDoorCurrentState::CURR_CLOSING)
-        doorClosing();
+    // Set target door state to match.
+    switch (state)
+    {
+    case CURR_OPENING:
+        doorOpening(); // Fall through...
+    case CURR_OPEN:
+        notify_homekit_target_door_state_change(TGT_OPEN);
+        break;
+
+    case CURR_CLOSING:
+        doorClosing(); // Fall through...
+    case CURR_CLOSED:
+        notify_homekit_target_door_state_change(TGT_CLOSED);
+        break;
+
+    default:
+        // Ignore other states.
+        break;
+    }
 }
 
 void notify_homekit_target_lock(LockTargetState state)
