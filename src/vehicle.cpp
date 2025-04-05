@@ -115,7 +115,7 @@ void vehicle_loop()
                     case VL53L4CX_RANGESTATUS_WRAP_TARGET_FAIL:
                     case VL53L4CX_RANGESTATUS_TARGET_PRESENT_LACK_OF_SIGNAL:
                         // Unusual, but docs say that range data is valid.
-                        ESP_LOGD(TAG, "Unusual VL53L4CX Range Status: %d, Range: %d", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
+                        ESP_LOGV(TAG, "Unusual VL53L4CX Range Status: %d, Range: %d", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
                         // fall through...
                     case VL53L4CX_RANGESTATUS_RANGE_VALID:
                     case VL53L4CX_RANGESTATUS_RANGE_VALID_MIN_RANGE_CLIPPED:
@@ -124,7 +124,7 @@ void vehicle_loop()
                         break;
                     case VL53L4CX_RANGESTATUS_OUTOFBOUNDS_FAIL:
                         // Target below threshold... assume no object.
-                        ESP_LOGD(TAG, "Unusual VL53L4CX Range Status: %d, Range: %d", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
+                        ESP_LOGV(TAG, "Unusual VL53L4CX Range Status: %d, Range: %d", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
                         distance = MAX_DISTANCE;
                         break;
                     default:
