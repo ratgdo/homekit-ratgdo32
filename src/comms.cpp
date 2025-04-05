@@ -326,6 +326,8 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
  */
 void setup_comms()
 {
+    esp_err_t err = ESP_OK;
+
     if (doorControlType == 0)
         doorControlType = userConfig->getGDOSecurityType();
 
@@ -407,7 +409,11 @@ void setup_comms()
             gdo_conf.dc_open_pin = DRY_CONTACT_OPEN_PIN;
             gdo_conf.dc_close_pin = DRY_CONTACT_CLOSE_PIN;
         }
-        gdo_init(&gdo_conf);
+        if ((err = gdo_init(&gdo_conf)) != ESP_OK)
+        {
+            ESP_LOGE(TAG, "gdo_init failed with error: %d", err);
+            return;
+        }
         // read from flash, default of 0 if file not exist
         uint32_t id_code = nvRam->read(nvram_id_code);
         uint32_t rolling_code = nvRam->read(nvram_rolling, 0);
@@ -425,16 +431,28 @@ void setup_comms()
         ESP_LOGI(TAG, "rolling code %lu (0x%02X)", rolling_code, rolling_code);
         if (doorControlType == 2)
         {
-            gdo_set_protocol(GDO_PROTOCOL_SEC_PLUS_V2);
+            if ((err = gdo_set_protocol(GDO_PROTOCOL_SEC_PLUS_V2)) != ESP_OK)
+            {
+                ESP_LOGE(TAG, "gdo_set_protocol failed with error: %d", err);
+                return;
+            }
             gdo_set_client_id(id_code);
             gdo_set_rolling_code(rolling_code);
             save_rolling_code();
         }
         else
         {
-            gdo_set_protocol(GDO_PROTOCOL_SEC_PLUS_V1);
+            if ((err = gdo_set_protocol(GDO_PROTOCOL_SEC_PLUS_V1)) != ESP_OK)
+            {
+                ESP_LOGE(TAG, "gdo_set_protocol failed with error: %d", err);
+                return;
+            }
         }
-        gdo_start(gdo_event_handler, NULL);
+        if ((err = gdo_start(gdo_event_handler, NULL)) != ESP_OK)
+        {
+            ESP_LOGE(TAG, "gdo_start failed with error: %d", err);
+            return;
+        }
         gdo_get_status(&gdo_status);
         force_recover.push_count = 0;
     }
@@ -455,10 +473,22 @@ void setup_comms()
             .dc_discrete_close_pin = DISCRETE_CLOSE_PIN,
             .dc_debounce_ms = (uint32_t)userConfig->getDCDebounceDuration(),
         };
-        gdo_set_protocol(GDO_PROTOCOL_DRY_CONTACT);
+        if ((err = gdo_set_protocol(GDO_PROTOCOL_DRY_CONTACT)) != ESP_OK)
+        {
+            ESP_LOGE(TAG, "gdo_set_protocol failed with error: %d", err);
+            return;
+        }
         // gdo_set_obst_test_pulse_timer(10000, true); // only used for testing obstruction sensor
-        gdo_init(&gdo_conf);
-        gdo_start(gdo_event_handler, NULL);
+        if ((err = gdo_init(&gdo_conf)) != ESP_OK)
+        {
+            ESP_LOGE(TAG, "gdo_init failed with error: %d", err);
+            return;
+        }
+        if ((err = gdo_start(gdo_event_handler, NULL)) != ESP_OK)
+        {
+            ESP_LOGE(TAG, "gdo_start failed with error: %d", err);
+            return;
+        }
         gdo_get_status(&gdo_status);
         force_recover.push_count = 0;
     }
