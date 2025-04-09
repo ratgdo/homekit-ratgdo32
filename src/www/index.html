@@ -287,6 +287,15 @@
                       target="_blank">WARNING</a></span>
                 </td>
               </tr>
+              <tr>
+                <td></td>
+                <td>&nbsp;
+                  <input type="checkbox" id="TTClight" name="TTClight" checked>
+                  <label for="TTClight">Flash light during time-to-close</label>&nbsp;<a id="TTCwarning2"
+                    style="display: none; color: red; font-size: 0.8em"
+                    href="https://www.law.cornell.edu/cfr/text/16/1211.14" target="_blank">WARNING</a></span>
+                </td>
+              </tr>
               <tr id="builtInTTCrow" style="display:none;">
                 <td></td>
                 <td>&nbsp;
@@ -713,12 +722,17 @@
     */
     TTCslider = document.getElementById("TTCseconds");
     TTCtext = document.getElementById("TTCsecondsValue");
+    TTClight = document.getElementById("TTClight");
     TTCwarning = document.getElementById("TTCwarning");
+    TTCwarning2 = document.getElementById("TTCwarning2");
     TTCtext.innerHTML = (TTCslider.value <= 10) ? TTCslider.value : (TTCslider.value <= 20) ? ((TTCslider.value - 10) * 5) + 10 : 300;
     TTCslider.oninput = function () {
       TTCtext.innerHTML = (this.value <= 10) ? this.value : (this.value <= 20) ? ((this.value - 10) * 5) + 10 : 300;
       TTCwarning.style.display = (this.value < 5) ? "inline" : "none";
     };
+    TTClight.onclick = function () {
+      TTCwarning2.style.display = (this.checked) ? "none" : "inline";
+    }
 
     vDistSlider = document.getElementById("vehicleThreshold");
     vDistText1 = document.getElementById("vehicleThresholdCM");

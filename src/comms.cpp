@@ -1694,15 +1694,17 @@ void delayFnCall(uint32_t ms, void (*callback)())
     static const uint32_t interval = 250;
     static uint32_t iterations = 0;
 
+    bool light = userConfig->getTTClight(); // Whether to flash light during delay
+
     TTCtimer.detach();                 // Terminate existing timer if any
     iterations = ms / interval;        // Number of times to go through loop
     TTCwasLightOn = garage_door.light; // Current state of light
     ESP_LOGI(TAG, "Start function delay timer for %lums (%d iterations)", ms, iterations);
-    TTCtimer.attach_ms(interval, [callback]()
+    TTCtimer.attach_ms(interval, [callback, light]()
                        {
                         if (iterations > 0)
                         {
-                            if (iterations % 2 == 0)
+                            if (light && (iterations % 2 == 0))
                             {
                                 // If light is on, turn it off.  If off, turn it on.
                                 if (doorControlType != 3)
@@ -1718,7 +1720,7 @@ void delayFnCall(uint32_t ms, void (*callback)())
                         {
                             TTCtimer.detach();
                             // Turn light off. It will turn on as part of the door close action and then go off after a timeout
-                            if (doorControlType != 3) {
+                            if (light && (doorControlType != 3)) {
                                 // dry contact cannot control lights
                                 set_light(false);
                             }

@@ -244,6 +244,7 @@ userSettings::userSettings()
         {cfg_GDOSecurityType, {true, false, 2, helperGDOSecurityType}}, // call fn to reset door
         {cfg_TTCseconds, {false, false, 5, NULL}},
         {cfg_builtInTTC, {false, false, false, helperBuiltInTTC}},
+        {cfg_TTClight, {false, false, true, NULL}},
         {cfg_rebootSeconds, {true, true, 0, NULL}},
         {cfg_LEDidle, {false, false, 0, helperLEDidle}},               // call fn to set LED object
         {cfg_motionTriggers, {false, false, 0, helperMotionTriggers}}, // call fn to enable HomeSpan service

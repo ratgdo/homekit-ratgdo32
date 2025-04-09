@@ -255,12 +255,12 @@ void setup_web()
         userConfig->set(cfg_motionTriggers, motionTriggers.asInt);
     }
     ESP_LOGI(TAG, "Motion triggers, motion : %d, obstruction: %d, light key: %d, door key: %d, lock key: %d, asInt: %d",
-          motionTriggers.bit.motion,
-          motionTriggers.bit.obstruction,
-          motionTriggers.bit.lightKey,
-          motionTriggers.bit.doorKey,
-          motionTriggers.bit.lockKey,
-          motionTriggers.asInt);
+             motionTriggers.bit.motion,
+             motionTriggers.bit.obstruction,
+             motionTriggers.bit.lightKey,
+             motionTriggers.bit.doorKey,
+             motionTriggers.bit.lockKey,
+             motionTriggers.asInt);
     lastDoorUpdateAt = 0;
     lastDoorState = (GarageDoorCurrentState)0xff;
 
@@ -475,6 +475,7 @@ void handle_status()
     ADD_INT(json, cfg_logLevel, userConfig->getLogLevel());
     ADD_INT(json, cfg_TTCseconds, userConfig->getTTCseconds());
     ADD_BOOL(json, cfg_builtInTTC, userConfig->getBuiltInTTC());
+    ADD_BOOL(json, cfg_TTClight, userConfig->getTTClight());
     ADD_INT(json, cfg_vehicleThreshold, userConfig->getVehicleThreshold());
     ADD_INT(json, cfg_motionTriggers, motionTriggers.asInt);
     ADD_INT(json, cfg_LEDidle, userConfig->getLEDidle());
