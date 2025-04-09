@@ -55,6 +55,7 @@ constexpr char cfg_wwwUsername[] = "wwwUsername";
 constexpr char cfg_wwwCredentials[] = "wwwCredentials";
 constexpr char cfg_GDOSecurityType[] = "GDOSecurityType";
 constexpr char cfg_TTCseconds[] = "TTCseconds";
+constexpr char cfg_TTClight[] = "TTClight";
 constexpr char cfg_builtInTTC[] = "builtInTTC";
 constexpr char cfg_rebootSeconds[] = "rebootSeconds";
 constexpr char cfg_LEDidle[] = "LEDidle";
@@ -131,6 +132,7 @@ public:
     int getGDOSecurityType() { return std::get<int>(get(cfg_GDOSecurityType)); };
     int getTTCseconds() { return std::get<int>(get(cfg_TTCseconds)); };
     bool getBuiltInTTC() { return std::get<bool>(get(cfg_builtInTTC)); };
+    bool getTTClight() { return std::get<bool>(get(cfg_TTClight)); };
     int getRebootSeconds() { return std::get<int>(get(cfg_rebootSeconds)); };
     int getLEDidle() { return std::get<int>(get(cfg_LEDidle)); };
     int getMotionTriggers() { return std::get<int>(get(cfg_motionTriggers)); };

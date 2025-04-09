@@ -253,9 +253,6 @@ function setElementsFromStatus(status) {
                 document.getElementById("TTCsecondsValue").innerHTML = value;
                 document.getElementById("TTCwarning").style.display = (value < 5) ? "inline" : "none";
                 break;
-            case "builtInTTC":
-                document.getElementById(key).checked = value;
-                break;
             case "distanceSensor":
                 document.getElementById("vehicleRow").style.display = (value) ? "table-row" : "none";
                 document.getElementById("vehicleSetting").style.display = (value) ? "table-row" : "none";
@@ -271,9 +268,6 @@ function setElementsFromStatus(status) {
                 document.getElementById(key).innerHTML = value;
                 document.getElementById("vehicleDistInch").innerHTML = Math.round(value / .254) / 10;
                 break;
-            case "vehicleHomeKit":
-                document.getElementById(key).checked = value;
-                break;
             case "laserEnabled":
                 document.getElementById(key).checked = value;
                 document.getElementById("laserButton").style.display = (value) ? "inline-block" : "none";
@@ -281,9 +275,15 @@ function setElementsFromStatus(status) {
                 document.getElementById("parkAssist").style.display = (value) ? "table-row" : "none";
                 break;
             case "laserHomeKit":
+            case "vehicleHomeKit":
             case "dcOpenClose":
             case "useSWserial":
+            case "builtInTTC":
                 document.getElementById(key).checked = value;
+                break;
+            case "TTClight":
+                document.getElementById(key).checked = value;
+                document.getElementById("TTCwarning2").style.display = (value) ? "none" : "inline";
                 break;
             case "assistDuration":
                 document.getElementById(key).value = value;
@@ -892,10 +892,22 @@ async function saveSettings() {
     let TTCseconds = Math.max(parseInt(document.getElementById("TTCseconds").value), 0);
     if (isNaN(TTCseconds)) TTCseconds = 0;
     TTCseconds = (TTCseconds <= 10) ? TTCseconds : (TTCseconds <= 20) ? ((TTCseconds - 10) * 5) + 10 : 300;
-    let msg = (TTCseconds < 5) ? "WARNING: You have requested a time-to-close delay of less than 5 seconds. " +
-        "This violates US Consumer Product Safety Act Regulations, section 1211.14, unattended operation requirements.\n\n" +
+    let msg = (TTCseconds < 5) ? "WARNING: You have requested a time-to-close delay of less than 5 seconds.\n\n" +
+        "This violates US Consumer Product Safety Act Regulations, section 1211.14, unattended operation requirements. " +
         "By selecting a " + TTCseconds + " seconds delay you accept all responsibility and liability for injury or any other loss.\n\n" : "";
     const builtInTTC = (document.getElementById("builtInTTC").checked) ? '1' : '0';
+    let TTClight = '1';
+    if (!document.getElementById("TTClight").checked) {
+        TTClight = '0';
+        if (msg == "") {
+            msg = "WARNING: You have disabled light flashing during time-to-close.\n\n" +
+                "This violates US Consumer Product Safety Act Regulations, section 1211.14, unattended operation requirements. " +
+                "By disabling light flashing you accept all responsibility and liability for injury or any other loss.\n\n";
+        }
+        else {
+            msg = "WARNING: You have disabled light flashing during time-to-close.\n\n" + msg;
+        }
+    }
 
     if (!confirm(msg + 'Save Settings. Reboot may be required, are you sure?')) {
         return;
@@ -974,6 +986,7 @@ async function saveSettings() {
         */
         "TTCseconds", TTCseconds,
         "builtInTTC", builtInTTC,
+        "TTClight", TTClight,
         "vehicleThreshold", vehicleThreshold,
         "vehicleHomeKit", vehicleHomeKit,
         "laserEnabled", laserEnabled,

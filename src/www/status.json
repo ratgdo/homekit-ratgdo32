@@ -33,7 +33,7 @@
   "wifiPhyMode": 0,
   "wifiPower": 10,
   "TTCseconds": 10,
-  "builtInTTC": true,
+  "builtInTTC": false,
   "motionTriggers": 3,
   "LEDidle": 1,
   "enableNTP": true,
@@ -53,5 +53,6 @@
   "openDuration" : 25,
   "closeDuration" : 20,
   "dcOpenClose" : false,
-  "useSWserial" : true
+  "useSWserial" : true,
+  "TTClight": true
 }
