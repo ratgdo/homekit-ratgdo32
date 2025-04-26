@@ -4,6 +4,20 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v3.1.7 (2025-04-27)
+
+### What's Changed
+
+* Feature: Allow user setting to disable light flashing during time-to-close
+* Feature: Add a HomeKit occupancy sensor triggered by motion that is active for user specified duration between 0 and 120 minutes, Requested in issue #45
+* Bugfix: Do not run setup function(s) if already run.  Hope that this fixes issue #51
+* Bugfix: Obstruction sensor not triggering HomeKit motion, fix issue #65
+* Other: Additional error checking and changes to log verbosity for some messages.
+
+### Known Issues
+
+* Still testing... Future updates MAY include breaking changes requiring a flash erase and re-upload.
+
 ## v3.1.6 (2025-04-01)
 
 Version 3.1.x include major change to garage door opener (GDO) communications.  This has major benefit in separating out the details of communicating with the garage door from HomeKit and the ratgdo user interface, greatly simplifying our code.
