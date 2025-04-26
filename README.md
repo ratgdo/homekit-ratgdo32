@@ -86,7 +86,7 @@ The webpage comprises three sections, HomeKit and ratgdo device status, garage d
 
 ### HomeKit and ratgdo status
 
-If you ratgdo device is not yet paired to HomeKit then a QR code is displayed for you to scan and add the garage door to HomeKit. If the device is already paired then this is replaced with a statement that you must first un-pair the device if you wish to use it with another HomeKit home.  A Reset or Un-pair HomeKit button is provided for this.
+If your ratgdo device is not yet paired to HomeKit then a QR code is displayed for you to scan and add the garage door to HomeKit. If the device is already paired then this is replaced with a statement that you must first un-pair the device if you wish to use it with another HomeKit home.  A Reset or Un-pair HomeKit button is provided for this.
 
 > [!NOTE]
 > If you will re-pair to the same HomeKit home you must also delete the accessory from HomeKit as well as un-pairing at the ratgdo device.
@@ -152,17 +152,25 @@ You can select the verbosity of log messages from none to verbose.  Default is _
 
 ### Door Close Delay
 
-You can select up-to 60 second delay before door starts closing. During the delay period the garage door lights will flash and you may hear the relay clicking. On ratgdo32-disco boards you will also hear audible beeping. Default time-to-close delay is 5 seconds.
+You can select up-to 60 second delay before door starts closing. During the delay period the garage door lights will flash and you may hear the relay clicking. On ratgdo32-disco boards you will also hear audible beeping. Default time-to-close delay is 5 seconds. See WARNING below.
+
+### Flash light during time-to-close
+
+You can disable the garage door opener light from flashing during the delay period.  This has the benefit of reducing traffic on the serial communications to the door opener.  However note the WARNING below.
 
 > [!WARNING]
 > The US Consumer Product Safety Act Regulations, section 1211.14, unattended operation requirements [16 CFR § 1211.14](https://www.law.cornell.edu/cfr/text/16/1211.14), state that there must be a minimum delay of 5 seconds before the door closes.
-> The regulation also requires that the light flash with audible beeping.  If you select a time-to-close delay of under 5 seconds then a warning is shown in the web settings page and you accept all responsibility and liability for injury or any other loss.
+> The regulation also requires that the light flash with audible beeping.  If you select a time-to-close delay of under 5 seconds, or disable light flashing, then a warning is shown in the web settings page and you accept all responsibility and liability for injury or any other loss.
 
 ### Motion Triggers
 
 This allows you to select what causes the HomeKit motion sensor accessory to trigger.  The default is to use the motion sensor built into the garage door opener, if it exists.  This checkbox is not selectable because presence of the motion sensor is detected automatically... based on detecting motion in the garage.  If your door opener does not have a motion sensor then the checkbox will show as un-checked.
 
-Motion can also be triggered by the obstruction sensor and by pressing the door, light or lock buttons on the door opener wall panel.  These are disabled by default but may be selected on the web page.
+Motion can also be triggered by the obstruction sensor.  This is disabled by default but may be selected on the web page.
+
+### Occupancy Duration
+
+A HomeKit occupancy sensor will be set active when motion is detected.  It will remain active for a user set duration between zero and 120 minutes after the last motion detected.  HomeKit accessory is disabled if set to zero.  Disabled by default.
 
 ### Vehicle Distance
 
@@ -199,6 +207,10 @@ For Security+ 1.0 and Security +2.0 it is possible to repurpose the sensors used
 ### Use software serial emulation rather than h/w UART
 
 For Security+ 1.0 and Security+ 2.0, communications with the garage door uses a serial port. This can be either the ESP32's built-in hardware UART or a software emulation of a UART.  Software emulation is required for Security+ 2.0 to allow for automatic sensing and changing of the baud rate... without this, the ratgdo cannot detect button presses at the garage door wall panel controler.  For Security+ 1.0, software emulation is optional.  If you experience communication errors you can try changing to use hardware UART.
+
+### Get obstruction from GDO status messages
+
+For Security+ 1.0 and Security +2.0, ratgdo obtains obstruction state from status messages sent by the door opener.  These messages can sometimes be slow to report a change in obstruction status.  Unselecting this option will tell the ratgdo to monitor the hardwired obstruction sensor pin directly.
 
 ### WiFi Version _(not supported on ratgdo32 boards)_
 
