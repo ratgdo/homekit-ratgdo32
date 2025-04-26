@@ -506,6 +506,7 @@ void handle_status()
     ADD_BOOL(json, cfg_vehicleHomeKit, userConfig->getVehicleHomeKit());
     ADD_BOOL(json, cfg_dcOpenClose, userConfig->getDCOpenClose());
     ADD_BOOL(json, cfg_useSWserial, userConfig->getUseSWserial());
+    ADD_BOOL(json, cfg_obstFromStatus, userConfig->getObstFromStatus());
     ADD_INT(json, cfg_dcDebounceDuration, userConfig->getDCDebounceDuration());
     ADD_INT(json, cfg_assistDuration, userConfig->getAssistDuration());
     ADD_STR(json, "qrPayload", qrPayload);

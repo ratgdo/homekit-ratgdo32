@@ -310,8 +310,10 @@
                   <label for="motionMotion">Motion</label>
                   <input type="checkbox" id="motionObstruction" name="motionObstruction" value="no">
                   <label for="motionObstruction">Obstruction</label>
-                  <input type="checkbox" id="motionWallPanel" name="motionWallPanel" value="no">
-                  <label for="motionWallPanel">Wall Panel</label>
+                  <span id="motionWallPanelSpan">
+                    <input type="checkbox" id="motionWallPanel" name="motionWallPanel" value="no">
+                    <label for="motionWallPanel">Wall Panel</label>
+                  </span>
                 </td>
               </tr>
               <tr id="vehicleSetting" style="display:none;">
@@ -401,6 +403,20 @@
                 <td>&nbsp;
                   <input type="checkbox" id="useSWserial" name="useSWserial" value="no">
                   <label for="useSWserial">Use software serial emulation rather than h/w UART</label>
+                </td>
+              </tr>
+              <tr id="useSWserialRow" style="display:none;">
+                <td></td>
+                <td>&nbsp;
+                  <input type="checkbox" id="useSWserial" name="useSWserial" value="no">
+                  <label for="useSWserial">Use software serial emulation rather than h/w UART</label>
+                </td>
+              </tr>
+              <tr id="obstFromStatusRow" style="display:none;">
+                <td></td>
+                <td>&nbsp;
+                  <input type="checkbox" id="obstFromStatus" name="obstFromStatus" value="no">
+                  <label for="obstFromStatus">Get obstruction from GDO status messages</label>
                 </td>
               </tr>
               <!-- TODO add support for selecting WiFi PhyMode and WiFi TX Power
@@ -732,7 +748,7 @@
     };
     TTClight.onclick = function () {
       TTCwarning2.style.display = (this.checked) ? "none" : "inline";
-    }
+    };
 
     vDistSlider = document.getElementById("vehicleThreshold");
     vDistText1 = document.getElementById("vehicleThresholdCM");
