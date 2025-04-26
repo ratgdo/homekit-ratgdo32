@@ -226,6 +226,9 @@ void web_loop()
 
 void setup_web()
 {
+    if (web_setup_done)
+        return;
+
     ESP_LOGI(TAG, "=== Starting HTTP web server ===");
     IRAM_START
     // IRAM heap is used only for allocating globals, to leave as much regular heap

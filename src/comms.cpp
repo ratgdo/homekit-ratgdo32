@@ -328,6 +328,9 @@ void setup_comms()
 {
     esp_err_t err = ESP_OK;
 
+    if (comms_setup_done)
+        return;
+
     if (doorControlType == 0)
         doorControlType = userConfig->getGDOSecurityType();
 

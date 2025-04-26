@@ -51,6 +51,10 @@ void calculatePresence(int16_t distance);
 void setup_vehicle()
 {
     VL53L4CX_Error rc = VL53L4CX_ERROR_NONE;
+
+    if (vehicle_setup_done)
+        return;
+
     ESP_LOGI(TAG, "=== Setup VL53L4CX time-of-flight sensor ===");
 
     Wire.begin(19, 18);

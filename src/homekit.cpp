@@ -91,7 +91,7 @@ void connectionCallback(int count)
     userConfig->set(cfg_gatewayIP, WiFi.gatewayIP().toString().c_str());
     userConfig->set(cfg_subnetMask, WiFi.subnetMask().toString().c_str());
     userConfig->set(cfg_nameserverIP, WiFi.dnsIP().toString().c_str());
-    // With FiFi connected, we can now initialize the rest of our app.
+    // With WiFi connected, we can now initialize the rest of our app.
     if (!softAPmode)
     {
         if (userConfig->getTimeZone() == "")
