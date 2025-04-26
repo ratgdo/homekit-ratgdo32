@@ -12,7 +12,7 @@
  *
  */
 
- #ifndef USE_GDOLIB
+#ifndef USE_GDOLIB
 // RATGDO project includes
 #include "ratgdo.h"
 #include "config.h"
@@ -39,6 +39,9 @@ bool previousDryContactDoorClose = false;
 
 void setup_drycontact()
 {
+    if (drycontact_setup_done)
+        return;
+
     ESP_LOGI(TAG, "=== Setting up dry contact protocol");
 
     if (doorControlType == 0)
