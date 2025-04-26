@@ -250,6 +250,10 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
         ESP_LOGI(TAG, "GDO event: obstruction: %s", gdo_obstruction_state_to_string(status->obstruction));
         garage_door.obstructed = status->obstruction == gdo_obstruction_state_t::GDO_OBSTRUCTION_STATE_OBSTRUCTED;
         notify_homekit_obstruction(garage_door.obstructed);
+        if (motionTriggers.bit.obstruction)
+        {
+            notify_homekit_motion(garage_door.obstructed);
+        }
         break;
     case GDO_CB_EVENT_MOTION:
         ESP_LOGI(TAG, "GDO event: motion: %s", gdo_motion_state_to_string(status->motion));
@@ -394,7 +398,7 @@ void setup_comms()
     {
         gdo_config_t gdo_conf = {
             .uart_num = UART_NUM_1,
-            .obst_from_status = true,
+            .obst_from_status = userConfig->getObstFromStatus(),
             .invert_uart = true,
             .uart_tx_pin = UART_TX_PIN,
             .uart_rx_pin = UART_RX_PIN,

@@ -130,6 +130,7 @@ function toggleSyslog() {
 function toggleDCOpenClose(radio) {
     document.getElementById("dcOpenCloseRow").style.display = (radio.value != 3) ? "table-row" : "none";
     document.getElementById("useSWserialRow").style.display = (radio.value != 3) ? "table-row" : "none";
+    document.getElementById("obstFromStatusRow").style.display = (radio.value != 3) ? "table-row" : "none";
     document.getElementById("dcDebounceDurationRow").style.display = (radio.value == 3) ? "table-row" : "none";
 }
 
@@ -220,6 +221,7 @@ function setElementsFromStatus(status) {
                 document.getElementById("gdosec1").checked = (value == 1);
                 document.getElementById("gdosec2").checked = (value == 2);
                 document.getElementById("gdodrycontact").checked = (value == 3);
+                // Hide builtInTTC if it is not set... we want to allow turning off, but not turning on.
                 document.getElementById("builtInTTCrow").style.display = (value == 2 && status.builtInTTC) ? "table-row" : "none";
                 document.getElementById("lockButton").style.display = (value != 3) ? "inline-block" : "none";
                 document.getElementById("lightButton").style.display = (value != 3) ? "inline-block" : "none";
@@ -227,6 +229,8 @@ function setElementsFromStatus(status) {
                 document.getElementById("durationRow").style.display = (value != 3) ? "table-row" : "none";
                 document.getElementById("dcOpenCloseRow").style.display = (value != 3) ? "table-row" : "none";
                 document.getElementById("useSWserialRow").style.display = (value != 3) ? "table-row" : "none";
+                // Hide obstFromStatus if it is already set... we want to allow turning on, but not turning off.
+                document.getElementById("obstFromStatusRow").style.display = (value != 3) ? "table-row" : "none";
                 document.getElementById("dcDebounceDurationRow").style.display = (value == 3) ? "table-row" : "none";
                 break;
             case "deviceName":
@@ -278,6 +282,7 @@ function setElementsFromStatus(status) {
             case "vehicleHomeKit":
             case "dcOpenClose":
             case "useSWserial":
+            case "obstFromStatus":
             case "builtInTTC":
                 document.getElementById(key).checked = value;
                 break;
@@ -886,6 +891,8 @@ function setMotionTriggers(bitset) {
     //document.getElementById("motionDoor").checked = (bitset & 8) ? true : false;
     //document.getElementById("motionLock").checked = (bitset & 16) ? true : false;
     document.getElementById("motionWallPanel").checked = (bitset & 28) ? true : false;
+    // Hide checkbox to trigger motion from wall panel, because not implemented with GDOLIB
+    document.getElementById("motionWallPanelSpan").style.display = "none";
 };
 
 async function saveSettings() {
@@ -936,7 +943,7 @@ async function saveSettings() {
     const laserHomeKit = (document.getElementById("laserHomeKit").checked) ? '1' : '0';
     const dcOpenClose = (document.getElementById("dcOpenClose").checked) ? '1' : '0';
     const useSWserial = (document.getElementById("useSWserial").checked) ? '1' : '0';
-
+    const obstFromStatus = (document.getElementById("obstFromStatus").checked) ? '1' : '0';
 
     let assistDuration = Math.max(Math.min(parseInt(document.getElementById("assistDuration").value), 300), 0);
     if (isNaN(assistDuration)) assistDuration = 0;
@@ -1007,6 +1014,7 @@ async function saveSettings() {
         "syslogPort", syslogPort,
         "logLevel", logLevel,
         "useSWserial", useSWserial,
+        "obstFromStatus", obstFromStatus,
         "dcDebounceDuration", dcDebounceDuration,
     );
     if (reboot) {
