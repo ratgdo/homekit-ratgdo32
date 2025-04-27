@@ -250,10 +250,10 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
         ESP_LOGI(TAG, "GDO event: obstruction: %s", gdo_obstruction_state_to_string(status->obstruction));
         garage_door.obstructed = status->obstruction == gdo_obstruction_state_t::GDO_OBSTRUCTION_STATE_OBSTRUCTED;
         notify_homekit_obstruction(garage_door.obstructed);
-        if (motionTriggers.bit.obstruction)
+        if (motionTriggers.bit.obstruction && garage_door.obstructed)
         {
-            notify_homekit_motion(garage_door.obstructed);
-            notify_homekit_room_occupancy(garage_door.obstructed);
+            notify_homekit_motion(true);
+            notify_homekit_room_occupancy(true);
         }
         break;
     case GDO_CB_EVENT_MOTION:
@@ -267,9 +267,9 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
             userConfig->set(cfg_motionTriggers, motionTriggers.asInt);
             enable_service_homekit_motion();
         }
-        garage_door.motion = status->motion == gdo_motion_state_t::GDO_MOTION_STATE_DETECTED;
-        notify_homekit_motion(garage_door.motion);
-        notify_homekit_room_occupancy(garage_door.motion);
+        notify_homekit_motion(status->motion == gdo_motion_state_t::GDO_MOTION_STATE_DETECTED);
+        if (garage_door.motion)
+            notify_homekit_room_occupancy(true);
         break;
     case GDO_CB_EVENT_BATTERY:
         ESP_LOGI(TAG, "GDO event: battery: %s", gdo_battery_state_to_string(status->battery));
@@ -1392,7 +1392,14 @@ void comms_loop()
     if (garage_door.room_occupied && (millis64() > garage_door.room_occupancy_timeout))
     {
         notify_homekit_room_occupancy(false);
-        ESP_LOGI(TAG, "Room occupancy cleared after 1 hour");
+        ESP_LOGI(TAG, "Room occupancy cleared after %d minutes", userConfig->getOccupancyDuration() / 60);
+    }
+
+    // Motion Clear Timer
+    if (garage_door.motion && (millis64() > garage_door.motion_timer))
+    {
+        notify_homekit_motion(false);
+        ESP_LOGI(TAG, "Motion Cleared after %d seconds", MOTION_TIMER_DURATION / 1000);
     }
 #else
     if (doorControlType == 1)
