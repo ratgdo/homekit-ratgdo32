@@ -881,9 +881,9 @@ function getMotionTriggers() {
 }
 
 function setMotionTriggers(bitset) {
-    document.getElementById("motionLabel").style.display = (bitset & 1) ? "table-cell" : "none";
-    document.getElementById("garageMotion").style.display = (bitset & 1) ? "table-cell" : "none";
-    document.getElementById("roomOccupancy").style.display = (bitset & 1) ? "table-cell" : "none";
+    document.getElementById("motionLabel").style.display = (bitset) ? "table-cell" : "none";
+    document.getElementById("garageMotion").style.display = (bitset) ? "table-cell" : "none";
+    document.getElementById("roomOccupancy").style.display = (bitset) ? "table-cell" : "none";
     document.getElementById("motionMotion").checked = (bitset & 1) ? true : false;
     document.getElementById("motionObstruction").checked = (bitset & 2) ? true : false;
     //document.getElementById("motionLight").checked = (bitset & 4) ? true : false;
