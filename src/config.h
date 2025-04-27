@@ -77,6 +77,7 @@ constexpr char cfg_dcOpenClose[] = "dcOpenClose";
 constexpr char cfg_dcDebounceDuration[] = "dcDebounceDuration";
 constexpr char cfg_useSWserial[] = "useSWserial";
 constexpr char cfg_obstFromStatus[] = "obstFromStatus";
+constexpr char cfg_occupancyDuration[] = "occupancyDuration";
 
 constexpr char nvram_messageLog[] = "messageLog";
 constexpr char nvram_id_code[] = "id_code";
@@ -154,6 +155,7 @@ public:
     int getDCDebounceDuration() { return std::get<int>(get(cfg_dcDebounceDuration)); };
     bool getUseSWserial() { return std::get<bool>(get(cfg_useSWserial)); };
     bool getObstFromStatus() { return std::get<bool>(get(cfg_obstFromStatus)); };
+    int getOccupancyDuration() { return std::get<int>(get(cfg_occupancyDuration)); };
 };
 extern userSettings *userConfig;
 

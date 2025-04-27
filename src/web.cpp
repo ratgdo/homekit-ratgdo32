@@ -523,6 +523,7 @@ void handle_status()
     {
         ADD_INT(json, "closeDuration", garage_door.closeDuration);
     }
+    ADD_INT(json, "occupancyDuration", userConfig->getOccupancyDuration());
     END_JSON(json);
 
     // send JSON straight to serial port

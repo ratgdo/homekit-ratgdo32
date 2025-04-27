@@ -253,6 +253,7 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
         if (motionTriggers.bit.obstruction)
         {
             notify_homekit_motion(garage_door.obstructed);
+            notify_homekit_room_occupancy(garage_door.obstructed);
         }
         break;
     case GDO_CB_EVENT_MOTION:
@@ -268,6 +269,7 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
         }
         garage_door.motion = status->motion == gdo_motion_state_t::GDO_MOTION_STATE_DETECTED;
         notify_homekit_motion(garage_door.motion);
+        notify_homekit_room_occupancy(garage_door.motion);
         break;
     case GDO_CB_EVENT_BATTERY:
         ESP_LOGI(TAG, "GDO event: battery: %s", gdo_battery_state_to_string(status->battery));
@@ -1385,7 +1387,14 @@ void comms_loop()
     if (!comms_setup_done)
         return;
 
-#ifndef USE_GDOLIB
+#ifdef USE_GDOLIB
+    // Room Occupancy Clear Timer
+    if (garage_door.room_occupied && (millis64() > garage_door.room_occupancy_timeout))
+    {
+        notify_homekit_room_occupancy(false);
+        ESP_LOGI(TAG, "Room occupancy cleared after 1 hour");
+    }
+#else
     if (doorControlType == 1)
         comms_loop_sec1();
     else if (doorControlType == 2)

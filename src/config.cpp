@@ -214,6 +214,13 @@ bool helperUseSWserial(const std::string &key, const std::string &value, configS
     return true;
 }
 
+bool helperOccupancyDuration(const std::string &key, const std::string &value, configSetting *action)
+{
+    userConfig->set(key, value);
+    enable_service_homekit_room_occupancy(userConfig->getOccupancyDuration() > 0);
+    return true;
+}
+
 /****************************************************************************
  * User settings class
  */
@@ -268,6 +275,7 @@ userSettings::userSettings()
         {cfg_dcDebounceDuration, {false, false, 50, NULL}},
         {cfg_useSWserial, {true, false, true, helperUseSWserial}}, // call fn to shut down GDO before switch
         {cfg_obstFromStatus, {true, false, true, NULL}},
+        {cfg_occupancyDuration, {false, false, 0, helperOccupancyDuration}}, // call fn to enable/disable HomeKit accessories
     };
 }
 

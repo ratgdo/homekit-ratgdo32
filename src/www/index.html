@@ -316,6 +316,21 @@
                   </span>
                 </td>
               </tr>
+              <tr>
+                <td></td>
+                <td>
+                  <table class="settings" id="roomOccupancy" style="display: none;">
+                    <tr>
+                      <td class="label">Occupancy&nbsp;Duration:</td>
+                      <td>&nbsp;
+                        <input type="range" min="0" max="32" value="0" id="occupancyDuration"
+                          name="occupancyDuration" class="slider" style="width:100px;">
+                        <span style="vertical-align: middle;"><span id="occupancyValue"></span>&nbsp;Mins</span>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
               <tr id="vehicleSetting" style="display:none;">
                 <td class="label">Vehicle Distance:</td>
                 <td>&nbsp;
@@ -772,6 +787,13 @@
     DBtext.innerHTML = DBslider.value;
     DBslider.oninput = function () {
       DBtext.innerHTML = this.value;
+    };
+
+    occSlider = document.getElementById("occupancyDuration");
+    occText = document.getElementById("occupancyValue");
+    occText.innerHTML = (occSlider.value <= 10) ? occSlider.value : (occSlider.value <= 32) ? ((occSlider.value - 10) * 5) + 10 : 0;
+    occSlider.oninput = function () {
+      occText.innerHTML = (this.value <= 10) ? this.value : (this.value <= 32) ? ((this.value - 10) * 5) + 10 : 0;
     };
 
   </script>

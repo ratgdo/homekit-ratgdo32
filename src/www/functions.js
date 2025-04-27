@@ -257,6 +257,11 @@ function setElementsFromStatus(status) {
                 document.getElementById("TTCsecondsValue").innerHTML = value;
                 document.getElementById("TTCwarning").style.display = (value < 5) ? "inline" : "none";
                 break;
+            case "occupancyDuration":
+                let mins = value / 60;
+                document.getElementById(key).value = (mins <= 10) ? mins : (mins <= 32) ? (mins - 10) / 5 + 10 : 0;
+                document.getElementById("occupancyValue").innerHTML = mins;
+                break;
             case "distanceSensor":
                 document.getElementById("vehicleRow").style.display = (value) ? "table-row" : "none";
                 document.getElementById("vehicleSetting").style.display = (value) ? "table-row" : "none";
@@ -876,15 +881,9 @@ function getMotionTriggers() {
 }
 
 function setMotionTriggers(bitset) {
-    if (bitset & 1) {
-        // motion status can be visible
-        document.getElementById("motionLabel").style.display = "table-cell";
-        document.getElementById("garageMotion").style.display = "table-cell";
-    } else {
-        // motion status should be hidden
-        document.getElementById("motionLabel").style.display = "none";
-        document.getElementById("garageMotion").style.display = "none";
-    }
+    document.getElementById("motionLabel").style.display = (bitset & 1) ? "table-cell" : "none";
+    document.getElementById("garageMotion").style.display = (bitset & 1) ? "table-cell" : "none";
+    document.getElementById("roomOccupancy").style.display = (bitset & 1) ? "table-cell" : "none";
     document.getElementById("motionMotion").checked = (bitset & 1) ? true : false;
     document.getElementById("motionObstruction").checked = (bitset & 2) ? true : false;
     //document.getElementById("motionLight").checked = (bitset & 4) ? true : false;
@@ -922,7 +921,12 @@ async function saveSettings() {
     const gdoSec = (document.getElementById("gdosec1").checked) ? '1'
         : (document.getElementById("gdosec2").checked) ? '2' : '3';
     const pwReq = (document.getElementById("pwreq").checked) ? '1' : '0';
+
     const motionTriggers = getMotionTriggers();
+    let occupancyDuration = Math.max(parseInt(document.getElementById("occupancyDuration").value), 0);
+    if (isNaN(occupancyDuration)) occupancyDuration = 0;
+    occupancyDuration = ((occupancyDuration <= 10) ? occupancyDuration : (occupancyDuration <= 32) ? ((occupancyDuration - 10) * 5) + 10 : 0) * 60; // convert mins to secs
+
     const LEDidle = (document.getElementById("LEDidle2").checked) ? 2
         : (document.getElementById("LEDidle1").checked) ? 1 : 0;
     let rebootHours = Math.max(Math.min(parseInt(document.getElementById("rebootHours").value), 72), 0);
@@ -1001,6 +1005,7 @@ async function saveSettings() {
         "dcOpenClose", dcOpenClose,
         "assistDuration", assistDuration,
         "motionTriggers", motionTriggers,
+        "occupancyDuration", occupancyDuration,
         "LEDidle", LEDidle,
         "staticIP", staticIP,
         "localIP", localIP,

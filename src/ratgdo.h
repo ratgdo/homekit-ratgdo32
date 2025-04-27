@@ -107,6 +107,8 @@ struct GarageDoor
     uint8_t batteryState;
     uint16_t openDuration;
     uint16_t closeDuration;
+    uint64_t room_occupancy_timeout;
+    bool room_occupied;
 };
 
 extern GarageDoor garage_door;

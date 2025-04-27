@@ -43,6 +43,7 @@ static DEV_Motion *arriving;
 static DEV_Motion *departing;
 static DEV_Occupancy *vehicle;
 static DEV_Light *assistLaser;
+static DEV_Occupancy *roomOccupancy;
 
 static bool isPaired = false;
 static bool rebooting = false;
@@ -267,6 +268,35 @@ bool enable_service_homekit_laser(bool enable)
     return false;
 }
 
+bool enable_service_homekit_room_occupancy(bool enable)
+{
+    // Only enable room occupancy if we have a motion sensor as well
+    if (enable && motion)
+    {
+        if (!roomOccupancy)
+        {
+            // Define the Room Occupancy Sensor accessory...
+            new SpanAccessory(HOMEKIT_AID_ROOM_OCCUPANCY);
+            new DEV_Info("Room Occupancy");
+            roomOccupancy = new DEV_Occupancy();
+            return true;
+        }
+    }
+    else if (roomOccupancy)
+    {
+        // Delete the accessory, if it exists
+        ESP_LOGI(TAG, "Deleting HomeKit Occupancy Sensor accessory");
+        if (homeSpan.deleteAccessory(HOMEKIT_AID_ROOM_OCCUPANCY))
+        {
+            roomOccupancy = nullptr;
+            homeSpan.updateDatabase();
+            garage_door.room_occupied = false;
+            return true;
+        }
+    }
+    return false;
+}
+
 char *toBase62(char *base62, size_t len, uint32_t base10)
 {
     static char *base62Chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -382,6 +412,9 @@ void setup_homekit()
     {
         ESP_LOGI(TAG, "No vehicle presence sensor. Skipping motion and occupancy services");
     }
+
+    // Create a room occupancy sensor if timer for it is greater than 0
+    enable_service_homekit_room_occupancy(userConfig->getOccupancyDuration() > 0);
 
     // Auto poll starts up a new FreeRTOS task to do the HomeKit comms
     // so no need to handle in our Arduino loop.
@@ -719,6 +752,17 @@ void notify_homekit_vehicle_occupancy(bool vehicleDetected)
     queueSendHelper(vehicle->event_q, e, "vehicle");
 }
 
+void notify_homekit_room_occupancy(bool occupied)
+{
+    if (!isPaired || !roomOccupancy)
+        return;
+
+    GDOEvent e;
+    e.value.b = garage_door.room_occupied = occupied;
+    garage_door.room_occupancy_timeout = (!occupied) ? 0 : millis64() + userConfig->getOccupancyDuration() * 1000; // convert seconds to milliseconds
+    queueSendHelper(roomOccupancy->event_q, e, "room occupancy");
+}
+
 DEV_Occupancy::DEV_Occupancy() : Service::OccupancySensor()
 {
     ESP_LOGI(TAG, "Configuring HomeKit Occupancy Service");
@@ -732,7 +776,7 @@ void DEV_Occupancy::loop()
     {
         GDOEvent e;
         xQueueReceive(event_q, &e, 0);
-        ESP_LOGI(TAG, "Vehicle occupancy %s", e.value.b ? "detected" : "reset");
+        ESP_LOGI(TAG, "Occupancy %s", e.value.b ? "detected" : "reset");
         DEV_Occupancy::occupied->setVal(e.value.b);
     }
 }
