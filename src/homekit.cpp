@@ -697,6 +697,7 @@ void notify_homekit_motion(bool state)
 
     GDOEvent e;
     e.value.b = garage_door.motion = state;
+    garage_door.motion_timer = (!state) ? 0 : millis64() + MOTION_TIMER_DURATION;
     queueSendHelper(motion->event_q, e, "motion");
 }
 
@@ -776,7 +777,7 @@ void DEV_Occupancy::loop()
     {
         GDOEvent e;
         xQueueReceive(event_q, &e, 0);
-        ESP_LOGI(TAG, "Occupancy %s", e.value.b ? "detected" : "reset");
+        ESP_LOGI(TAG, "%s occupancy %s", (this == vehicle) ? "Vehicle" : "Room", e.value.b ? "detected" : "reset");
         DEV_Occupancy::occupied->setVal(e.value.b);
     }
 }
