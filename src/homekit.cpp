@@ -299,7 +299,7 @@ bool enable_service_homekit_room_occupancy(bool enable)
 
 char *toBase62(char *base62, size_t len, uint32_t base10)
 {
-    static char *base62Chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    static const char base62Chars[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
     int i = 0;
     // Will pad with zeros until base62 buffer filled (to len)
     while ((base10 > 0) || (i < len - 1))
