@@ -174,6 +174,33 @@ void printLogInfo(const char *buf)
     ratgdoLogger->printMessageLog(Serial);
 }
 
+void setLogLevel(const char *buf)
+{
+    long value = 0;
+    char *p = (char *)buf;
+    while (*p)
+    {
+        if (isdigit(*p))
+        {
+            value = strtol(p, &p, 10);
+        }
+        else
+        {
+            p++;
+        }
+    }
+    if (value >= 0 && value <= 5)
+    {
+        Serial.printf("Set log level to %d\n", value);
+        userConfig->set(cfg_logLevel, (int)value);
+        esp_log_level_set("*", (esp_log_level_t)userConfig->getLogLevel());
+    }
+    else
+    {
+        Serial.printf("Invalid log level, value must be between 0(none) and 5(verbose)\n");
+    }
+}
+
 #ifdef CRASH_DEBUG
 extern void delayFnCall(uint32_t ms, void (*callback)());
 void testDelayFn(const char *buf)
@@ -361,6 +388,7 @@ void setup_homekit()
     new SpanUserCommand('t', "- print FreeRTOS task info", printTaskInfo);
 #endif
     new SpanUserCommand('l', "- print RATGDO buffered message log", printLogInfo);
+    new SpanUserCommand('d', "<level> - set ESP log level 0(none), 1(error), 2(warn), 3(info), 4(debug), 5(verbose)", setLogLevel);
 #ifdef CRASH_DEBUG
     new SpanUserCommand('z', "- test function", testDelayFn);
 #endif
