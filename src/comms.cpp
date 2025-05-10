@@ -1749,6 +1749,7 @@ void delayFnCall(uint32_t ms, void (*callback)())
                             }
                             if (callback)
                             {
+                                vTaskDelay(pdMS_TO_TICKS(interval)); // wait so that set_light() can do its thing
                                 ESP_LOGI(TAG,"Calling delayed function 0x%08lX", (uint32_t)callback);
                                 callback();
                             }
