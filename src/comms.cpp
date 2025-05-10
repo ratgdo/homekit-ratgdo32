@@ -309,7 +309,7 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
         ESP_LOGI(TAG, "GDO event: open duration: %d seconds", garage_door.openDuration);
         break;
     case GDO_CB_EVENT_CLOSE_DURATION_MEASUREMENT:
-        garage_door.closeDuration = status->open_ms / 1000;
+        garage_door.closeDuration = status->close_ms / 1000;
         ESP_LOGI(TAG, "GDO event: close duration: %d seconds", garage_door.closeDuration);
         break;
     default:
