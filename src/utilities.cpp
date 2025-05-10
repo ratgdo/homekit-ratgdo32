@@ -123,7 +123,7 @@ char *make_rfc952(char *dest, const char *src, int size)
     int i = 0;
     while (i <= std::min(24, size - 1) && src[i] != 0)
     {
-        dest[i] = (std::isspace((unsigned char)src[i])) ? '-' : src[i];
+        dest[i] = (std::isalnum((int)src[i]) || src[i] == '.'  ) ? src[i] : '-';
         i++;
     }
     // remove dashes and periods from end of name

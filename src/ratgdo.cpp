@@ -117,11 +117,14 @@ void setup()
     if ((crashCount == 0) && (esp_core_dump_image_check() == ESP_OK))
         crashCount = -1;
 
-    load_all_config_settings();
-
+    // Set log to info level so logging within load_all_config_settings() will display
+    esp_log_level_set("*", ESP_LOG_INFO); 
     // We will intercept calls to standard ESP_LOGx so we can route them through our logger
-    esp_log_level_set("*", (esp_log_level_t)userConfig->getLogLevel());
     esp_log_set_vprintf((vprintf_like_t)esp_log_hook);
+    // Load users saved configuration (or set defaults)
+    load_all_config_settings();
+    // Now set log level to whatever user has requested
+    esp_log_level_set("*", (esp_log_level_t)userConfig->getLogLevel());
 
     if (softAPmode)
     {
