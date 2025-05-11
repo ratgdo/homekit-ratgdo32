@@ -31,6 +31,8 @@
 #include "vehicle.h"
 #ifndef USE_GDOLIB
 #include "drycontact.h"
+#else
+#include "gdo.h"
 #endif
 
 // Logger tag
@@ -200,6 +202,34 @@ void setLogLevel(const char *buf)
         Serial.printf("Invalid log level, value must be between 0(none) and 5(verbose)\n");
     }
 }
+
+#ifdef USE_GDOLIB
+void testMoveDoor(const char *buf)
+{
+    long value = 0;
+    char *p = (char *)buf;
+    while (*p)
+    {
+        if (isdigit(*p))
+        {
+            value = strtol(p, &p, 10);
+        }
+        else
+        {
+            p++;
+        }
+    }
+    if (value >= 0 && value <= 100)
+    {
+        Serial.printf("Move door to: %d%\n", value);
+        gdo_door_move_to_target(value * 100);
+    }
+    else
+    {
+        Serial.printf("Invalid door postion, value must be between 0(open) and 100(closed)\n");
+    }
+}
+#endif
 
 #ifdef CRASH_DEBUG
 extern void delayFnCall(uint32_t ms, void (*callback)());
@@ -389,6 +419,9 @@ void setup_homekit()
 #endif
     new SpanUserCommand('l', "- print RATGDO buffered message log", printLogInfo);
     new SpanUserCommand('d', "<level> - set ESP log level 0(none), 1(error), 2(warn), 3(info), 4(debug), 5(verbose)", setLogLevel);
+#ifdef USE_GDOLIB
+    new SpanUserCommand('m', "<percent> - move door to position between 0(open) and 100 (closed)", testMoveDoor);
+#endif
 #ifdef CRASH_DEBUG
     new SpanUserCommand('z', "- test function", testDelayFn);
 #endif
