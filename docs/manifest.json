@@ -8,11 +8,11 @@
       "chipFamily": "ESP32",
       "parts": [
         {
-          "path": "firmware/homekit-ratgdo32-v3.1.8.bootloader.bin",
+          "path": "firmware/homekit-ratgdo32-v3.1.9.bootloader.bin",
           "offset": 4096
         },
         {
-          "path": "firmware/homekit-ratgdo32-v3.1.8.partitions.bin",
+          "path": "firmware/homekit-ratgdo32-v3.1.9.partitions.bin",
           "offset": 32768
         },
         {
@@ -20,7 +20,7 @@
           "offset": 57344
         },
         {
-          "path": "firmware/homekit-ratgdo32-v3.1.8.firmware.bin",
+          "path": "firmware/homekit-ratgdo32-v3.1.9.firmware.bin",
           "offset": 65536
         }
       ]
