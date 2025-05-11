@@ -129,7 +129,7 @@ When you save settings from this page the ratgdo device will either return immed
 
 ### Name
 
-This updates the name reported to HomeKit and for mDNS device discovery.  The default name is _Garage Door ABCDEF_ where the last 6 characters are set to the MAC address of the ratgdo device. Changing the name after pairing with HomeKit does not change the name within HomeKit or Apple Home.  The maximum length is 31 characters.  For network hostname the length is truncated to 23 characters and all spaces are replaced with a hyphen.
+This updates the name reported to HomeKit and for mDNS device discovery.  The default name is _Garage Door ABCDEF_ where the last 6 characters are set to the MAC address of the ratgdo device. Changing the name after pairing with HomeKit does not change the name within HomeKit or Apple Home.  The maximum length is 31 characters.  For network hostname the length is truncated to 23 characters and all non alphanumeric characters are replaced with a hyphen to comply with RFC952
 
 ### Require Password
 

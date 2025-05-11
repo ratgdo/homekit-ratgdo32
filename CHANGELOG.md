@@ -4,6 +4,16 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v3.1.9 (2025-05-11)
+
+### What's Changed
+
+* Bugfix: Hostname not set correctly to comply with RFC952 (Issue #72)
+* Bugfix: Door close duration not reported correctly on web page
+* Other: Add console CLI command to allow setting debug message log level
+* Other: Add console CLI command to facilitate testing moving door to position between 0% and 100%
+* Other: Update to use version 2.1.2 of upstream HomeSpan library
+  
 ## v3.1.8 (2025-04-27)
 
 ### What's Changed
