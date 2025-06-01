@@ -60,6 +60,7 @@ void wifiBegin(const char *ssid, const char *pw)
     ESP_LOGI(TAG, "Wifi begin for SSID: %s", ssid);
     WiFi.setSleep(WIFI_PS_NONE); // Improves performance, at cost of power consumption
     WiFi.hostname((const char *)device_name_rfc952);
+    WiFi.enableIPv6(); // Enable IPv6 support
     if (userConfig->getStaticIP())
     {
         IPAddress ip;
@@ -88,12 +89,23 @@ void connectionCallback(int count)
     if (rebooting)
         return;
 
-    ESP_LOGI(TAG, "WiFi established, count: %d, IP: %s, Mask: %s, Gateway: %s, DNS: %s", count, WiFi.localIP().toString().c_str(),
-             WiFi.subnetMask().toString().c_str(), WiFi.gatewayIP().toString().c_str(), WiFi.dnsIP().toString().c_str());
+    ESP_LOGI(TAG, "WiFi established, count: %d, IP: %s, Mask: %s, Gateway: %s, DNS: %s Link_IPv6: %s, Global_IPv6: %s",
+        count,
+        WiFi.localIP().toString().c_str(),
+        WiFi.subnetMask().toString().c_str(),
+        WiFi.gatewayIP().toString().c_str(),
+        WiFi.dnsIP().toString().c_str(),
+        WiFi.linkLocalIPv6().toString().c_str(),
+        WiFi.globalIPv6().toString().c_str());
+
     userConfig->set(cfg_localIP, WiFi.localIP().toString().c_str());
     userConfig->set(cfg_gatewayIP, WiFi.gatewayIP().toString().c_str());
     userConfig->set(cfg_subnetMask, WiFi.subnetMask().toString().c_str());
     userConfig->set(cfg_nameserverIP, WiFi.dnsIP().toString().c_str());
+
+    userConfig->set(cfg_linkLocalIPv6, WiFi.linkLocalIPv6().toString().c_str());
+    userConfig->set(cfg_globalIPv6, WiFi.globalIPv6().toString().c_str());
+
     // With WiFi connected, we can now initialize the rest of our app.
     if (!softAPmode)
     {

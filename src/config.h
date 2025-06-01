@@ -45,11 +45,18 @@ constexpr char cfg_deviceName[] = "deviceName";
 constexpr char cfg_wifiChanged[] = "wifiChanged";
 constexpr char cfg_wifiPower[] = "wifiPower";
 constexpr char cfg_wifiPhyMode[] = "wifiPhyMode";
+
+// IPv4
 constexpr char cfg_staticIP[] = "staticIP";
 constexpr char cfg_localIP[] = "localIP";
 constexpr char cfg_subnetMask[] = "subnetMask";
 constexpr char cfg_gatewayIP[] = "gatewayIP";
 constexpr char cfg_nameserverIP[] = "nameserverIP";
+
+// IPv6
+constexpr char cfg_linkLocalIPv6[] = "linkLocalIPv6";
+constexpr char cfg_globalIPv6[] = "globalIPv6";
+
 constexpr char cfg_passwordRequired[] = "passwordRequired";
 constexpr char cfg_wwwUsername[] = "wwwUsername";
 constexpr char cfg_wwwCredentials[] = "wwwCredentials";
@@ -124,10 +131,17 @@ public:
     int getWifiPower() { return std::get<int>(get(cfg_wifiPower)); };
     int getWifiPhyMode() { return std::get<int>(get(cfg_wifiPhyMode)); };
     bool getStaticIP() { return std::get<bool>(get(cfg_staticIP)); };
+
+    // IPv4
     std::string getLocalIP() { return std::get<std::string>(get(cfg_localIP)); };
     std::string getSubnetMask() { return std::get<std::string>(get(cfg_subnetMask)); };
     std::string getGatewayIP() { return std::get<std::string>(get(cfg_gatewayIP)); };
     std::string getNameserverIP() { return std::get<std::string>(get(cfg_nameserverIP)); };
+
+    // IPv6
+    std::string getLinkLocalIPv6() { return std::get<std::string>(get(cfg_linkLocalIPv6)); };
+    std::string getGlobalIPv6() { return std::get<std::string>(get(cfg_globalIPv6)); };
+
     bool getPasswordRequired() { return std::get<bool>(get(cfg_passwordRequired)); };
     std::string getwwwUsername() { return std::get<std::string>(get(cfg_wwwUsername)); };
     std::string getwwwCredentials() { return std::get<std::string>(get(cfg_wwwCredentials)); };

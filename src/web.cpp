@@ -447,10 +447,16 @@ void handle_status()
     ADD_STR(json, "firmwareVersion", std::string(AUTO_VERSION).c_str());
     // TODO find and show HomeKit accessory ID... ADD_STR(json, "accessoryID", accessoryID);
     // TODO monitor number of HomeKit "clients" connected... ADD_INT(json, "clients", clientCount);
+    // IPv4
     ADD_STR(json, cfg_localIP, userConfig->getLocalIP().c_str());
     ADD_STR(json, cfg_subnetMask, userConfig->getSubnetMask().c_str());
     ADD_STR(json, cfg_gatewayIP, userConfig->getGatewayIP().c_str());
     ADD_STR(json, cfg_nameserverIP, userConfig->getNameserverIP().c_str());
+
+    // IPv6
+    ADD_STR(json, cfg_linkLocalIPv6, userConfig->getLinkLocalIPv6().c_str());
+    ADD_STR(json, cfg_globalIPv6, userConfig->getGlobalIPv6().c_str());
+
     ADD_STR(json, "macAddress", Network.macAddress().c_str());
     ADD_STR(json, "wifiSSID", WiFi.SSID().c_str());
     ADD_STR(json, "wifiRSSI", (std::to_string(WiFi.RSSI()) + " dBm, Channel " + std::to_string(WiFi.channel())).c_str());
