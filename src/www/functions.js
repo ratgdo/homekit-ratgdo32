@@ -327,7 +327,12 @@ function setElementsFromStatus(status) {
             */
             case "localIP":
                 document.getElementById(key).innerHTML = value;
-                document.getElementById("IPaddress").placeholder = value;
+                break;
+            case "linkLocalIPv6":
+                document.getElementById(key).innerHTML = value;
+                break;
+            case "globalIPv6":
+                document.getElementById(key).innerHTML = value;
                 break;
             case "subnetMask":
                 document.getElementById(key).innerHTML = value;
@@ -1103,7 +1108,7 @@ function swipeCheck() {
     }
 }
 function isPullDown(dY, dX) {
-    // methods of checking slope, length, direction of line created by swipe action 
+    // methods of checking slope, length, direction of line created by swipe action
     return dY < 0 && (
         (Math.abs(dX) <= 100 && Math.abs(dY) >= 300)
         || (Math.abs(dX) / Math.abs(dY) <= 0.3 && dY >= 60)
