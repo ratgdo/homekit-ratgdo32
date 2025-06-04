@@ -52,7 +52,6 @@ static bool rebooting = false;
 
 char qrPayload[21];
 
-
 /****************************************************************************
  * Callback functions, notify us of significant events
  */

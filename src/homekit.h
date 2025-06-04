@@ -64,7 +64,6 @@ extern void homekit_unpair();
 extern bool homekit_is_paired();
 
 extern char qrPayload[];
-extern char ipv6_addresses[320];
 
 struct GDOEvent
 {
