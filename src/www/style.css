@@ -111,7 +111,7 @@ div {
 }
 
 div.serverstatus {
-    width: 75%;
+    width: 100%;
     overflow: hidden;
     position: relative;
 
@@ -122,14 +122,15 @@ div.serverstatus {
 
 div.qrcode {
     width: 25%;
-    max-width: 200px;
+    left: 75%;
+    max-width: 190px;
     overflow: hidden;
-    position: relative;
+    position: absolute;
 }
 
 div.fullwidth {
     width: 100%;
-    max-width: 1000px;
+    max-width: 800px;
     overflow: hidden;
     position: relative;
     border-bottom-style: solid;
@@ -144,7 +145,7 @@ div.fullwidth {
 
 div.header {
     width: 100%;
-    max-width: 1000px;
+    max-width: 800px;
     overflow: hidden;
     position: relative;
     border-bottom-style: solid;
@@ -156,7 +157,7 @@ div.header {
 
 div.fullpage {
     margin: auto;
-    max-width: 1000px;
+    max-width: 800px;
     height: auto;
     overflow: hidden;
     position: relative;
