@@ -239,18 +239,11 @@ userSettings::userSettings()
         {cfg_wifiChanged, {true, true, false, NULL}},
         {cfg_wifiPower, {true, true, WIFI_POWER_MAX, helperWiFiPower}}, // call fn to set reboot only if setting changed
         {cfg_wifiPhyMode, {true, true, 0, helperWiFiPhyMode}},          // call fn to set reboot only if setting changed
-
-        // IPv4
         {cfg_staticIP, {true, true, false, NULL}},
         {cfg_localIP, {true, true, "0.0.0.0", NULL}},
         {cfg_subnetMask, {true, true, "0.0.0.0", NULL}},
         {cfg_gatewayIP, {true, true, "0.0.0.0", NULL}},
         {cfg_nameserverIP, {true, true, "0.0.0.0", NULL}},
-
-        // IPv6
-        {cfg_linkLocalIPv6, {true, true, "::", NULL}},
-        {cfg_globalIPv6, {true, true, "::", NULL}},
-
         {cfg_passwordRequired, {false, false, false, NULL}},
         {cfg_wwwUsername, {false, false, "admin", NULL}},
         //  Credentials are MD5 Hash... server.credentialHash(username, realm, "password");

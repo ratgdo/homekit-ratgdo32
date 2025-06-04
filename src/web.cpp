@@ -454,8 +454,7 @@ void handle_status()
     ADD_STR(json, cfg_nameserverIP, userConfig->getNameserverIP().c_str());
 
     // IPv6
-    ADD_STR(json, cfg_linkLocalIPv6, userConfig->getLinkLocalIPv6().c_str());
-    ADD_STR(json, cfg_globalIPv6, userConfig->getGlobalIPv6().c_str());
+    ADD_STR(json, "ipv6Addresses", ipv6_addresses);
 
     ADD_STR(json, "macAddress", Network.macAddress().c_str());
     ADD_STR(json, "wifiSSID", WiFi.SSID().c_str());

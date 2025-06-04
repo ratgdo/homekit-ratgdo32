@@ -52,6 +52,9 @@ static bool rebooting = false;
 
 char qrPayload[21];
 
+// Buffer to hold all IPv6 addresses as a single string (max 8 addresses, ~40 chars each)
+char ipv6_addresses[320] = {0};
+
 /****************************************************************************
  * Callback functions, notify us of significant events
  */
@@ -89,22 +92,42 @@ void connectionCallback(int count)
     if (rebooting)
         return;
 
-    ESP_LOGI(TAG, "WiFi established, count: %d, IP: %s, Mask: %s, Gateway: %s, DNS: %s Link_IPv6: %s, Global_IPv6: %s",
+    ESP_LOGI(TAG, "WiFi established, count: %d, IP: %s, Mask: %s, Gateway: %s, DNS: %s Link_IPv6: %s",
         count,
         WiFi.localIP().toString().c_str(),
         WiFi.subnetMask().toString().c_str(),
         WiFi.gatewayIP().toString().c_str(),
         WiFi.dnsIP().toString().c_str(),
-        WiFi.linkLocalIPv6().toString().c_str(),
-        WiFi.globalIPv6().toString().c_str());
+        WiFi.linkLocalIPv6().toString().c_str());
 
+    // IPv4 Config
     userConfig->set(cfg_localIP, WiFi.localIP().toString().c_str());
     userConfig->set(cfg_gatewayIP, WiFi.gatewayIP().toString().c_str());
     userConfig->set(cfg_subnetMask, WiFi.subnetMask().toString().c_str());
-    userConfig->set(cfg_nameserverIP, WiFi.dnsIP().toString().c_str());
 
-    userConfig->set(cfg_linkLocalIPv6, WiFi.linkLocalIPv6().toString().c_str());
-    userConfig->set(cfg_globalIPv6, WiFi.globalIPv6().toString().c_str());
+    // Only update cfg_nameserverIP if it is an IPv4 address. .dnsIP() can return an IPv6 address if we have one from SLAAC
+    if (WiFi.dnsIP().type() == IPv4)
+        userConfig->set(cfg_nameserverIP, WiFi.dnsIP().toString().c_str());
+
+    // IPv6 SLAAC
+    esp_ip6_addr_t if_ip6[LWIP_IPV6_NUM_ADDRESSES];
+    int nIPv6 = esp_netif_get_all_preferred_ip6(WiFi.STA.netif(), if_ip6);
+    ESP_LOGI(TAG, "Found %d IPv6 addresses:", nIPv6);
+
+    ipv6_addresses[0] = '\0'; // Clear the buffer
+    for (int i = 0; i < nIPv6; i++)
+    {
+        String addrStr = IPAddress(IPv6, (const uint8_t *)if_ip6[i].addr, if_ip6[i].zone).toString();
+
+        ESP_LOGI(TAG,"  %s", addrStr.c_str());
+
+        // Append to buffer, separated by comma if not first
+        if (i > 0) {
+            strlcat(ipv6_addresses, ",", sizeof(ipv6_addresses));
+        }
+
+        strlcat(ipv6_addresses, addrStr.c_str(), sizeof(ipv6_addresses));
+    }
 
     // With WiFi connected, we can now initialize the rest of our app.
     if (!softAPmode)
