@@ -288,6 +288,22 @@ void setup_web()
     return;
 }
 
+std::string get_ipv6_addresses_string() {
+    esp_ip6_addr_t if_ip6[LWIP_IPV6_NUM_ADDRESSES];
+    int nIPv6 = esp_netif_get_all_preferred_ip6(WiFi.STA.netif(), if_ip6);
+
+    std::ostringstream result;
+    for (int i = 0; i < nIPv6; i++) {
+        String addrStr = IPAddress(IPv6, (const uint8_t *)if_ip6[i].addr, if_ip6[i].zone).toString();
+
+        if (i > 0)
+            result << ",";
+
+        result << addrStr.c_str();
+    }
+    return result.str();
+}
+
 void handle_notfound()
 {
     ESP_LOGI(TAG, "Sending 404 Not Found for: %s with method: %s to client: %s", server.uri().c_str(), http_methods[server.method()], server.client().remoteIP().toString().c_str());
@@ -454,7 +470,7 @@ void handle_status()
     ADD_STR(json, cfg_nameserverIP, userConfig->getNameserverIP().c_str());
 
     // IPv6
-    ADD_STR(json, "ipv6Addresses", ipv6_addresses);
+    ADD_STR(json, "ipv6Addresses", get_ipv6_addresses_string().c_str());
 
     ADD_STR(json, "macAddress", Network.macAddress().c_str());
     ADD_STR(json, "wifiSSID", WiFi.SSID().c_str());
