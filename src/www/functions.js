@@ -327,6 +327,7 @@ function setElementsFromStatus(status) {
             */
             case "localIP":
                 document.getElementById(key).innerHTML = value;
+                document.getElementById("IPaddress").placeholder = value;
                 break;
             case "ipv6Addresses":
                 document.getElementById(key).innerHTML = value.split(',').join('\n');
