@@ -4,6 +4,12 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v3.1.10 (2025-06-08)
+
+### What's Changed
+
+* Feature: Enable IPv6 (PR #74) with thanks to https://github.com/apearson
+
 ## v3.1.9 (2025-05-11)
 
 ### What's Changed

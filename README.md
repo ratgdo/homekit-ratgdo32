@@ -96,6 +96,9 @@ This section also displays the current firmware version, with a statement on whe
 > [!NOTE]
 > If the word _locked_ appears after the WiFi AP identifier then the ratgdo device will _only_ connect to that WiFi Access Point. See warning in the [Set WiFi SSID](#set-wifi-ssid) section below.
 
+> [!NOTE]
+> A link local IPv6 address (LLA) will always be shown even if your network does not support IPv6.  If your network does support IPv6 then Global Unicast Address (GUA) and/or Unique Local Address (ULA) will be displayed as well.
+
 ### Garage door opener status
 
 Status of the garage door along with action buttons are shown in this section.  The status values are updated in real time whether triggered by one of the action buttons or an external action (motion in the garage, someone using a door remote).
