@@ -114,7 +114,8 @@ div.serverstatus {
     width: 100%;
     overflow: hidden;
     position: relative;
-
+    padding-left: 0px;
+    padding-right: 0px;
     td:nth-child(1) {
         text-align: right;
     }
@@ -123,7 +124,7 @@ div.serverstatus {
 div.qrcode {
     width: 25%;
     left: 75%;
-    max-width: 190px;
+    max-width: 200px;
     overflow: hidden;
     position: absolute;
 }
