@@ -329,6 +329,9 @@ function setElementsFromStatus(status) {
                 document.getElementById(key).innerHTML = value;
                 document.getElementById("IPaddress").placeholder = value;
                 break;
+            case "ipv6Addresses":
+                document.getElementById(key).innerHTML = value.split(',').join('\n');
+                break;
             case "subnetMask":
                 document.getElementById(key).innerHTML = value;
                 document.getElementById("IPnetmask").placeholder = value;
@@ -981,7 +984,8 @@ async function saveSettings() {
 
     // check IP addresses valid
     const regexIPv4 = /^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$/i;
-    if (!(regexIPv4.test(localIP) && regexIPv4.test(subnetMask) && regexIPv4.test(gatewayIP) && regexIPv4.test(nameserverIP) && regexIPv4.test(syslogIP))) {
+
+    if (!(regexIPv4.test(localIP) && regexIPv4.test(subnetMask) && regexIPv4.test(gatewayIP) && regexIPv4.test(nameserverIP) &&  regexIPv4.test(syslogIP))) {
         console.error(`Invalid IP address(s): ${localIP} / ${subnetMask} / ${gatewayIP} / ${nameserverIP} / ${syslogIP}`);
         alert(`Invalid IP address(s): ${localIP} / ${subnetMask} / ${gatewayIP} / ${nameserverIP} / ${syslogIP}`);
         return;
@@ -1103,7 +1107,7 @@ function swipeCheck() {
     }
 }
 function isPullDown(dY, dX) {
-    // methods of checking slope, length, direction of line created by swipe action 
+    // methods of checking slope, length, direction of line created by swipe action
     return dY < 0 && (
         (Math.abs(dX) <= 100 && Math.abs(dY) >= 300)
         || (Math.abs(dX) / Math.abs(dY) <= 0.3 && dY >= 60)

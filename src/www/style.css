@@ -1,6 +1,6 @@
 /*************************************************************
  * Stylesheet for RATDGO web status page
- * 
+ *
  * Copyright (c) 2023-25 David Kerr, https://github.com/dkerr64
  *
  *************************************************************/
@@ -111,7 +111,7 @@ div {
 }
 
 div.serverstatus {
-    width: 75%;
+    width: 100%;
     overflow: hidden;
     position: relative;
 
@@ -122,9 +122,10 @@ div.serverstatus {
 
 div.qrcode {
     width: 25%;
-    max-width: 200px;
+    left: 75%;
+    max-width: 190px;
     overflow: hidden;
-    position: relative;
+    position: absolute;
 }
 
 div.fullwidth {
