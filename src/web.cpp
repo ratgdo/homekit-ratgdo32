@@ -1139,7 +1139,7 @@ void handle_firmware_upload()
             {
                 uploadProgress = 0;
                 nextPrintPercent = 10;
-                ESP_LOGI(TAG, "%s progress: 00%%", verify ? "Verify" : "Update");
+                ESP_LOGI(TAG, "%s progress: 00", verify ? "Verify" : "Update");
             }
         }
     }
@@ -1154,7 +1154,7 @@ void handle_firmware_upload()
             if (uploadPercent >= nextPrintPercent)
             {
                 Serial.printf("\n"); // newline after the dot dot dots
-                ESP_LOGI(TAG, "%s progress: %i%%", verify ? "Verify" : "Update", uploadPercent);
+                ESP_LOGI(TAG, "%s progress: %i", verify ? "Verify" : "Update", uploadPercent);
                 SSEheartbeat(firmwareUpdateSub); // keep SSE connection alive.
                 nextPrintPercent += 10;
                 // Report percentage to browser client if it is listening

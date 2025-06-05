@@ -228,8 +228,8 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
     case GDO_CB_EVENT_DOOR_POSITION:
     {
         GarageDoorCurrentState current_state = garage_door.current_state;
-        ESP_LOGI(TAG, "GDO event: door: %s, %3d%%, target: %3d%%", gdo_door_state_to_string(status->door),
-                 +status->door_position / 100, (status->door_target >= 0) ? status->door_target / 100 : -1);
+        ESP_LOGI(TAG, "GDO event: door: %s, %3d, target: %3d", gdo_door_state_to_string(status->door),
+                 status->door_position / 100, (status->door_target >= 0) ? status->door_target / 100 : -1);
         garage_door.active = true;
         garage_door.current_state = gdo_to_homekit_door_current_state[status->door];
         if ((current_state != garage_door.current_state) && (status->door != GDO_DOOR_STATE_UNKNOWN))
