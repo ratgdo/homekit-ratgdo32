@@ -52,8 +52,8 @@ static bool rebooting = false;
 
 char qrPayload[21];
 
-// Buffer to hold all IPv6 addresses as a single string (max 8 addresses, ~40 chars each)
-char ipv6_addresses[320] = {0};
+// Buffer to hold all IPv6 addresses as a single string
+char ipv6_addresses[LWIP_IPV6_NUM_ADDRESSES * IP6ADDR_STRLEN_MAX] = {0};
 
 /****************************************************************************
  * Callback functions, notify us of significant events
