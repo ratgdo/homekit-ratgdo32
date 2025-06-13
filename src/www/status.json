@@ -11,6 +11,7 @@
   "gatewayIP": "192.168.99.1",
   "nameserverIP": "192.168.99.1",
   "ipv6Addresses": "fe80::23:45ff:feab:cdef,fd00:abcd:1234:5678:23:45ff:feab:cdef,2000:abcd:1234:5678:23:45ff:feab:cdef",
+  "enableIPv6": true,
   "macAddress": "02:23:45:AB:CD:EF",
   "syslogEn": true,
   "syslogIP": "192.168.99.2",

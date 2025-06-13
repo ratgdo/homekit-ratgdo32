@@ -63,7 +63,11 @@ void wifiBegin(const char *ssid, const char *pw)
     ESP_LOGI(TAG, "Wifi begin for SSID: %s", ssid);
     WiFi.setSleep(WIFI_PS_NONE); // Improves performance, at cost of power consumption
     WiFi.hostname((const char *)device_name_rfc952);
-    WiFi.enableIPv6(); // Enable IPv6 support
+    if (userConfig->getEnableIPv6())
+    {
+        // Enable IPv6 support
+        WiFi.enableIPv6();
+    }
     if (userConfig->getStaticIP())
     {
         IPAddress ip;
@@ -93,12 +97,12 @@ void connectionCallback(int count)
         return;
 
     ESP_LOGI(TAG, "WiFi established, count: %d, IP: %s, Mask: %s, Gateway: %s, DNS: %s Link_IPv6: %s",
-        count,
-        WiFi.localIP().toString().c_str(),
-        WiFi.subnetMask().toString().c_str(),
-        WiFi.gatewayIP().toString().c_str(),
-        WiFi.dnsIP().toString().c_str(),
-        WiFi.linkLocalIPv6().toString().c_str());
+             count,
+             WiFi.localIP().toString().c_str(),
+             WiFi.subnetMask().toString().c_str(),
+             WiFi.gatewayIP().toString().c_str(),
+             WiFi.dnsIP().toString().c_str(),
+             WiFi.linkLocalIPv6().toString().c_str());
 
     // IPv4 Config
     userConfig->set(cfg_localIP, WiFi.localIP().toString().c_str());
@@ -109,24 +113,30 @@ void connectionCallback(int count)
     if (WiFi.dnsIP().type() == IPv4)
         userConfig->set(cfg_nameserverIP, WiFi.dnsIP().toString().c_str());
 
-    // IPv6 SLAAC
-    esp_ip6_addr_t if_ip6[LWIP_IPV6_NUM_ADDRESSES];
-    int nIPv6 = esp_netif_get_all_preferred_ip6(WiFi.STA.netif(), if_ip6);
-    ESP_LOGI(TAG, "Found %d IPv6 addresses:", nIPv6);
-
-    ipv6_addresses[0] = '\0'; // Clear the buffer
-    for (int i = 0; i < nIPv6; i++)
+    if (userConfig->getEnableIPv6())
     {
-        String addrStr = IPAddress(IPv6, (const uint8_t *)if_ip6[i].addr, if_ip6[i].zone).toString();
+        // IPv6 SLAAC
+        esp_ip6_addr_t if_ip6[LWIP_IPV6_NUM_ADDRESSES];
+        int nIPv6 = esp_netif_get_all_preferred_ip6(WiFi.STA.netif(), if_ip6);
+        ESP_LOGI(TAG, "Found %d IPv6 addresses:", nIPv6);
 
-        ESP_LOGI(TAG,"  %s", addrStr.c_str());
-
-        // Append to buffer, separated by comma if not first
-        if (i > 0) {
-            strlcat(ipv6_addresses, ",", sizeof(ipv6_addresses));
+        ipv6_addresses[0] = '\0'; // Clear the buffer
+        for (int i = 0; i < nIPv6; i++)
+        {
+            String addrStr = IPAddress(IPv6, (const uint8_t *)if_ip6[i].addr, if_ip6[i].zone).toString();
+            ESP_LOGI(TAG, "  %s", addrStr.c_str());
+            // Append to buffer, separated by comma if not first
+            if (i > 0)
+            {
+                strlcat(ipv6_addresses, ",", sizeof(ipv6_addresses));
+            }
+            strlcat(ipv6_addresses, addrStr.c_str(), sizeof(ipv6_addresses));
         }
-
-        strlcat(ipv6_addresses, addrStr.c_str(), sizeof(ipv6_addresses));
+    }
+    else
+    {
+        // No IPv6
+        ipv6_addresses[0] = '\0'; // Clear the buffer
     }
 
     // With WiFi connected, we can now initialize the rest of our app.
@@ -144,7 +154,12 @@ void connectionCallback(int count)
         setup_web();
     }
     // beep on completing startup.
-    tone(BEEPER_PIN, 2000, 500);
+    static bool startupBeeped = false;
+    if (!startupBeeped)
+    {
+        tone(BEEPER_PIN, 2000, 500);
+        startupBeeped = true;
+    }
 }
 
 void statusCallback(HS_STATUS status)

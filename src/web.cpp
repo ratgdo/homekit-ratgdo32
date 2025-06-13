@@ -452,10 +452,8 @@ void handle_status()
     ADD_STR(json, cfg_subnetMask, userConfig->getSubnetMask().c_str());
     ADD_STR(json, cfg_gatewayIP, userConfig->getGatewayIP().c_str());
     ADD_STR(json, cfg_nameserverIP, userConfig->getNameserverIP().c_str());
-
-    // IPv6
+    ADD_BOOL(json, cfg_enableIPv6, userConfig->getEnableIPv6());
     ADD_STR(json, "ipv6Addresses", ipv6_addresses);
-
     ADD_STR(json, "macAddress", Network.macAddress().c_str());
     ADD_STR(json, "wifiSSID", WiFi.SSID().c_str());
     ADD_STR(json, "wifiRSSI", (std::to_string(WiFi.RSSI()) + " dBm, Channel " + std::to_string(WiFi.channel())).c_str());

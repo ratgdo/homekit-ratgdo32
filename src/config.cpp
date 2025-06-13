@@ -276,6 +276,7 @@ userSettings::userSettings()
         {cfg_useSWserial, {true, false, true, helperUseSWserial}}, // call fn to shut down GDO before switch
         {cfg_obstFromStatus, {true, false, true, NULL}},
         {cfg_occupancyDuration, {false, false, 0, helperOccupancyDuration}}, // call fn to enable/disable HomeKit accessories
+        {cfg_enableIPv6, {true, false, false, NULL}},
     };
 }
 

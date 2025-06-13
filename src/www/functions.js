@@ -371,6 +371,10 @@ function setElementsFromStatus(status) {
                 document.getElementById(key).checked = value;
                 document.getElementById("timeZoneTable").style.display = (value) ? "table" : "none";
                 break;
+            case "enableIPv6":
+                document.getElementById(key).checked = value;
+                document.getElementById("ipv6Row").style.display = (value) ? "table-row" : "none";
+                break;
             case "timeZone":
                 if (value.indexOf(';') < 0) {
                     // No semicolon so POSIX time zone info is missing, tell server the time zone (async);
@@ -979,13 +983,14 @@ async function saveSettings() {
     let nameserverIP = document.getElementById("IPnameserver").value.substring(0, 15);
     if (nameserverIP.length == 0) nameserverIP = serverStatus.nameserverIP;
     const enableNTP = (document.getElementById("enableNTP").checked) ? '1' : '0';
+    const enableIPv6 = (document.getElementById("enableIPv6").checked) ? '1' : '0';
     const list = document.getElementById("timeZoneInput");
     const timeZone = list.options[list.selectedIndex].text + ';' + list.options[list.selectedIndex].value;
 
     // check IP addresses valid
     const regexIPv4 = /^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$/i;
 
-    if (!(regexIPv4.test(localIP) && regexIPv4.test(subnetMask) && regexIPv4.test(gatewayIP) && regexIPv4.test(nameserverIP) &&  regexIPv4.test(syslogIP))) {
+    if (!(regexIPv4.test(localIP) && regexIPv4.test(subnetMask) && regexIPv4.test(gatewayIP) && regexIPv4.test(nameserverIP) && regexIPv4.test(syslogIP))) {
         console.error(`Invalid IP address(s): ${localIP} / ${subnetMask} / ${gatewayIP} / ${nameserverIP} / ${syslogIP}`);
         alert(`Invalid IP address(s): ${localIP} / ${subnetMask} / ${gatewayIP} / ${nameserverIP} / ${syslogIP}`);
         return;
@@ -1017,6 +1022,7 @@ async function saveSettings() {
         "gatewayIP", gatewayIP,
         "nameserverIP", nameserverIP,
         "enableNTP", enableNTP,
+        "enableIPv6", enableIPv6,
         "timeZone", timeZone,
         "syslogEn", syslogEn,
         "syslogIP", syslogIP,
