@@ -27,6 +27,7 @@
 // Logger tag
 static const char *TAG = "ratgdo-vehicle";
 bool vehicle_setup_done = false;
+bool vehicle_setup_error = false;
 
 VL53L4CX distanceSensor(&Wire, SHUTDOWN_PIN);
 
@@ -52,30 +53,38 @@ void setup_vehicle()
 {
     VL53L4CX_Error rc = VL53L4CX_ERROR_NONE;
 
-    if (vehicle_setup_done)
+    if (vehicle_setup_done || vehicle_setup_error)
         return;
 
     ESP_LOGI(TAG, "=== Setup VL53L4CX time-of-flight sensor ===");
 
-    Wire.begin(19, 18);
+    if (!Wire.begin(19, 18))
+    {
+        ESP_LOGE(TAG, "VL53L4CX pin setup failed");
+        vehicle_setup_error = true;
+        return;
+    }
     distanceSensor.begin();
     distanceSensor.VL53L4CX_Off();
     rc = distanceSensor.InitSensor(0x59);
     if (rc != VL53L4CX_ERROR_NONE)
     {
         ESP_LOGE(TAG, "VL53L4CX failed to initialize error: %d", rc);
+        vehicle_setup_error = true;
         return;
     }
     rc = distanceSensor.VL53L4CX_SetDistanceMode(VL53L4CX_DISTANCEMODE_LONG);
     if (rc != VL53L4CX_ERROR_NONE)
     {
         ESP_LOGE(TAG, "VL53L4CX_SetDistanceMode error: %d", rc);
+        vehicle_setup_error = true;
         return;
     }
     rc = distanceSensor.VL53L4CX_StartMeasurement();
     if (rc != VL53L4CX_ERROR_NONE)
     {
         ESP_LOGE(TAG, "VL53L4CX_StartMeasurement error: %d", rc);
+        vehicle_setup_error = true;
         return;
     }
 
