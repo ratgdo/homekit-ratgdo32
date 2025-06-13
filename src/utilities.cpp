@@ -123,7 +123,7 @@ char *make_rfc952(char *dest, const char *src, int size)
     int i = 0;
     while (i <= std::min(24, size - 1) && src[i] != 0)
     {
-        dest[i] = (std::isalnum((int)src[i]) || src[i] == '.'  ) ? src[i] : '-';
+        dest[i] = (std::isalnum((int)src[i]) || src[i] == '.') ? src[i] : '-';
         i++;
     }
     // remove dashes and periods from end of name
@@ -162,6 +162,7 @@ void load_all_config_settings()
     ESP_LOGI(TAG, "   subnetMask:          %s", userConfig->getSubnetMask().c_str());
     ESP_LOGI(TAG, "   gatewayIP:           %s", userConfig->getGatewayIP().c_str());
     ESP_LOGI(TAG, "   nameserverIP:        %s", userConfig->getNameserverIP().c_str());
+    ESP_LOGI(TAG, "   enableIPv6:          %s", userConfig->getEnableIPv6() ? "true" : "false");
     ESP_LOGI(TAG, "   wwwPWrequired:       %s", userConfig->getPasswordRequired() ? "true" : "false");
     ESP_LOGI(TAG, "   wwwUsername:         %s", userConfig->getwwwUsername().c_str());
     ESP_LOGI(TAG, "   wwwCredentials:      %s", userConfig->getwwwCredentials().c_str());

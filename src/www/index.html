@@ -74,7 +74,7 @@
               <td>MAC&nbsp;Address:</td>
               <td id="macAddress"></td>
             </tr>
-            <tr>
+            <tr id="ipv6Row" style="display:none;">
               <td>IPv6&nbsp;Address:</td>
               <td id="ipv6Addresses" style="white-space:pre;"></td>
             </tr>
@@ -327,8 +327,8 @@
                     <tr>
                       <td class="label">Occupancy&nbsp;Duration:</td>
                       <td>&nbsp;
-                        <input type="range" min="0" max="32" value="0" id="occupancyDuration"
-                          name="occupancyDuration" class="slider" style="width:100px;">
+                        <input type="range" min="0" max="32" value="0" id="occupancyDuration" name="occupancyDuration"
+                          class="slider" style="width:100px;">
                         <span style="vertical-align: middle;"><span id="occupancyValue"></span>&nbsp;Mins</span>
                       </td>
                     </tr>
@@ -462,7 +462,14 @@
               </tr>
               -->
               <tr>
-                <td class="label">Static IP:</td>
+                <td class="label">Enable IPv6:</td>
+                <td>&nbsp;
+                  <input type="checkbox" id="enableIPv6" name="enableIPv6" value="no">
+                  <label for="enableIPv6">Experimental, for test only.</label>
+                </td>
+              </tr>
+              <tr>
+                <td class="label">Static IPv4:</td>
                 <td>&nbsp;
                   <input type="checkbox" id="staticIP" name="staticIP" value="no" onchange="toggleStaticIP()">
                 </td>
