@@ -4,6 +4,12 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v3.1.11 (2025-06-13)
+
+### What's Changed
+
+* Feature: Make IPv6 optional, disabled by default.
+
 ## v3.1.10 (2025-06-08)
 
 ### What's Changed
