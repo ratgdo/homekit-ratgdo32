@@ -66,6 +66,7 @@ uint32_t doorControlType = 0;
 
 // For Time-to-close control
 Ticker TTCtimer = Ticker();
+Ticker callbackDelay = Ticker();
 bool TTCwasLightOn = false;
 
 struct ForceRecover force_recover;
@@ -1743,15 +1744,19 @@ void delayFnCall(uint32_t ms, void (*callback)())
                         {
                             TTCtimer.detach();
                             // Turn light off. It will turn on as part of the door close action and then go off after a timeout
+                            ESP_LOGI(TAG, "End of function delay timer");
                             if (light && (doorControlType != 3)) {
                                 // dry contact cannot control lights
                                 set_light(false);
                             }
                             if (callback)
                             {
-                                vTaskDelay(pdMS_TO_TICKS(interval)); // wait so that set_light() can do its thing
-                                ESP_LOGI(TAG,"Calling delayed function 0x%08lX", (uint32_t)callback);
-                                callback();
+                                // delay so that set_light() can do its thing
+                                callbackDelay.once_ms(interval, [callback]()
+                                {
+                                    ESP_LOGI(TAG,"Calling delayed function 0x%08lX", (uint32_t)callback);
+                                    callback();
+                                });
                             }
                         } });
 }
