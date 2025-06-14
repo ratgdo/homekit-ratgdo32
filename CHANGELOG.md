@@ -4,6 +4,12 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v3.1.12 (2025-06-15)
+
+### What's Changed
+
+* Bugfix: Sec+ 1.0 doors may not close at end of time-to-close delay (Issue #77).
+
 ## v3.1.11 (2025-06-13)
 
 ### What's Changed
