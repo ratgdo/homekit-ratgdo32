@@ -1666,11 +1666,24 @@ void door_command(DoorAction action)
     }
 }
 
+#endif
 void door_command_close()
 {
+#ifdef USE_GDOLIB
+    if (garage_door.current_state == GarageDoorCurrentState::CURR_OPEN && userConfig->getUseToggleToClose())
+    {
+        ESP_LOGD(TAG, "Close door using TOGGLE");
+        gdo_door_toggle();
+    }
+    else
+    {
+        gdo_door_close();
+    }
+#else
     door_command(DoorAction::Close);
-}
 #endif
+}
+
 GarageDoorCurrentState open_door()
 {
     if (TTCtimer.active())
@@ -1783,11 +1796,7 @@ GarageDoorCurrentState close_door()
     if (userConfig->getTTCseconds() == 0)
     {
         ESP_LOGI(TAG, "Closing door");
-#ifdef USE_GDOLIB
-        gdo_door_close();
-#else
-        door_command(DoorAction::Close);
-#endif
+        door_command_close();
     }
     else
     {
@@ -1810,7 +1819,7 @@ GarageDoorCurrentState close_door()
             }
             else
             {
-                delayFnCall(userConfig->getTTCseconds() * 1000, (void (*)())gdo_door_close);
+                delayFnCall(userConfig->getTTCseconds() * 1000, door_command_close);
             }
 #else
             delayFnCall(userConfig->getTTCseconds() * 1000, door_command_close);

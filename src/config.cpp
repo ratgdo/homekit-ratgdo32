@@ -277,6 +277,7 @@ userSettings::userSettings()
         {cfg_obstFromStatus, {true, false, true, NULL}},
         {cfg_occupancyDuration, {false, false, 0, helperOccupancyDuration}}, // call fn to enable/disable HomeKit accessories
         {cfg_enableIPv6, {true, false, false, NULL}},
+        {cfg_useToggleToClose, {false, false, false, NULL}},
     };
 }
 

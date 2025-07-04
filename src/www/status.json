@@ -21,6 +21,7 @@
   "wifiBSSID": "AA:BB:CC:DD:EE:FF",
   "lockedAP": true,
   "GDOSecurityType": 2,
+  "useToggleToClose": false,
   "garageLightOn": false,
   "garageDoorState": "Closed",
   "garageLockState": "Unsecured",
