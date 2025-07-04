@@ -461,6 +461,7 @@ void handle_status()
     // TODO support locking to specific WiFi access point... ADD_BOOL(json, "lockedAP", wifiConf.bssid_set)
     ADD_BOOL(json, "lockedAP", false);
     ADD_INT(json, cfg_GDOSecurityType, userConfig->getGDOSecurityType());
+    ADD_BOOL(json, cfg_useToggleToClose, userConfig->getUseToggleToClose());
     ADD_STR(json, "garageDoorState", garage_door.active ? DOOR_STATE(garage_door.current_state) : DOOR_STATE(255));
     ADD_STR(json, "garageLockState", LOCK_STATE(garage_door.current_lock));
     ADD_BOOL(json, "garageLightOn", garage_door.light);

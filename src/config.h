@@ -79,6 +79,7 @@ constexpr char cfg_useSWserial[] = "useSWserial";
 constexpr char cfg_obstFromStatus[] = "obstFromStatus";
 constexpr char cfg_occupancyDuration[] = "occupancyDuration";
 constexpr char cfg_enableIPv6[] = "enableIPv6";
+constexpr char cfg_useToggleToClose[] = "useToggleToClose";
 
 constexpr char nvram_messageLog[] = "messageLog";
 constexpr char nvram_id_code[] = "id_code";
@@ -158,6 +159,7 @@ public:
     bool getObstFromStatus() { return std::get<bool>(get(cfg_obstFromStatus)); };
     int getOccupancyDuration() { return std::get<int>(get(cfg_occupancyDuration)); };
     bool getEnableIPv6() { return std::get<bool>(get(cfg_enableIPv6)); };
+    bool getUseToggleToClose() { return std::get<bool>(get(cfg_useToggleToClose)); };
 };
 extern userSettings *userConfig;
 

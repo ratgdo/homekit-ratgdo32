@@ -167,6 +167,7 @@ void load_all_config_settings()
     ESP_LOGI(TAG, "   wwwUsername:         %s", userConfig->getwwwUsername().c_str());
     ESP_LOGI(TAG, "   wwwCredentials:      %s", userConfig->getwwwCredentials().c_str());
     ESP_LOGI(TAG, "   GDOSecurityType:     %d", userConfig->getGDOSecurityType());
+    ESP_LOGI(TAG, "   UseToggleToClose:    %d", userConfig->getUseToggleToClose());
     ESP_LOGI(TAG, "   TTCseconds:          %d", userConfig->getTTCseconds());
     ESP_LOGI(TAG, "   rebootSeconds:       %d", userConfig->getRebootSeconds());
     ESP_LOGI(TAG, "   LEDidle:             %d", userConfig->getLEDidle());
