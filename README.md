@@ -215,6 +215,10 @@ For Security+ 1.0 and Security+ 2.0, communications with the garage door uses a 
 
 For Security+ 1.0 and Security +2.0, ratgdo obtains obstruction state from status messages sent by the door opener.  These messages can sometimes be slow to report a change in obstruction status.  Unselecting this option will tell the ratgdo to monitor the hardwired obstruction sensor pin directly.
 
+### Use TOGGLE command to close door
+
+If your Security+ 2.0 door is installed without obstruction sensors then it may not respond to the door action CLOSE command.  Use this setting to change the command sent to close an open door to the TOGGLE command.
+
 ### WiFi Version _(not supported on ratgdo32 boards)_
 
 If the device fails to connect reliably and consistently to your WiFi network it may help to lock it to a specific WiFi version. The ratgdo supports 802.11b, 802.11g and 802.11n on the 2.4GHz WiFi band and by default will auto-select. If it helps in your network, select the specific version you wish to use.

@@ -4,6 +4,12 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v3.2.0 (2025-07-04)
+
+### What's Changed
+
+* Bugfix: Doors without obstruction sensor may not respond to door action CLOSE commands, use TOGGLE instead (Issue #81).
+
 ## v3.1.12 (2025-06-15)
 
 ### What's Changed
