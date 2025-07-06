@@ -1669,19 +1669,23 @@ void door_command(DoorAction action)
 #endif
 void door_command_close()
 {
-#ifdef USE_GDOLIB
     if (garage_door.current_state == GarageDoorCurrentState::CURR_OPEN && userConfig->getUseToggleToClose())
     {
         ESP_LOGD(TAG, "Close door using TOGGLE");
+#ifdef USE_GDOLIB
         gdo_door_toggle();
+#else
+        door_command(DoorAction::Toggle);
+#endif
     }
     else
     {
+#ifdef USE_GDOLIB
         gdo_door_close();
-    }
 #else
-    door_command(DoorAction::Close);
+        door_command(DoorAction::Close);
 #endif
+    }
 }
 
 GarageDoorCurrentState open_door()
