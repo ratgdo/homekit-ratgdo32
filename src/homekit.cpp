@@ -96,13 +96,12 @@ void connectionCallback(int count)
     if (rebooting)
         return;
 
-    ESP_LOGI(TAG, "WiFi established, count: %d, IP: %s, Mask: %s, Gateway: %s, DNS: %s Link_IPv6: %s",
+    ESP_LOGI(TAG, "WiFi established, count: %d, IP: %s, Mask: %s, Gateway: %s, DNS: %s",
              count,
              WiFi.localIP().toString().c_str(),
              WiFi.subnetMask().toString().c_str(),
              WiFi.gatewayIP().toString().c_str(),
-             WiFi.dnsIP().toString().c_str(),
-             WiFi.linkLocalIPv6().toString().c_str());
+             WiFi.dnsIP().toString().c_str());
 
     // IPv4 Config
     userConfig->set(cfg_localIP, WiFi.localIP().toString().c_str());
@@ -112,32 +111,6 @@ void connectionCallback(int count)
     // Only update cfg_nameserverIP if it is an IPv4 address. .dnsIP() can return an IPv6 address if we have one from SLAAC
     if (WiFi.dnsIP().type() == IPv4)
         userConfig->set(cfg_nameserverIP, WiFi.dnsIP().toString().c_str());
-
-    if (userConfig->getEnableIPv6())
-    {
-        // IPv6 SLAAC
-        esp_ip6_addr_t if_ip6[LWIP_IPV6_NUM_ADDRESSES];
-        int nIPv6 = esp_netif_get_all_preferred_ip6(WiFi.STA.netif(), if_ip6);
-        ESP_LOGI(TAG, "Found %d IPv6 addresses:", nIPv6);
-
-        ipv6_addresses[0] = '\0'; // Clear the buffer
-        for (int i = 0; i < nIPv6; i++)
-        {
-            String addrStr = IPAddress(IPv6, (const uint8_t *)if_ip6[i].addr, if_ip6[i].zone).toString();
-            ESP_LOGI(TAG, "  %s", addrStr.c_str());
-            // Append to buffer, separated by comma if not first
-            if (i > 0)
-            {
-                strlcat(ipv6_addresses, ",", sizeof(ipv6_addresses));
-            }
-            strlcat(ipv6_addresses, addrStr.c_str(), sizeof(ipv6_addresses));
-        }
-    }
-    else
-    {
-        // No IPv6
-        ipv6_addresses[0] = '\0'; // Clear the buffer
-    }
 
     // With WiFi connected, we can now initialize the rest of our app.
     if (!softAPmode)
@@ -162,6 +135,45 @@ void connectionCallback(int count)
     }
 }
 
+void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info)
+{
+    if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP6)
+    {
+        // Got IPv6 address
+        ESP_LOGI(TAG, "Received IPv6 Address: %s", IPAddress(IPv6, (const uint8_t *)info.got_ip6.ip6_info.ip.addr, info.got_ip6.ip6_info.ip.zone).toString(true).c_str());
+
+        // Now build string of IPv6 addresses
+        ipv6_addresses[0] = '\0'; // Clear the buffer
+        if (userConfig->getEnableIPv6())
+        {
+            esp_ip6_addr_t if_ip6[LWIP_IPV6_NUM_ADDRESSES];
+            int nIPv6 = esp_netif_get_all_preferred_ip6(WiFi.STA.netif(), if_ip6);
+            ESP_LOGI(TAG, "Total IPv6 addresses: %d", nIPv6);
+
+            for (int i = 0; i < nIPv6; i++)
+            {
+                String addrStr = IPAddress(IPv6, (const uint8_t *)if_ip6[i].addr, if_ip6[i].zone).toString();
+                ESP_LOGI(TAG, "  %s", addrStr.c_str());
+                // Append to buffer, separated by comma if not first
+                if (i > 0)
+                {
+                    strlcat(ipv6_addresses, ",", sizeof(ipv6_addresses));
+                }
+                strlcat(ipv6_addresses, addrStr.c_str(), sizeof(ipv6_addresses));
+            }
+        }
+    }
+    else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP)
+    {
+        // Got IPv4 address
+        ESP_LOGI(TAG, "Received IPv4 Address: %s", IPAddress(info.got_ip.ip_info.ip.addr).toString().c_str());
+    }
+    else
+    {
+        ESP_LOGI(TAG, "WiFi event: %s (unhandled)", WiFi.eventName(event));
+    }
+}
+
 void statusCallback(HS_STATUS status)
 {
     switch (status)
@@ -171,6 +183,9 @@ void statusCallback(HS_STATUS status)
         break;
     case HS_WIFI_CONNECTING:
         ESP_LOGI(TAG, "Status: WiFi connecting");
+        // Monitor IP address events, so we can show user IPv6 addresses
+        WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP6);
+        WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
         break;
     case HS_PAIRING_NEEDED:
         ESP_LOGI(TAG, "Status: Need to pair");
