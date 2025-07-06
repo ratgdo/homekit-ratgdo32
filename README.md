@@ -230,7 +230,11 @@ You can set the WiFi transmit power to between 0 and 20 dBm. It defaults to the 
 > [!NOTE]
 > If the ratgdo device fails to connect to a WiFi access point by approximately 40 seconds after a reboot from a setting change, then the device will reset all the WiFi settings and will then attempt to reconnect to the server.
 
-### Static IP
+### Enable IPv6
+
+If your network supports IPv6 then selecting this will allow ratgdo to acquire IPv6 addresses and communicate over IPv6.
+
+### Static IPv4
 
 If selected then you can enter a static IP address, network mask, gateway IP and DNS server IP.  Note that if the address changes, then after reboot the web page will not automatically reload from the new IP address... you will need to manually connect to the ratgdo device at its new address. __Most users should NOT select static IP__ as it is far safer to use DHCP to automatically configure the device.
 

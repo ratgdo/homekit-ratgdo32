@@ -4,6 +4,13 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v3.2.1 (2025-07-??)
+
+### What's Changed
+
+* Bugfix: IPv6 support should now be working (updated HomeSpan to release 2.1.3).
+* Bugfix: Boot safely when no GDO connected (updates GDOLIB to release 1.2.1).
+
 ## v3.2.0 (2025-07-04)
 
 ### What's Changed
