@@ -13,11 +13,8 @@
  */
 #pragma once
 
-// C/C++ language includes
-
 // RATGDO project includes
 #include <OneButton.h>
-
 
 extern void setup_drycontact();
 extern void drycontact_loop();

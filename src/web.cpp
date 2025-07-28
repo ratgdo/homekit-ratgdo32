@@ -1,5 +1,5 @@
 /****************************************************************************
- * RATGDO HomeKit for ESP32
+ * RATGDO HomeKit
  * https://ratcloud.llc
  * https://github.com/PaulWieland/ratgdo
  *
@@ -19,26 +19,32 @@
 #include <unordered_map>
 #include <time.h>
 
-// Arduino includes
+// ESP system includes
 #include <Ticker.h>
 #include <MD5Builder.h>
-#include <WebServer.h>
 #include <StreamString.h>
-
-// ESP system includes
+#ifdef ESP8266
+#include <arduino_homekit_server.h>
+#include <eboot_command.h>
+#else
 #include "esp_core_dump.h"
+#endif
 
 // RATGDO project includes
 #include "ratgdo.h"
 #include "config.h"
 #include "comms.h"
 #include "web.h"
-#include "utilities.h"
 #include "homekit.h"
 #include "softAP.h"
 #include "json.h"
 #include "led.h"
+#ifdef ESP8266
+#include "wifi.h"
+#include "EspSaveCrash.h"
+#else
 #include "vehicle.h"
+#endif
 #include "www/build/webcontent.h"
 
 // Logger tag
@@ -68,7 +74,11 @@ char *test_str = NULL;
 #endif
 void handle_update();
 void handle_firmware_upload();
-void SSEHandler(uint8_t channel);
+void SSEHandler(uint32_t channel);
+
+#ifdef ESP8266
+EspSaveCrash saveCrash(1408, 1024, true, &crashCallback);
+#endif
 
 // Built in URI handlers
 const char restEvents[] = "/rest/events/";
@@ -93,13 +103,18 @@ const std::unordered_map<std::string, std::pair<const HTTPMethod, void (*)()>> b
 #endif
     {"/rest/events/subscribe", {HTTP_GET, handle_subscribe}}};
 
+// Declare web server on HTTP port 80.
+#ifdef ESP8266
+ESP8266WebServer server(80);
+#else
 WebServer server(80);
+#endif
 
 // Local copy of door status
 GarageDoor last_reported_garage_door;
 bool last_reported_paired = false;
 bool last_reported_assist_laser = false;
-uint64_t lastDoorUpdateAt = 0;
+_millis_t lastDoorUpdateAt;
 GarageDoorCurrentState lastDoorState = (GarageDoorCurrentState)0xff;
 
 static bool web_setup_done = false;
@@ -129,6 +144,7 @@ struct SSESubscription
     IPAddress clientIP;
     WiFiClient client;
     Ticker heartbeatTimer;
+    uint32_t heartbeatInterval;
     bool SSEconnected;
     int SSEfailCount;
     String clientUUID;
@@ -137,12 +153,36 @@ struct SSESubscription
 SSESubscription subscription[SSE_MAX_CHANNELS];
 // During firmware update note which subscribed client is updating
 SSESubscription *firmwareUpdateSub = NULL;
-uint8_t subscriptionCount = 0;
+uint32_t subscriptionCount = 0;
 
-SemaphoreHandle_t jsonMutex = NULL;
+// Performance management - removed redundant connection tracking
+#define MIN_REQUEST_INTERVAL_MS 100
 
-#define JSON_BUFFER_SIZE 2048
-char *json = NULL;
+// Performance monitoring
+static unsigned long request_count = 0;
+static unsigned long dropped_connections = 0;
+
+// JSON response caching
+#ifdef ESP8266
+#define STATUS_JSON_BUFFER_SIZE (256 * 7)
+#else
+#define STATUS_JSON_BUFFER_SIZE (256 * 8)
+#endif
+#define STATUS_JSON_CACHE_TIMEOUT_MS 500
+#define LOOP_JSON_BUFFER_SIZE 512
+
+static char *status_json = NULL;
+static char *loop_json = NULL;
+#ifdef ESP8266
+// ESP8266 is single core / single threaded, no mutex's.
+#define TAKE_MUTEX()
+#define GIVE_MUTEX()
+#else
+// ESP32 is multi-core, need to serialize access to JSON buffers
+static SemaphoreHandle_t jsonMutex = NULL;
+#define TAKE_MUTEX() xSemaphoreTake(jsonMutex, portMAX_DELAY)
+#define GIVE_MUTEX() xSemaphoreGive(jsonMutex)
+#endif
 
 #define DOOR_STATE(s) (s == 0) ? "Open" : (s == 1) ? "Closed"  \
                                       : (s == 2)   ? "Opening" \
@@ -153,13 +193,83 @@ char *json = NULL;
                                            : (s == 2)   ? "Jammed"  \
                                                         : "Unknown"
 
+// Connection throttling
+#define MAX_CONCURRENT_REQUESTS 4
+#define REQUEST_TIMEOUT_MS 5000
+struct ActiveRequest
+{
+    IPAddress clientIP;
+    _millis_t startTime;
+    bool inUse;
+};
+ActiveRequest activeRequests[MAX_CONCURRENT_REQUESTS];
+int activeRequestCount = 0;
+
+// Helper functions for connection throttling
+bool registerRequest()
+{
+    IPAddress clientIP = server.client().remoteIP();
+    _millis_t now = _millis();
+
+    // Clean up timed-out requests
+    for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++)
+    {
+        if (activeRequests[i].inUse && (now - activeRequests[i].startTime > REQUEST_TIMEOUT_MS))
+        {
+            ESP_LOGI(TAG, "Request timeout for client %s", activeRequests[i].clientIP.toString().c_str());
+            activeRequests[i].inUse = false;
+            activeRequestCount--;
+        }
+    }
+
+    // Check if we're at capacity
+    if (activeRequestCount >= MAX_CONCURRENT_REQUESTS)
+    {
+        ESP_LOGI(TAG, "Max concurrent requests reached, rejecting %s", clientIP.toString().c_str());
+        return false;
+    }
+
+    // Find a free slot
+    for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++)
+    {
+        if (!activeRequests[i].inUse)
+        {
+            activeRequests[i].clientIP = clientIP;
+            activeRequests[i].startTime = now;
+            activeRequests[i].inUse = true;
+            activeRequestCount++;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void unregisterRequest()
+{
+    IPAddress clientIP = server.client().remoteIP();
+
+    for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++)
+    {
+        if (activeRequests[i].inUse && activeRequests[i].clientIP == clientIP)
+        {
+            activeRequests[i].inUse = false;
+            if (activeRequestCount > 0)
+                activeRequestCount--; // Prevent negative count
+            break;
+        }
+    }
+}
+
 void web_loop()
 {
     if (!web_setup_done)
         return;
 
-    uint64_t upTime = millis64();
-    xSemaphoreTake(jsonMutex, portMAX_DELAY);
+    static char *json = loop_json;
+    _millis_t upTime = _millis();
+    static _millis_t last_request_time = 0;
+    TAKE_MUTEX();
     START_JSON(json);
     if (garage_door.active && garage_door.current_state != lastDoorState)
     {
@@ -176,6 +286,7 @@ void web_loop()
             {
                 // first state change after a reboot, so really is a state change.
                 userConfig->set(cfg_doorUpdateAt, (int)time(NULL));
+                ESP8266_SAVE_CONFIG();
                 lastDoorUpdateAt = upTime;
             }
         }
@@ -189,6 +300,8 @@ void web_loop()
         // First time through, zero offset from upTime, which is when we last rebooted)
         ADD_INT(json, "lastDoorUpdateAt", (upTime - lastDoorUpdateAt));
     }
+#ifndef ESP8266
+    // Feature not available on ESP8266
     if (garage_door.has_distance_sensor)
     {
         if (vehicleStatusChange)
@@ -198,6 +311,7 @@ void web_loop()
         }
         ADD_BOOL_C(json, "assistLaser", laser.state(), last_reported_assist_laser);
     }
+#endif
     // Conditional macros, only add if value has changed
     ADD_BOOL_C(json, "paired", homekit_is_paired(), last_reported_paired);
     ADD_STR_C(json, "garageDoorState", DOOR_STATE(garage_door.current_state), garage_door.current_state, last_reported_garage_door.current_state);
@@ -217,11 +331,25 @@ void web_loop()
         // Have we added anything to the JSON string?
         ADD_INT(json, "upTime", upTime);
         END_JSON(json);
+        if (strlen(json) > LOOP_JSON_BUFFER_SIZE * 8 / 10)
+        {
+            ESP_LOGW(TAG, "WARNING web_loop JSON length: %d is over 80%% of available buffer", strlen(json));
+        }
         REMOVE_NL(json);
         SSEBroadcastState(json);
     }
-    xSemaphoreGive(jsonMutex);
+    GIVE_MUTEX();
+
+    // Rate limiting - minimum interval between requests
+    _millis_t current_time = _millis();
+    if (current_time - last_request_time < MIN_REQUEST_INTERVAL_MS)
+    {
+        return; // Skip this cycle to enforce rate limit
+    }
+
     server.handleClient();
+    // Update last request time after handling client
+    last_request_time = current_time;
 }
 
 void setup_web()
@@ -230,15 +358,29 @@ void setup_web()
         return;
 
     ESP_LOGI(TAG, "=== Starting HTTP web server ===");
-    IRAM_START
+    IRAM_START(TAG);
     // IRAM heap is used only for allocating globals, to leave as much regular heap
     // available during operations.  We need to carefully monitor useage so as not
     // to exceed available IRAM.  We can adjust the LOG_BUFFER_SIZE (in log.h) if we
     // need to make more space available for initialization.
-    json = (char *)malloc(JSON_BUFFER_SIZE);
-    ESP_LOGI(TAG, "Allocated buffer for JSON, size: %d", JSON_BUFFER_SIZE);
+    status_json = (char *)malloc(STATUS_JSON_BUFFER_SIZE);
+    if (!status_json)
+    {
+        ESP_LOGE(TAG, "Failed to allocated buffer for status JSON, size: %d", STATUS_JSON_BUFFER_SIZE);
+        return;
+    }
+    ESP_LOGI(TAG, "Allocated buffer for status JSON, size: %d", STATUS_JSON_BUFFER_SIZE);
+    loop_json = (char *)malloc(LOOP_JSON_BUFFER_SIZE);
+    if (!loop_json)
+    {
+        ESP_LOGE(TAG, "Failed to allocated buffer for loop JSON, size: %d", LOOP_JSON_BUFFER_SIZE);
+        return;
+    }
+    ESP_LOGI(TAG, "Allocated buffer for loop JSON, size: %d", LOOP_JSON_BUFFER_SIZE);
+#ifndef ESP8266
     // We allocated json as a global block.  We are on dual core CPU.  We need to serialize access to the resource.
     jsonMutex = xSemaphoreCreateMutex();
+#endif
     last_reported_paired = homekit_is_paired();
 
     if (motionTriggers.asInt == 0)
@@ -248,14 +390,16 @@ void setup_web()
         {
             motionTriggers.bit.motion = 1;
             userConfig->set(cfg_motionTriggers, motionTriggers.asInt);
+            ESP8266_SAVE_CONFIG();
         }
     }
     else if (garage_door.has_motion_sensor != (bool)motionTriggers.bit.motion)
     {
         // sync up web page tracking of whether we have motion sensor or not.
-        ESP_LOGI(TAG, "Motion trigger mismatch, reset to %d", (uint8_t)garage_door.has_motion_sensor);
+        ESP_LOGI(TAG, "Motion trigger mismatch, reset to %d", (int)garage_door.has_motion_sensor);
         motionTriggers.bit.motion = (uint8_t)garage_door.has_motion_sensor;
         userConfig->set(cfg_motionTriggers, motionTriggers.asInt);
+        ESP8266_SAVE_CONFIG();
     }
     ESP_LOGI(TAG, "Motion triggers, motion : %d, obstruction: %d, light key: %d, door key: %d, lock key: %d, asInt: %d",
              motionTriggers.bit.motion,
@@ -267,6 +411,15 @@ void setup_web()
     lastDoorUpdateAt = 0;
     lastDoorState = (GarageDoorCurrentState)0xff;
 
+#ifdef ESP8266 // ESP8266 only
+    crashCount = saveCrash.count();
+    if (crashCount == 255)
+    {
+        saveCrash.clear();
+        crashCount = 0;
+    }
+#endif
+
     ESP_LOGI(TAG, "Registering URI handlers");
     server.on("/update", HTTP_POST, handle_update, handle_firmware_upload);
     server.onNotFound(handle_everything);
@@ -277,13 +430,21 @@ void setup_web()
     server.collectHeaders(headerkeys, headerkeyssize);
     server.begin();
     // initialize all the Server-Sent Events (SSE) slots.
-    for (uint8_t i = 0; i < SSE_MAX_CHANNELS; i++)
+    for (uint32_t i = 0; i < SSE_MAX_CHANNELS; i++)
     {
         subscription[i].SSEconnected = false;
         subscription[i].clientIP = INADDR_NONE;
         subscription[i].clientUUID.clear();
     }
-    IRAM_END("HTTP server started");
+
+    // Initialize connection tracking
+    for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++)
+    {
+        activeRequests[i].inUse = false;
+    }
+    activeRequestCount = 0;
+
+    IRAM_END(TAG);
     web_setup_done = true;
     return;
 }
@@ -295,6 +456,11 @@ void handle_notfound()
     return;
 }
 
+#ifdef ESP8266
+#define AUTHENTICATE()                                                                                                                  \
+    if (userConfig->getPasswordRequired() && !server.authenticateDigest(userConfig->getwwwUsername(), userConfig->getwwwCredentials())) \
+        return server.requestAuthentication(DIGEST_AUTH, www_realm);
+#else
 String *ratgdoAuthenticate(HTTPAuthMethod mode, String enteredUsernameOrReq, String extraParams[])
 {
     // ESP_LOGI(TAG, "Auth method: %d", mode);                // DIGEST_AUTH
@@ -308,6 +474,7 @@ String *ratgdoAuthenticate(HTTPAuthMethod mode, String enteredUsernameOrReq, Str
 #define AUTHENTICATE()                                                                 \
     if (userConfig->getPasswordRequired() && !server.authenticate(ratgdoAuthenticate)) \
         return server.requestAuthentication(DIGEST_AUTH, www_realm);
+#endif
 
 void handle_auth()
 {
@@ -320,7 +487,11 @@ void handle_reset()
 {
     AUTHENTICATE();
     ESP_LOGI(TAG, "... reset requested");
+#ifdef ESP8266
+    homekit_storage_reset();
+#else
     homekit_unpair();
+#endif
     server.client().setNoDelay(true);
     server.send_P(200, type_txt, PSTR("Device has been un-paired from HomeKit. Rebooting...\n"));
     // Allow time to process send() before terminating web server...
@@ -363,7 +534,7 @@ void load_page(const char *page)
     if ((CACHE_CONTROL > 0) &&
         (!strcmp_P(type, type_css) || !strcmp_P(type, type_js) || strstr_P(type, PSTR("image"))))
     {
-        sprintf(cacheHdr, "max-age=%i", CACHE_CONTROL);
+        snprintf(cacheHdr, sizeof(cacheHdr), "max-age=%i", CACHE_CONTROL);
         cache = true;
     }
     if (server.hasHeader(F("If-None-Match")))
@@ -397,6 +568,14 @@ void load_page(const char *page)
 
 void handle_everything()
 {
+    // Connection throttling
+    if (!registerRequest())
+    {
+        server.send(503, type_txt, response503);
+        ESP_LOGW(TAG, "Reject request, server too busy (handle_everything)");
+        return;
+    }
+
     HTTPMethod method = server.method();
     String page = server.uri();
     const char *uri = page.c_str();
@@ -407,9 +586,15 @@ void handle_everything()
         // requested page matches one of our built-in handlers
         ESP_LOGI(TAG, "Client %s requesting: %s (method: %s)", server.client().remoteIP().toString().c_str(), uri, http_methods[method]);
         if (method == builtInUri.at(uri).first)
-            return builtInUri.at(uri).second();
+        {
+            builtInUri.at(uri).second();
+        }
         else
-            return handle_notfound();
+        {
+            handle_notfound();
+        }
+        unregisterRequest();
+        return;
     }
     else if ((method == HTTP_GET) && (!strncmp_P(uri, restEvents, strlen(restEvents))))
     {
@@ -417,48 +602,82 @@ void handle_everything()
         uri += strlen(restEvents);
         unsigned int channel = atoi(uri);
         if (channel < SSE_MAX_CHANNELS)
-            return SSEHandler(channel);
+        {
+            SSEHandler(channel);
+        }
         else
-            return handle_notfound();
+        {
+            handle_notfound();
+        }
+        unregisterRequest();
+        return;
     }
     else if (method == HTTP_GET || method == HTTP_HEAD)
     {
         // HTTP_GET that does not match a built-in handler
-        if (server.uri() == "/")
-            return load_page("/index.html");
+        if (page == "/")
+        {
+            load_page("/index.html");
+        }
         else
-            return load_page(uri);
+        {
+            load_page(uri);
+        }
+        unregisterRequest();
+        return;
     }
     // it is a HTTP_POST for unknown URI
-    return handle_notfound();
+    handle_notfound();
+    unregisterRequest();
+    return;
 }
 
 void handle_status()
 {
-    uint64_t upTime = millis64();
-#define clientCount 0
+    static uint32_t max_response_time = 0;
+    static uint32_t cache_hits = 0;
+    _millis_t startTime = _millis();
+    _millis_t upTime = startTime;
+    static _millis_t json_cache_time = 0;
+    uint32_t response_time;
+    static char *json = status_json;
+
+    TAKE_MUTEX();
+    request_count++;
+
+    // Check if we can use the last JSON response rather than build a new string
+    if (upTime - json_cache_time < STATUS_JSON_CACHE_TIMEOUT_MS)
+    {
+        cache_hits++;
+        server.sendHeader(F("Cache-Control"), F("no-cache, no-store"));
+        server.send_P(200, type_json, json);
+        response_time = (uint32_t)(_millis() - startTime);
+        max_response_time = std::max(max_response_time, response_time);
+        ESP_LOGI(TAG, "JSON cached length: %d, time: %lums", strlen(json), response_time);
+        GIVE_MUTEX();
+        return;
+    }
+
     // Build the JSON string
-    xSemaphoreTake(jsonMutex, portMAX_DELAY);
     START_JSON(json);
+#ifdef ESP8266
+    ADD_STR(json, "gitRepo", "homekit-ratgdo");
+#else
+    ADD_STR(json, "gitRepo", "homekit-ratgdo32");
+#endif
     ADD_INT(json, "upTime", upTime);
-    ADD_STR(json, cfg_deviceName, userConfig->getDeviceName().c_str());
-    ADD_STR(json, "userName", userConfig->getwwwUsername().c_str());
+    ADD_STR(json, cfg_deviceName, userConfig->getDeviceName());
+    ADD_STR(json, "userName", userConfig->getwwwUsername());
     ADD_BOOL(json, "paired", homekit_is_paired());
     ADD_STR(json, "firmwareVersion", std::string(AUTO_VERSION).c_str());
-    // TODO find and show HomeKit accessory ID... ADD_STR(json, "accessoryID", accessoryID);
-    // TODO monitor number of HomeKit "clients" connected... ADD_INT(json, "clients", clientCount);
-    // IPv4
-    ADD_STR(json, cfg_localIP, userConfig->getLocalIP().c_str());
-    ADD_STR(json, cfg_subnetMask, userConfig->getSubnetMask().c_str());
-    ADD_STR(json, cfg_gatewayIP, userConfig->getGatewayIP().c_str());
-    ADD_STR(json, cfg_nameserverIP, userConfig->getNameserverIP().c_str());
-    ADD_BOOL(json, cfg_enableIPv6, userConfig->getEnableIPv6());
-    ADD_STR(json, "ipv6Addresses", ipv6_addresses);
-    ADD_STR(json, "macAddress", Network.macAddress().c_str());
+    ADD_STR(json, cfg_localIP, userConfig->getLocalIP());
+    ADD_STR(json, cfg_subnetMask, userConfig->getSubnetMask());
+    ADD_STR(json, cfg_gatewayIP, userConfig->getGatewayIP());
+    ADD_STR(json, cfg_nameserverIP, userConfig->getNameserverIP());
+    ADD_STR(json, "macAddress", WiFi.macAddress().c_str());
     ADD_STR(json, "wifiSSID", WiFi.SSID().c_str());
     ADD_STR(json, "wifiRSSI", (std::to_string(WiFi.RSSI()) + " dBm, Channel " + std::to_string(WiFi.channel())).c_str());
     ADD_STR(json, "wifiBSSID", WiFi.BSSIDstr().c_str());
-    // TODO support locking to specific WiFi access point... ADD_BOOL(json, "lockedAP", wifiConf.bssid_set)
     ADD_BOOL(json, "lockedAP", false);
     ADD_INT(json, cfg_GDOSecurityType, userConfig->getGDOSecurityType());
     ADD_BOOL(json, cfg_useToggleToClose, userConfig->getUseToggleToClose());
@@ -471,48 +690,27 @@ void handle_status()
     ADD_INT(json, cfg_rebootSeconds, userConfig->getRebootSeconds());
     ADD_INT(json, "freeHeap", free_heap);
     ADD_INT(json, "minHeap", min_heap);
-    // TODO monitor stack... ADD_INT(json, "minStack", 0);
     ADD_INT(json, "crashCount", abs(crashCount));
-    // TODO support WiFi PhyMode... ADD_INT(json, cfg_wifiPhyMode, userConfig->getWifiPhyMode());
-    // TODO support WiFi TX Power... ADD_INT(json, cfg_wifiPower, userConfig->getWifiPower());
     ADD_BOOL(json, cfg_staticIP, userConfig->getStaticIP());
     ADD_BOOL(json, cfg_syslogEn, userConfig->getSyslogEn());
-    ADD_STR(json, cfg_syslogIP, userConfig->getSyslogIP().c_str());
+    ADD_STR(json, cfg_syslogIP, userConfig->getSyslogIP());
     ADD_INT(json, cfg_syslogPort, userConfig->getSyslogPort());
     ADD_INT(json, cfg_logLevel, userConfig->getLogLevel());
     ADD_INT(json, cfg_TTCseconds, userConfig->getTTCseconds());
-    ADD_BOOL(json, cfg_builtInTTC, userConfig->getBuiltInTTC());
     ADD_BOOL(json, cfg_TTClight, userConfig->getTTClight());
-    ADD_INT(json, cfg_vehicleThreshold, userConfig->getVehicleThreshold());
     ADD_INT(json, cfg_motionTriggers, motionTriggers.asInt);
     ADD_INT(json, cfg_LEDidle, userConfig->getLEDidle());
     // We send milliseconds relative to current time... ie updated X milliseconds ago
     ADD_INT(json, "lastDoorUpdateAt", (upTime - lastDoorUpdateAt));
     ADD_BOOL(json, "enableNTP", enableNTP);
-    if (enableNTP)
+    if (enableNTP && (bool)clockSet)
     {
-        if (clockSet)
-        {
-            ADD_INT(json, "serverTime", time(NULL));
-        }
+        ADD_INT(json, "serverTime", time(NULL));
     }
-    ADD_STR(json, cfg_timeZone, userConfig->getTimeZone().c_str());
-    ADD_BOOL(json, "distanceSensor", garage_door.has_distance_sensor);
-    if (garage_door.has_distance_sensor)
-    {
-        ADD_STR(json, "vehicleStatus", vehicleStatus);
-        ADD_INT(json, "vehicleDist", vehicleDistance);
-        last_reported_assist_laser = laser.state();
-        ADD_BOOL(json, "assistLaser", last_reported_assist_laser);
-    }
-    ADD_BOOL(json, cfg_laserEnabled, userConfig->getLaserEnabled());
-    ADD_BOOL(json, cfg_laserHomeKit, userConfig->getLaserHomeKit());
-    ADD_BOOL(json, cfg_vehicleHomeKit, userConfig->getVehicleHomeKit());
+    ADD_STR(json, cfg_timeZone, userConfig->getTimeZone());
     ADD_BOOL(json, cfg_dcOpenClose, userConfig->getDCOpenClose());
-    ADD_BOOL(json, cfg_useSWserial, userConfig->getUseSWserial());
     ADD_BOOL(json, cfg_obstFromStatus, userConfig->getObstFromStatus());
     ADD_INT(json, cfg_dcDebounceDuration, userConfig->getDCDebounceDuration());
-    ADD_INT(json, cfg_assistDuration, userConfig->getAssistDuration());
     ADD_STR(json, "qrPayload", qrPayload);
     if (doorControlType == 2)
     {
@@ -527,17 +725,61 @@ void handle_status()
     {
         ADD_INT(json, "closeDuration", garage_door.closeDuration);
     }
+#ifdef ESP8266
+#define accessoryID arduino_homekit_get_running_server() ? arduino_homekit_get_running_server()->accessory_id : "Inactive"
+#define clientCount arduino_homekit_get_running_server() ? arduino_homekit_get_running_server()->nfds : 0
+    ADD_STR(json, "accessoryID", accessoryID);
+    ADD_INT(json, "clients", clientCount);
+    ADD_BOOL(json, "lockedAP", wifiConf.bssid_set);
+    ADD_INT(json, "wifiPhyMode", userConfig->getWifiPhyMode());
+    ADD_INT(json, "wifiPower", userConfig->getWifiPower());
+    ADD_INT(json, "minStack", ESP.getFreeContStack());
+#else
     ADD_INT(json, "occupancyDuration", userConfig->getOccupancyDuration());
+    ADD_BOOL(json, cfg_enableIPv6, userConfig->getEnableIPv6());
+    ADD_STR(json, "ipv6Addresses", ipv6_addresses);
+    ADD_BOOL(json, cfg_builtInTTC, userConfig->getBuiltInTTC());
+#ifdef USE_GDOLIB
+    ADD_BOOL(json, cfg_useSWserial, userConfig->getUseSWserial());
+#endif
+    ADD_BOOL(json, "distanceSensor", garage_door.has_distance_sensor);
+    if (garage_door.has_distance_sensor)
+    {
+        ADD_STR(json, "vehicleStatus", vehicleStatus);
+        ADD_INT(json, "vehicleDist", vehicleDistance);
+        last_reported_assist_laser = laser.state();
+        ADD_BOOL(json, "assistLaser", last_reported_assist_laser);
+    }
+    ADD_BOOL(json, cfg_vehicleHomeKit, userConfig->getVehicleHomeKit());
+    ADD_INT(json, cfg_vehicleThreshold, userConfig->getVehicleThreshold());
+    ADD_BOOL(json, cfg_laserEnabled, userConfig->getLaserEnabled());
+    ADD_BOOL(json, cfg_laserHomeKit, userConfig->getLaserHomeKit());
+    ADD_INT(json, cfg_assistDuration, userConfig->getAssistDuration());
+#endif
+    ADD_INT(json, "webRequests", request_count);
+    ADD_INT(json, "webCacheHits", cache_hits);
+    ADD_INT(json, "webDroppedConns", dropped_connections);
+    ADD_INT(json, "webMaxResponseTime", max_response_time);
     END_JSON(json);
-
+    YIELD();
     // send JSON straight to serial port
     Serial.printf("%s\n", json);
-    last_reported_garage_door = garage_door;
 
+    last_reported_garage_door = garage_door;
     server.sendHeader(F("Cache-Control"), F("no-cache, no-store"));
     server.send_P(200, type_json, json);
-    ESP_LOGI(TAG, "JSON length: %d", strlen(json));
-    xSemaphoreGive(jsonMutex);
+    response_time = _millis() - startTime;
+    json_cache_time = _millis();
+    max_response_time = std::max(max_response_time, response_time);
+    if (strlen(json) > STATUS_JSON_BUFFER_SIZE * 85 / 100)
+    {
+        ESP_LOGW(TAG, "WARNING status JSON length: %d is over 85%% of available buffer, time: %lums", strlen(json), response_time);
+    }
+    else
+    {
+        ESP_LOGI(TAG, "JSON length: %d, time: %lums", strlen(json), response_time);
+    }
+    GIVE_MUTEX();
     return;
 }
 
@@ -547,38 +789,38 @@ void handle_logout()
     return server.requestAuthentication(DIGEST_AUTH, www_realm);
 }
 
-bool helperResetDoor(const std::string &key, const std::string &value, configSetting *action)
+bool helperResetDoor(const std::string &key, const char *value, configSetting *action)
 {
     reset_door();
     return true;
 }
 
-bool helperGarageLightOn(const std::string &key, const std::string &value, configSetting *action)
+bool helperGarageLightOn(const std::string &key, const char *value, configSetting *action)
 {
-    set_light((value == "1") ? true : false);
+    set_light((atoi(value) == 1) ? true : false);
     return true;
 }
 
-bool helperGarageDoorState(const std::string &key, const std::string &value, configSetting *action)
+bool helperGarageDoorState(const std::string &key, const char *value, configSetting *action)
 {
-    if (value == "1")
+    if (atoi(value) == 1)
         open_door();
     else
         close_door();
     return true;
 }
 
-bool helperGarageLockState(const std::string &key, const std::string &value, configSetting *action)
+bool helperGarageLockState(const std::string &key, const char *value, configSetting *action)
 {
-    set_lock((value == "1") ? 1 : 0);
+    set_lock((atoi(value) == 1) ? 1 : 0);
     return true;
 }
 
-bool helperCredentials(const std::string &key, const std::string &value, configSetting *action)
+bool helperCredentials(const std::string &key, const char *value, configSetting *action)
 {
-    char *newUsername = strstr(value.c_str(), "username");
-    char *newCredentials = strstr(value.c_str(), "credentials");
-    char *newPassword = strstr(value.c_str(), "password");
+    char *newUsername = strstr(value, "username");
+    char *newCredentials = strstr(value, "credentials");
+    char *newPassword = strstr(value, "password");
     if (!(newUsername && newCredentials && newPassword))
         return false;
 
@@ -600,17 +842,21 @@ bool helperCredentials(const std::string &key, const std::string &value, configS
     ESP_LOGI(TAG, "Set user credentials: %s : %s (%s)", newUsername, newPassword, newCredentials);
     userConfig->set(cfg_wwwUsername, newUsername);
     userConfig->set(cfg_wwwCredentials, newCredentials);
+#ifndef ESP8266
+    // We only need to save password (distinct from credentials) on ESP32
     nvRam->write(nvram_ratgdo_pw, newPassword);
+#endif
+    ESP8266_SAVE_CONFIG();
     return true;
 }
 
-bool helperUpdateUnderway(const std::string &key, const std::string &value, configSetting *action)
+bool helperUpdateUnderway(const std::string &key, const char *value, configSetting *action)
 {
     firmwareSize = 0;
     firmwareUpdateSub = NULL;
-    char *md5 = strstr(value.c_str(), "md5");
-    char *size = strstr(value.c_str(), "size");
-    char *uuid = strstr(value.c_str(), "uuid");
+    char *md5 = strstr(value, "md5");
+    char *size = strstr(value, "size");
+    char *uuid = strstr(value, "uuid");
 
     if (!(md5 && size && uuid))
         return false;
@@ -631,7 +877,7 @@ bool helperUpdateUnderway(const std::string &key, const std::string &value, conf
     // save values...
     strlcpy(firmwareMD5, md5, sizeof(firmwareMD5));
     firmwareSize = atoi(size);
-    for (uint8_t channel = 0; channel < SSE_MAX_CHANNELS; channel++)
+    for (uint32_t channel = 0; channel < SSE_MAX_CHANNELS; channel++)
     {
         if (subscription[channel].SSEconnected && subscription[channel].clientUUID == uuid && subscription[channel].client.connected())
         {
@@ -642,24 +888,32 @@ bool helperUpdateUnderway(const std::string &key, const std::string &value, conf
     return true;
 }
 
-bool helperFactoryReset(const std::string &key, const std::string &value, configSetting *action)
+bool helperFactoryReset(const std::string &key, const char *value, configSetting *action)
 {
     ESP_LOGI(TAG, "Factory reset requested");
+#ifdef ESP8266
+    userConfig->erase();
+    reset_door();
+    sync_and_restart();
+#else
     nvRam->erase();
     reset_door();
     homeSpan.processSerialCommand("F");
+#endif
     return true;
 }
 
-bool helperAssistLaser(const std::string &key, const std::string &value, configSetting *action)
+#ifndef ESP8266
+bool helperAssistLaser(const std::string &key, const char *value, configSetting *action)
 {
-    if (value == "1")
+    if (atoi(value) == 1)
         laser.on();
     else
         laser.off();
-    notify_homekit_laser(value == "1");
+    notify_homekit_laser(atoi(value) == 1);
     return true;
 }
+#endif
 
 void handle_setgdo()
 {
@@ -673,7 +927,9 @@ void handle_setgdo()
         {"credentials", {false, false, 0, helperCredentials}}, // parse out wwwUsername and credentials
         {"updateUnderway", {false, false, 0, helperUpdateUnderway}},
         {"factoryReset", {true, false, 0, helperFactoryReset}},
+#ifndef ESP8266
         {"assistLaser", {false, false, 0, helperAssistLaser}},
+#endif
     };
     bool reboot = false;
     bool error = false;
@@ -701,7 +957,7 @@ void handle_setgdo()
             actions = setGDOhandlers.at(key);
             if (actions.fn)
             {
-                error = error || !actions.fn(key, value, &actions);
+                error = error || !actions.fn(key, value.c_str(), &actions);
             }
             reboot = reboot || actions.reboot;
             wifiChanged = wifiChanged || actions.wifiChanged;
@@ -713,12 +969,12 @@ void handle_setgdo()
             if (actions.fn)
             {
                 // Value will be set within called function
-                error = error || !actions.fn(key, value, &actions);
+                error = error || !actions.fn(key, value.c_str(), &actions);
             }
             else
             {
                 // No function to call, set value directly.
-                userConfig->set(key, value);
+                userConfig->set(key, value.c_str());
             }
             reboot = reboot || actions.reboot;
             wifiChanged = wifiChanged || actions.wifiChanged;
@@ -729,6 +985,7 @@ void handle_setgdo()
             ESP_LOGW(TAG, "Invalid Key: %s, Value: %s (F)", key.c_str(), value.c_str());
             error = true;
         }
+        YIELD();
         if (error)
             break;
     }
@@ -746,6 +1003,7 @@ void handle_setgdo()
     if (saveSettings)
     {
         userConfig->set(cfg_wifiChanged, wifiChanged);
+        ESP8266_SAVE_CONFIG();
     }
     if (reboot)
     {
@@ -778,7 +1036,8 @@ void SSEheartbeat(SSESubscription *s)
         {
             // 5 heartbeats have failed... assume client will not connect
             // and free up the slot
-            subscriptionCount--;
+            if (subscriptionCount > 0)
+                subscriptionCount--; // Prevent negative count
             s->heartbeatTimer.detach();
             s->clientIP = INADDR_NONE;
             s->clientUUID.clear();
@@ -796,50 +1055,65 @@ void SSEheartbeat(SSESubscription *s)
     if (s->client.connected())
     {
         static int8_t lastRSSI = 0;
-        static int16_t lastVehicleDistance = 0;
-        xSemaphoreTake(jsonMutex, portMAX_DELAY);
+        static int32_t lastVehicleDistance = 0;
+        static char *json = loop_json;
+        TAKE_MUTEX();
         START_JSON(json);
-        ADD_INT(json, "upTime", millis64());
+        ADD_INT(json, "upTime", _millis());
         ADD_INT(json, "freeHeap", free_heap);
         ADD_INT(json, "minHeap", min_heap);
         // TODO monitor stack... ADD_INT(json, "minStack", ESP.getFreeContStack());
+#ifndef ESP8266
         if (garage_door.has_distance_sensor && (lastVehicleDistance != vehicleDistance))
         {
             lastVehicleDistance = vehicleDistance;
             ADD_INT(json, "vehicleDist", vehicleDistance);
         }
+#endif
         if (lastRSSI != WiFi.RSSI())
         {
             lastRSSI = WiFi.RSSI();
             ADD_STR(json, "wifiRSSI", (std::to_string(lastRSSI) + " dBm, Channel " + std::to_string(WiFi.channel())).c_str());
         }
-        /* TODO monitor number of "clients" connected to HomeKit
+#ifdef ESP8266
         static int lastClientCount = 0;
         if (arduino_homekit_get_running_server() && arduino_homekit_get_running_server()->nfds != lastClientCount)
         {
             lastClientCount = arduino_homekit_get_running_server()->nfds;
             ADD_INT(json, "clients", lastClientCount);
         }
-        */
+#endif
         END_JSON(json);
+        if (strlen(json) > LOOP_JSON_BUFFER_SIZE * 8 / 10)
+        {
+            ESP_LOGW(TAG, "WARNING heartbeat JSON length: %d is over 80%% of available buffer", strlen(json));
+        }
         REMOVE_NL(json);
-        s->client.printf("event: message\nretry: 15000\ndata: %s\n\n", json);
-        xSemaphoreGive(jsonMutex);
+        YIELD();
+        // retry needed to before event:
+        s->client.printf("retry: 15000\nevent: message\ndata: %s\n\n", json);
+        GIVE_MUTEX();
     }
     else
     {
-        subscriptionCount--;
+        if (subscriptionCount > 0)
+            subscriptionCount--; // Prevent negative count
         s->heartbeatTimer.detach();
         ESP_LOGI(TAG, "Client %s not listening, remove SSE subscription. Total subscribed: %d", s->clientIP.toString().c_str(), subscriptionCount);
+#ifdef ESP8266
+        s->client.flush();
+#else
         s->client.clear();
+#endif
         s->client.stop();
         s->clientIP = INADDR_NONE;
         s->clientUUID.clear();
         s->SSEconnected = false;
+        YIELD();
     }
 }
 
-void SSEHandler(uint8_t channel)
+void SSEHandler(uint32_t channel)
 {
     if (server.args() != 1)
     {
@@ -860,14 +1134,17 @@ void SSEHandler(uint8_t channel)
     server.sendContent_P(PSTR("HTTP/1.1 200 OK\nContent-Type: text/event-stream;\nConnection: keep-alive\nCache-Control: no-cache\nAccess-Control-Allow-Origin: *\n\n"));
     s.SSEconnected = true;
     s.SSEfailCount = 0;
-    s.heartbeatTimer.attach_ms(1000, [channel, &s]
-                               { SSEheartbeat(&s); });
+    if (s.heartbeatInterval)
+    {
+        s.heartbeatTimer.attach_ms(s.heartbeatInterval * 1000, [channel, &s]
+                                   { SSEheartbeat(&s); });
+    }
     ESP_LOGI(TAG, "Client %s listening for SSE events on channel %d", client.remoteIP().toString().c_str(), channel);
 }
 
 void handle_subscribe()
 {
-    uint8_t channel;
+    uint32_t channel;
     IPAddress clientIP = server.client().remoteIP(); // get IP address of client
     std::string SSEurl = restEvents;
 
@@ -888,7 +1165,7 @@ void handle_subscribe()
         return;
     }
 
-    // check we were passed at least one arguement
+    // check we were passed at least one argument
     if (server.args() < 1)
     {
         ESP_LOGI(TAG, "Sending %s, for: %s", response400missing, server.uri().c_str());
@@ -896,29 +1173,39 @@ void handle_subscribe()
         return;
     }
 
-    // find the UUID and whether client wants to receive log messages
+    // find the UUID and whether client wants to receive log messages and setting a heartbeat interval time
     int id = 0;
     bool logViewer = false;
+    int heartbeatIntervalArgIdx = -1;
     for (int i = 0; i < server.args(); i++)
     {
         if (server.argName(i) == "id")
             id = i;
         else if (server.argName(i) == "log")
             logViewer = true;
+        else if (server.argName(i) == "heartbeat")
+            heartbeatIntervalArgIdx = i;
     }
 
     // check if we already have a subscription for this UUID
+    bool foundExisting = false;
     for (channel = 0; channel < SSE_MAX_CHANNELS; channel++)
     {
         if (subscription[channel].clientUUID == server.arg(id))
         {
+            foundExisting = true;
             if (subscription[channel].SSEconnected)
             {
                 // Already connected.  We need to close it down as client will be reconnecting
                 ESP_LOGI(TAG, "SSE Subscribe - client %s with IP %s already connected on channel %d, remove subscription", server.arg(id).c_str(), clientIP.toString().c_str(), channel);
                 subscription[channel].heartbeatTimer.detach();
+#ifdef ESP8266
+                subscription[channel].client.flush();
+#else
                 subscription[channel].client.clear();
+#endif
                 subscription[channel].client.stop();
+                subscription[channel].SSEconnected = false;
             }
             else
             {
@@ -929,15 +1216,73 @@ void handle_subscribe()
         }
     }
 
-    if (channel == SSE_MAX_CHANNELS)
+    if (!foundExisting)
     {
-        // ended loop above without finding a match, so need to allocate a free slot
-        ++subscriptionCount;
+        // Need to allocate a new slot
         for (channel = 0; channel < SSE_MAX_CHANNELS; channel++)
             if (!subscription[channel].clientIP)
                 break;
+
+        if (channel < SSE_MAX_CHANNELS)
+        {
+            subscriptionCount++;
+        }
     }
-    subscription[channel] = {clientIP, server.client(), Ticker(), false, 0, server.arg(id), logViewer};
+
+    // Check if we found a free slot
+    if (channel >= SSE_MAX_CHANNELS)
+    {
+        ESP_LOGI(TAG, "SSE subscription failed - no free slots available");
+        server.send(503, type_txt, "No free subscription slots available");
+        return;
+    }
+
+    // Validate client before assignment
+    WiFiClient client = server.client();
+    if (!client || !client.connected())
+    {
+        ESP_LOGI(TAG, "Invalid client for SSE subscription");
+        server.send(400, type_txt, "Invalid client connection");
+        return;
+    }
+
+    // validate optional heartbeat interval
+    uint32_t heartbeatInterval = 1; // default
+    if (heartbeatIntervalArgIdx >= 0)
+    {
+        int hbi = server.arg(heartbeatIntervalArgIdx).toInt();
+        // in range of 0 (no heartbeat) to 60 seconds
+        if (hbi < 0 || hbi > 60)
+        {
+            ESP_LOGI(TAG, "Invalid client for SSE subscription");
+            server.send(400, type_txt, "Invalid heartbeat interval (0 - 60)");
+            return;
+        }
+        else
+        {
+            // set to validated interval
+            heartbeatInterval = (uint32_t)hbi;
+        }
+    }
+    if (heartbeatInterval > 0)
+    {
+        ESP_LOGI(TAG, "SSE Subscription for client %s has specified a heartbeat Interval of %d seconds", server.arg(id).c_str(), heartbeatInterval);
+    }
+    else
+    {
+        ESP_LOGI(TAG, "SSE Subscription for client %s has specified a heartbeat disabled", server.arg(id).c_str());
+    }
+
+    // Safe assignment with validation
+    subscription[channel].clientIP = clientIP;
+    subscription[channel].client = client;
+    subscription[channel].heartbeatTimer = Ticker();
+    subscription[channel].SSEconnected = false;
+    subscription[channel].SSEfailCount = 0;
+    subscription[channel].clientUUID = server.arg(id);
+    subscription[channel].logViewer = logViewer;
+    subscription[channel].heartbeatInterval = heartbeatInterval;
+
     SSEurl += std::to_string(channel);
     ESP_LOGI(TAG, "SSE Subscription for client %s with IP %s: event bus location: %s, Total subscribed: %d", server.arg(id).c_str(), clientIP.toString().c_str(), SSEurl.c_str(), subscriptionCount);
     server.sendHeader(F("Cache-Control"), F("no-cache, no-store"));
@@ -949,7 +1294,13 @@ void handle_crashlog()
     ESP_LOGI(TAG, "Request to display crash log...");
     WiFiClient client = server.client();
     client.print(response200);
+#ifdef ESP8266
+    saveCrash.print(client);
+    if (crashCount > 0)
+        ratgdoLogger->printSavedLog(client);
+#else
     ratgdoLogger->printCrashLog(client);
+#endif
     client.stop();
 }
 
@@ -965,7 +1316,13 @@ void handle_showrebootlog()
 {
     WiFiClient client = server.client();
     client.print(response200);
+#ifdef ESP8266
+    File file = LittleFS.open(REBOOT_LOG_MSG_FILE, "r");
+    ratgdoLogger->printSavedLog(file, client);
+    file.close();
+#else
     ratgdoLogger->printSavedLog(client);
+#endif
     client.stop();
 }
 
@@ -973,7 +1330,11 @@ void handle_clearcrashlog()
 {
     AUTHENTICATE();
     ESP_LOGI(TAG, "Clear saved crash log");
+#ifdef ESP8266
+    saveCrash.clear();
+#else
     esp_core_dump_image_erase();
+#endif
     crashCount = 0;
     server.send_P(200, type_txt, PSTR("Crash log cleared\n"));
 }
@@ -1012,7 +1373,7 @@ void SSEBroadcastState(const char *data, BroadcastType type)
     if (subscriptionCount == 0)
         return;
 
-    for (uint8_t i = 0; i < SSE_MAX_CHANNELS; i++)
+    for (uint32_t i = 0; i < SSE_MAX_CHANNELS; i++)
     {
         if (subscription[i].SSEconnected && subscription[i].client.connected())
         {
@@ -1030,6 +1391,7 @@ void SSEBroadcastState(const char *data, BroadcastType type)
                 subscription[i].client.printf_P(PSTR("event: message\ndata: %s\n\n"), data);
             }
         }
+        YIELD();
     }
 }
 
@@ -1055,15 +1417,19 @@ void handle_update()
     if (!verify && Update.hasError())
     {
         // Error logged in _setUpdaterError
-        // TODO how to handle firmware upload failurem was... eboot_command_clear();
+#ifdef ESP8266
+        eboot_command_clear();
+#else
+        // TODO how to handle firmware upload failure on ESP32?
+#endif
         ESP_LOGE(TAG, "Firmware upload error. Aborting update, not rebooting");
-        server.send(400, "text/plain", _updaterError.c_str());
+        server.send(400, type_txt, _updaterError.c_str());
         return;
     }
 
     if (server.args() > 0)
     {
-        // Don't reboot, user/client must explicity request reboot.
+        // Don't reboot, user/client must explicitly request reboot.
         server.send_P(200, type_txt, PSTR("Upload Success.\n"));
     }
     else
@@ -1092,7 +1458,11 @@ void handle_firmware_upload()
     {
         _updaterError.clear();
 
+#ifdef ESP8266
+        _authenticatedUpdate = !userConfig->getPasswordRequired() || server.authenticateDigest(userConfig->getwwwUsername(), userConfig->getwwwCredentials());
+#else
         _authenticatedUpdate = !userConfig->getPasswordRequired() || server.authenticate(ratgdoAuthenticate);
+#endif
         if (!_authenticatedUpdate)
         {
             ESP_LOGI(TAG, "Unauthenticated Update");
@@ -1120,9 +1490,13 @@ void handle_firmware_upload()
             // Close HomeKit server so we don't have to handle HomeKit network traffic during update
             // Only if not verifying as either will have been shutdown on immediately prior upload, or we
             // just want to verify without disrupting operation of the HomeKit service.
-            // TODO close HomeKit server during OTA update... arduino_homekit_close();
-            // IRAM_START
-            // IRAM_END("HomeKit Server Closed");
+#ifdef ESP8266
+            arduino_homekit_close();
+            IRAM_START(TAG);
+            IRAM_END(TAG);
+#else
+            // TODO close HomeKit server during OTA update...
+#endif
         }
         if (!verify && !Update.begin((firmwareSize > 0) ? firmwareSize : maxSketchSpace, U_FLASH))
         {
@@ -1159,13 +1533,18 @@ void handle_firmware_upload()
                 // Report percentage to browser client if it is listening
                 if (firmwareUpdateSub && firmwareUpdateSub->client.connected())
                 {
-                    xSemaphoreTake(jsonMutex, portMAX_DELAY);
+                    static char *json = loop_json;
+                    TAKE_MUTEX();
                     START_JSON(json);
                     ADD_INT(json, "uploadPercent", uploadPercent);
                     END_JSON(json);
+                    if (strlen(json) > LOOP_JSON_BUFFER_SIZE * 8 / 10)
+                    {
+                        ESP_LOGW(TAG, "WARNING firmware upload JSON length: %d is over 80%% of available buffer", strlen(json));
+                    }
                     REMOVE_NL(json);
                     firmwareUpdateSub->client.printf_P(PSTR("event: uploadStatus\ndata: %s\n\n"), json);
-                    xSemaphoreGive(jsonMutex);
+                    GIVE_MUTEX();
                 }
             }
         }
@@ -1197,5 +1576,5 @@ void handle_firmware_upload()
             Update.end();
         ESP_LOGI(TAG, "%s was aborted", verify ? "Verify" : "Update");
     }
-    delay(0);
+    YIELD();
 }

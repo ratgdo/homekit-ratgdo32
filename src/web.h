@@ -1,5 +1,5 @@
 /****************************************************************************
- * RATGDO HomeKit for ESP32
+ * RATGDO HomeKit
  * https://ratcloud.llc
  * https://github.com/PaulWieland/ratgdo
  *
@@ -18,10 +18,17 @@
 // none
 
 // ESP system includes
-// none
+#ifdef ESP32
+#define PROGMEM // so it is no-op in webcontent.h
+#include <WebServer.h>
+extern WebServer server;
+#else
+#include <ESP8266WebServer.h>
+extern ESP8266WebServer server;
+#endif
 
 // RATGDO project includes
-#define PROGMEM // so it is no-op in webcontent.h
+// none
 
 extern void setup_web();
 extern void web_loop();
@@ -34,7 +41,7 @@ extern void load_page(const char *page);
 extern const char response400invalid[];
 extern const char type_txt[];
 
-extern uint64_t lastDoorUpdateAt;
+extern _millis_t lastDoorUpdateAt;
 
 enum BroadcastType : uint8_t
 {

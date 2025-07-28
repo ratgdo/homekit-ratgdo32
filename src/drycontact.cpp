@@ -1,5 +1,5 @@
 /****************************************************************************
- * RATGDO HomeKit for ESP32
+ * RATGDO HomeKit
  * https://ratcloud.llc
  * https://github.com/PaulWieland/ratgdo
  *
@@ -12,7 +12,7 @@
  *
  */
 
-#ifndef USE_GDOLIB
+#if defined(ESP8266) || !defined(USE_GDOLIB)
 // RATGDO project includes
 #include "ratgdo.h"
 #include "config.h"
@@ -146,4 +146,4 @@ void onCloseSwitchRelease()
     dryContactDoorClose = false;
     ESP_LOGI(TAG, "Close switch released");
 }
-#endif
+#endif // not USE_GDOLIB
