@@ -54,9 +54,6 @@
               <td style="white-space: pre;">Up Time:</td>
               <td><span id="upTime"></span><br><sup style="font-size: 0.6em;">(days:hrs:min:sec)</sup></td>
             </tr>
-            <tr style="height: 2px">
-              <td colspan="2"></td>
-            </tr>
             <tr>
               <td>WiFi&nbsp;SSID:</td>
               <td id="wifiSSID"></td>
@@ -90,16 +87,11 @@
               <td>Gateway&nbsp;IP:</td>
               <td id="gatewayIP"></td>
             </tr>
-            <!-- TODO find and display HomeKit Accessory ID
-            <tr style="height: 10px">
-              <td colspan="2"></td>
+            <tr id="trAccessoryID" style="display: none;">
+              <td style="padding-top: 10px;">HomeKit ID:</td>
+              <td style="padding-top: 10px;"><span id="accessoryID"></span><br><sup style="font-size: 0.6em;">HomeKit
+                  connected: <span id="clients">No</span></sup></td>
             </tr>
-            <tr>
-              <td>HomeKit ID:</td>
-              <td><span id="accessoryID"></span><br><sup style="font-size: 0.6em;">HomeKit connected: <span
-                    id="clients">No</span></sup></td>
-            </tr>
-             -->
           </table>
         </div>
         <div class="qrcode">
@@ -424,13 +416,6 @@
                   <label for="useSWserial">Use software serial emulation rather than h/w UART</label>
                 </td>
               </tr>
-              <tr id="useSWserialRow" style="display:none;">
-                <td></td>
-                <td>&nbsp;
-                  <input type="checkbox" id="useSWserial" name="useSWserial" value="no">
-                  <label for="useSWserial">Use software serial emulation rather than h/w UART</label>
-                </td>
-              </tr>
               <tr id="obstFromStatusRow" style="display:none;">
                 <td></td>
                 <td>&nbsp;
@@ -445,8 +430,7 @@
                   <label for="useToggleToClose">Use TOGGLE command to close door</label>
                 </td>
               </tr>
-              <!-- TODO add support for selecting WiFi PhyMode and WiFi TX Power
-              <tr>
+              <tr id="trWifiPhyMode" style="display: none">
                 <td class="label">WiFi Version:</td>
                 <td>&nbsp;
                   <input type="radio" id="wifiPhyMode0" name="wifiPhyMode" value="0">
@@ -459,7 +443,7 @@
                   <label for="wifiPhyMode3">802.11n</label>
                 </td>
               </tr>
-              <tr>
+              <tr id="trWifiPower" style="display: none">
                 <td class="label">WiFi Tx Power:</td>
                 <td>&nbsp;
                   <input type="range" min="0" max="20" value="20" id="wifiPower" name="wifiPower" class="slider"
@@ -467,8 +451,7 @@
                   <span style="vertical-align: middle; font-size: 0.8em"><span id="wifiPowerValue"></span> dBm</span>
                 </td>
               </tr>
-              -->
-              <tr>
+              <tr id="trEnableIPv6" style="display: none">
                 <td class="label">Enable IPv6:</td>
                 <td>&nbsp;
                   <input type="checkbox" id="enableIPv6" name="enableIPv6" value="no">
@@ -575,10 +558,10 @@
     <!-- Footer section of page ------------------------------------------------------------------>
     <footer>
       <div class="footer">
-        <p style="margin:0px;">For documentation and support see the <a
-            href="https://github.com/ratgdo/homekit-ratgdo32">GitHub</a>
-          page.<br>Copyright (c) 2023-25 <a
-            href="https://github.com/ratgdo/homekit-ratgdo32/graphs/contributors">homekit-ratgdo
+        <p style="margin:0px;">For documentation and support see the <a id="docsLink"
+            href="https://github.com/ratgdo/homekit-ratgdo">GitHub</a>
+          page.<br>Copyright (c) 2023-25 <a id="contribLink"
+            href="https://github.com/ratgdo/homekit-ratgdo/graphs/contributors">homekit-ratgdo
             contributors.</a><br>Licensed under terms of the <a
             href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0
             License.</a>
@@ -592,11 +575,9 @@
             <td colspan="2" style="width: 45%; padding: 0px; text-align: center;">
               minHeap:&nbsp;<span id="minHeap">0</span>&nbsp;
             </td>
-            <!-- TODO show minimum stack sizes. Maybe? On ESP32 we are multi-thread so several stacks, and memory not an issue anymore? (adjust widths above if added back in)
-            <td colspan="2" style="width: 30%; padding: 0px; text-align: right;">
+            <td id="tdStack" colspan="2" style="width: 30%; padding: 0px; text-align: right; display: none;">
               minStack:&nbsp;<span id="minStack">0</span>&nbsp;
             </td>
-             -->
           </tr>
         </table>
         <table style="border-collapse: collapse">
@@ -653,9 +634,7 @@
 
   <!-- Initialization scripts ------------------------------------------------------------------>
   <script>
-    console.log('Client UUID: ' + clientUUID);
     const loaderElem = document.getElementById("loader"); // Spinner while pages load
-
 
     // Retrieve status from the server
     loaderElem.style.visibility = "visible";
@@ -663,6 +642,7 @@
       .then(() => {
         loaderElem.style.visibility = "hidden";
         checkVersion("dotdot1");
+        console.log('Client UUID: ' + clientUUID);
       });
     // Load time zone info, this runs asynchronously
     loadTimeZones();
@@ -761,14 +741,12 @@
     });
 
     // This handles user control of sliders
-    /* TODO add support for selecting WiFi PhyMode and WiFi TX Power
     WiFiSlider = document.getElementById("wifiPower");
     WiFiText = document.getElementById("wifiPowerValue");
     WiFiText.innerHTML = WiFiSlider.value;
     WiFiSlider.oninput = function () {
       WiFiText.innerHTML = this.value;
     };
-    */
     TTCslider = document.getElementById("TTCseconds");
     TTCtext = document.getElementById("TTCsecondsValue");
     TTClight = document.getElementById("TTClight");

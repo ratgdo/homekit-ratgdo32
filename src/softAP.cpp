@@ -1,5 +1,5 @@
 /****************************************************************************
- * RATGDO HomeKit for ESP32
+ * RATGDO HomeKit
  * https://ratcloud.llc
  * https://github.com/PaulWieland/ratgdo
  *
@@ -13,19 +13,12 @@
  *
  */
 
-// C/C++ language includes
-// none
-
-// Arduino includes
-#include <WebServer.h>
-
 // RATGDO project includes
 #include "ratgdo.h"
+#include "utilities.h"
 #include "config.h"
-#include "WiFi.h"
 #include "softAP.h"
 #include "web.h"
-#include "utilities.h"
 #include "provision.h"
 
 // Logger tag
@@ -37,15 +30,13 @@ static const char softAPtableHead[] = R"(
 <tr style='display:none;'><td><input id='adv' name='advanced' type='checkbox' onclick='showAdvanced(this.checked)'></td><td colspan='2'>Advanced</td></tr>
 <tr><th></th><th>SSID</th><th>RSSI</th><th>Chan</th><th>Hardware BSSID</th></tr>)";
 static const char softAPtableRow[] = R"(
-<tr %s><td><input type='radio' name='net' value='%d' %s></td><td>%s</td><td>%lddBm</td><td>%ld</td><td>&nbsp;&nbsp;%02x:%02x:%02x:%02x:%02x:%02x</td></tr>)";
+<tr %s><td><input type='radio' name='net' value='%d' %s></td><td>%s</td><td>%ddBm</td><td>%d</td><td>&nbsp;&nbsp;%02x:%02x:%02x:%02x:%02x:%02x</td></tr>)";
 static const char softAPtableLastRow[] = R"(
 <tr><td><input type='radio' name='net' value='%d'></td><td colspan='2'><input type='text' name='userSSID' placeholder='SSID' value='%s'></td></tr>)";
 
 // forward declare functions
 void handle_softAPweb();
 void handle_wifinets();
-
-extern WebServer server;
 
 #define MAX_ATTEMPTS_WIFI_CONNECTION 30
 #define TXT_BUFFER_SIZE 1024
@@ -62,10 +53,14 @@ static bool softAPinitialized = false;
 
 char *getServiceName(char *service_name, size_t max)
 {
-    uint8_t mac[6];
     const char *ssid_prefix = "RATGDO_";
+#ifdef ESP8266
+    snprintf(service_name, max, "%s%06X", ssid_prefix, ESP.getChipId());
+#else
+    uint8_t mac[6];
     Network.macAddress(mac);
     snprintf(service_name, max, "%s%02X%02X%02X", ssid_prefix, mac[3], mac[4], mac[5]);
+#endif
     return service_name;
 }
 
@@ -85,7 +80,7 @@ void wifi_scan()
         memcpy(wifiNet.bssid, WiFi.BSSID(i), sizeof(wifiNet.bssid));
         wifiNet.encryptionType = WiFi.encryptionType(i);
         ESP_LOGI(TAG, "Network: %s (Ch:%d, %ddBm) AP: %s, Encryption: %d",
-              wifiNet.ssid.c_str(), wifiNet.channel, wifiNet.rssi, WiFi.BSSIDstr(i).c_str(), wifiNet.encryptionType);
+                 wifiNet.ssid.c_str(), wifiNet.channel, wifiNet.rssi, WiFi.BSSIDstr(i).c_str(), wifiNet.encryptionType);
         wifiNets.insert(wifiNet);
     }
     // delete scan from memory
@@ -124,7 +119,19 @@ void soft_ap_loop()
 
     server.handleClient();
 
-    if (softAPmode && (millis64() > 10 * 60 * 1000))
+    if (!softAPmode)
+        return;
+
+    static _millis_t soft_ap_start = 0;
+    static bool soft_ap_timer_started = false;
+
+    if (!soft_ap_timer_started)
+    {
+        soft_ap_start = _millis();
+        soft_ap_timer_started = true;
+    }
+
+    if (_millis() - soft_ap_start > 10 * 60 * 1000)
     {
         ESP_LOGI(TAG, "In Soft Access Point mode for over 10 minutes, reboot");
         sync_and_restart();
@@ -243,7 +250,7 @@ void handle_setssid()
     if (advanced)
     {
         ESP_LOGI(TAG, "Requested WiFi SSID: %s (%d) at AP: %02x:%02x:%02x:%02x:%02x:%02x",
-              ssid.c_str(), net, wifiNet.bssid[0], wifiNet.bssid[1], wifiNet.bssid[2], wifiNet.bssid[3], wifiNet.bssid[4], wifiNet.bssid[5]);
+                 ssid.c_str(), net, wifiNet.bssid[0], wifiNet.bssid[1], wifiNet.bssid[2], wifiNet.bssid[3], wifiNet.bssid[4], wifiNet.bssid[5]);
         snprintf_P(txtBuffer, TXT_BUFFER_SIZE, PSTR("Setting SSID to: %s locked to Access Point: %02x:%02x:%02x:%02x:%02x:%02x\nRATGDO rebooting.\nPlease wait 30 seconds and connect to RATGDO on new network."),
                    ssid.c_str(), wifiNet.bssid[0], wifiNet.bssid[1], wifiNet.bssid[2], wifiNet.bssid[3], wifiNet.bssid[4], wifiNet.bssid[5]);
     }
@@ -269,10 +276,18 @@ void handle_setssid()
         ESP_LOGI(TAG, "Current SSID: %s / BSSID:%s", previousSSID.c_str(), previousBSSID.c_str());
         WiFi.disconnect();
     }
-    if (connect_wifi(ssid, server.arg("pw"), (advanced) ? wifiNet.bssid : NULL))
+    ESP_LOGI(TAG, "Attempt to connect to %s with pw %s", ssid.c_str(), server.arg("pw").c_str());
+    if (connect_wifi(ssid.c_str(), server.arg("pw").c_str(), (advanced) ? wifiNet.bssid : NULL))
     {
         ESP_LOGI(TAG, "WiFi Successfully connects to SSID: %s", ssid);
+#ifdef ESP8266
+        WiFi.persistent(true); // Set persist to store wifi credentials
+        // Call begin with connect = false because we are allready connected in fn connect_wifi()
+        WiFi.begin(ssid, server.arg("pw"), 0, (advanced) ? wifiNet.bssid : NULL, false);
+        WiFi.persistent(false); // clear the persist flag so other settings do not get written to flash
+#else
         homeSpan.setWifiCredentials(ssid.c_str(), server.arg("pw").c_str());
+#endif
         // We should reset WiFi if changing networks or were not currently connected.
         if (!connected || previousBSSID != ssid)
         {
@@ -288,7 +303,7 @@ void handle_setssid()
         if (connected)
         {
             ESP_LOGI(TAG, "Resetting WiFi to previous SSID: %s, removing any Access Point BSSID lock", previousSSID.c_str());
-            connect_wifi(previousSSID, previousPSK);
+            connect_wifi(previousSSID.c_str(), previousPSK.c_str());
         }
         else
         {
@@ -304,29 +319,31 @@ void handle_setssid()
     return;
 }
 
-bool connect_wifi(const String &ssid, const String &password)
-{
-    return connect_wifi(ssid, password, NULL);
-}
-
-bool connect_wifi(const String &ssid, const String &password, const uint8_t *bssid)
+bool connect_wifi(const char *ssid, const char *password, const uint8_t *bssid)
 {
     uint8_t count = 0;
-
-    ESP_LOGI(TAG, "Attempt to connect to %s with pw %s", ssid.c_str(), password.c_str());
+    _millis_t start_time = _millis();
 
     WiFi.begin(ssid, password, 0, bssid);
 
     while (WiFi.status() != WL_CONNECTED)
     {
-        delay(500);
-        yield();
-        if (count > MAX_ATTEMPTS_WIFI_CONNECTION)
+        delay(100); // Reduced delay for better responsiveness
+        YIELD();
+
+        // Check both attempt count and total time to prevent watchdog timeout
+        if (count > MAX_ATTEMPTS_WIFI_CONNECTION || (_millis() - start_time) > 10000) // 10 second timeout
         {
+            ESP_LOGI(TAG, "WiFi connection timeout after %lu ms, %d attempts", (uint32_t)(_millis() - start_time), count);
             WiFi.disconnect();
             return false;
         }
-        count++;
+
+        // Only increment count every 500ms to maintain same retry logic
+        if (count * 100 % 500 == 0)
+        {
+            count++;
+        }
     }
     return true;
 }

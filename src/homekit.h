@@ -1,5 +1,5 @@
 /****************************************************************************
- * RATGDO HomeKit for ESP32
+ * RATGDO HomeKit
  * https://ratcloud.llc
  * https://github.com/PaulWieland/ratgdo
  *
@@ -14,15 +14,30 @@
  */
 #pragma once
 
-// C/C++ language includes
-// none
-
-// ESP system includes
-// none
-
 // RATGDO project includes
-#include "HomeSpan.h"
+#include "ratgdo.h"
 
+void setup_homekit();
+
+extern void notify_homekit_target_door_state_change(GarageDoorTargetState state);
+extern void notify_homekit_current_door_state_change(GarageDoorCurrentState state);
+extern void notify_homekit_target_lock(LockTargetState state);
+extern void notify_homekit_current_lock(LockCurrentState state);
+extern void notify_homekit_obstruction(bool state);
+extern void notify_homekit_light(bool state);
+extern void enable_service_homekit_motion(bool reboot);
+extern void notify_homekit_motion(bool state);
+
+extern char qrPayload[];
+
+#ifdef ESP8266
+// On ESP8266 we have our own HomeKit module
+void homekit_loop();
+extern void notify_homekit_active();
+extern bool homekit_setup_done;
+
+#else
+// One ESP32 we use HomeSpan module.
 // Accessory IDs
 #define HOMEKIT_AID_BRIDGE 1
 #define HOMEKIT_AID_GARAGE_DOOR 2
@@ -40,17 +55,6 @@ enum Light_t : uint8_t
     ASSIST_LASER = 2,
 };
 
-void setup_homekit();
-
-extern void notify_homekit_target_door_state_change(GarageDoorTargetState state);
-extern void notify_homekit_current_door_state_change(GarageDoorCurrentState state);
-extern void notify_homekit_target_lock(LockTargetState state);
-extern void notify_homekit_current_lock(LockCurrentState state);
-extern void notify_homekit_obstruction(bool state);
-extern void notify_homekit_light(bool state);
-extern void enable_service_homekit_motion();
-extern void notify_homekit_motion(bool state);
-
 extern void notify_homekit_vehicle_occupancy(bool vehicleDetected);
 extern void notify_homekit_vehicle_arriving(bool vehicleArriving);
 extern void notify_homekit_vehicle_departing(bool vehicleDeparting);
@@ -63,7 +67,6 @@ extern void notify_homekit_room_occupancy(bool occupied);
 extern void homekit_unpair();
 extern bool homekit_is_paired();
 
-extern char qrPayload[];
 extern char ipv6_addresses[];
 
 struct GDOEvent
@@ -129,3 +132,4 @@ struct DEV_Occupancy : Service::OccupancySensor
     DEV_Occupancy();
     void loop();
 };
+#endif

@@ -1,5 +1,5 @@
 /****************************************************************************
- * RATGDO HomeKit for ESP32
+ * RATGDO HomeKit
  * https://ratcloud.llc
  * https://github.com/PaulWieland/ratgdo
  *
@@ -13,18 +13,25 @@
  *
  */
 #pragma once
+
 // C/C++ language includes
 #include <stdint.h>
+#ifndef ESP8266
 #include <time.h>
-
-// ESP system includes
 #include <esp_timer.h>
+#endif
 
-// RATGDO project includes
-// #include "homekit_decl.h"
-// #include "ratgdo.h"
+#ifdef ESP8266
+typedef unsigned long _millis_t;
+#define _millis() ((_millis_t)millis())
+#define YIELD() esp_yield()
+#else
+typedef long long _millis_t;
+#define _millis() ((_millis_t)(esp_timer_get_time() / 1000LL))
+#define YIELD() vTaskDelay(1 / portTICK_PERIOD_MS)
+#endif
 
-extern bool clockSet;
+extern time_t clockSet;
 extern uint64_t lastRebootAt;
 extern char *timeString(time_t reqTime = 0, bool syslog = false);
 extern bool enableNTP;
@@ -38,18 +45,21 @@ extern bool get_auto_timezone();
 // need to make more space available for initialization.
 #include <umm_malloc/umm_malloc.h>
 #include <umm_malloc/umm_heap_select.h>
-#define IRAM_START \
-    {              \
-        HeapSelectIram ephemeral;
-#define IRAM_END(location)                                                 \
-    ESP_LOGI(TAG, "Free IRAM heap (%s): %d", location, ESP.getFreeHeap()); \
+#define IRAM_START(tag)           \
+    {                             \
+        HeapSelectIram ephemeral; \
+        ESP_LOGI(tag, "IRAM_START heap (%s): %d", __func__, ESP.getFreeHeap());
+#define IRAM_END(tag)                                                     \
+    ESP_LOGI(tag, "IRAM_END heap (%s): %d", __func__, ESP.getFreeHeap()); \
     }
-#else
-#define IRAM_START {
-#define IRAM_END(location)                                            \
-    ESP_LOGI(TAG, "Free heap (%s): %d", location, ESP.getFreeHeap()); \
+#else // MMU_IRAM_HEAP
+#define IRAM_START(tag) \
+    {                   \
+        ESP_LOGI(tag, "Start heap (%s): %d", __func__, ESP.getFreeHeap());
+#define IRAM_END(tag)                                                \
+    ESP_LOGI(tag, "End heap (%s): %d", __func__, ESP.getFreeHeap()); \
     }
-#endif
+#endif // MMU_IRAM_HEAP
 
 // Controls soft Access Point mode.
 extern bool softAPmode;
@@ -57,8 +67,6 @@ extern bool softAPmode;
 extern const char www_realm[];
 // automatically reboot after X seconds
 extern uint32_t rebootSeconds;
-
-// #define IP_ADDRESS_SIZE 16
 
 // Bitset that identifies what will trigger the motion sensor
 typedef struct
@@ -78,7 +86,6 @@ typedef union
 extern motionTriggersUnion motionTriggers;
 
 // Function declarations
-uint64_t millis64();
 extern void load_all_config_settings();
 extern void sync_and_restart();
 extern char *make_rfc952(char *dest, const char *src, int size);

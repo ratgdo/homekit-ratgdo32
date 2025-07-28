@@ -1,5 +1,5 @@
 /****************************************************************************
- * RATGDO HomeKit for ESP32
+ * RATGDO HomeKit
  * https://ratcloud.llc
  * https://github.com/PaulWieland/ratgdo
  *
@@ -16,8 +16,6 @@
 
 // C/C++ language includes
 #include <set>
-// ESP system includes
-// #include <esp_wifi_types.h>
 
 // RATGDO project includes
 #include "ratgdo.h"
@@ -28,7 +26,12 @@ typedef struct
     int32_t rssi;
     int32_t channel;
     uint8_t bssid[6];
+#ifndef ESP8266
+    // Not impemented on ESP8266
     wifi_auth_mode_t encryptionType;
+#else
+    uint8_t encryptionType;
+#endif
 } wifiNet_t;
 extern std::multiset<wifiNet_t, bool (*)(wifiNet_t, wifiNet_t)> wifiNets;
 
@@ -41,5 +44,4 @@ extern void handle_rescan();
 extern void handle_wifinets();
 extern void handle_wifiap();
 
-extern bool connect_wifi(const String &ssid, const String &password, const uint8_t *bssid);
-extern bool connect_wifi(const String &ssid, const String &password);
+extern bool connect_wifi(const char *ssid, const char *password, const uint8_t *bssid = NULL);

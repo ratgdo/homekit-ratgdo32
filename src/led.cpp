@@ -1,5 +1,5 @@
 /****************************************************************************
- * RATGDO HomeKit for ESP32
+ * RATGDO HomeKit
  * https://ratcloud.llc
  * https://github.com/PaulWieland/ratgdo
  *
@@ -8,9 +8,6 @@
  * Licensed under terms of the GPL-3.0 License.
  *
  */
-
-// C/C++ language includes
-// none
 
 // RATGDO project includes
 #include "ratgdo.h"
@@ -21,7 +18,10 @@
 
 // Construct the singleton object for LED access
 LED led(LED_BUILTIN);
+#ifndef ESP8266
+// Feature not available on ESP8266
 LED laser(LASER_PIN);
+#endif
 
 // Constructor for LED class
 LED::LED(uint8_t gpio_num, uint8_t state)

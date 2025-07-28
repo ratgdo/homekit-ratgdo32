@@ -1,5 +1,5 @@
 /****************************************************************************
- * RATGDO HomeKit for ESP32
+ * RATGDO HomeKit
  * https://ratcloud.llc
  * https://github.com/PaulWieland/ratgdo
  *
@@ -15,9 +15,6 @@
 
 // Arduino includes
 #include <Ticker.h>
-
-// RATGDO project includes
-// none
 
 #define FLASH_MS 500 // default flash period, 500ms
 
@@ -44,4 +41,7 @@ public:
 };
 
 extern LED led;
+#ifndef ESP8266
+// Feature not available on ESP8266
 extern LED laser;
+#endif

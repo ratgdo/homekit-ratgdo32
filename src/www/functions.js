@@ -12,6 +12,15 @@ var evtSource = undefined;      // for Server Sent Events (SSE)
 var delayStatusFn = [];         // to keep track of possible checkStatus timeouts
 const clientUUID = uuidv4();    // uniquely identify this session
 const rebootSeconds = 10;       // How long to wait before reloading page after reboot
+var setGDOcmds = {              // setGDO commands that are not sent from server nor exist in HTML
+    credentials: "",
+    updateUnderway: "",
+    resetDoor: false,
+    softAPmode: false,
+    factoryReset: false,
+};
+var gitUser = "ratgdo";         // default git user.
+var gitRepo = "homekit-ratgdo"; // default git repository.
 
 // https://stackoverflow.com/questions/7995752/detect-desktop-browser-not-mobile-with-javascript
 // const isTouchDevice = function () { return 'ontouchstart' in window || 'onmsgesturechange' in window; };
@@ -130,7 +139,9 @@ function toggleSyslog() {
 function toggleDCOpenClose(radio) {
     let value = radio.value;
     document.getElementById("dcOpenCloseRow").style.display = (value != 3) ? "table-row" : "none";
-    document.getElementById("useSWserialRow").style.display = (value != 3) ? "table-row" : "none";
+    if (serverStatus["useSWserial"] != undefined) {
+        document.getElementById("useSWserialRow").style.display = (value != 3) ? "table-row" : "none";
+    }
     document.getElementById("obstFromStatusRow").style.display = (value != 3) ? "table-row" : "none";
     document.getElementById("dcDebounceDurationRow").style.display = (value == 3) ? "table-row" : "none";
     document.getElementById("useToggleToCloseRow").style.display = (value == 2) ? "table-row" : "none";
@@ -200,6 +211,11 @@ function setElementsFromStatus(status) {
     let date = new Date();
     for (const [key, value] of Object.entries(status)) {
         switch (key) {
+            case "gitRepo":
+                gitRepo = value;
+                document.getElementById("docsLink").href = "https://github.com/" + gitUser + "/" + gitRepo;
+                document.getElementById("contribLink").href = "https://github.com/" + gitUser + "/" + gitRepo + "/graphs/contributors";
+                break;
             case "paired":
                 if (value) {
                     document.getElementById("unpair").value = "Un-pair HomeKit";
@@ -231,8 +247,9 @@ function setElementsFromStatus(status) {
                 document.getElementById("lockLightRow").style.display = (value != 3) ? "table-row" : "none";
                 document.getElementById("durationRow").style.display = (value != 3) ? "table-row" : "none";
                 document.getElementById("dcOpenCloseRow").style.display = (value != 3) ? "table-row" : "none";
-                document.getElementById("useSWserialRow").style.display = (value != 3) ? "table-row" : "none";
-                // Hide obstFromStatus if it is already set... we want to allow turning on, but not turning off.
+                if (serverStatus["useSWserial"] != undefined) {
+                    document.getElementById("useSWserialRow").style.display = (value != 3) ? "table-row" : "none";
+                }
                 document.getElementById("obstFromStatusRow").style.display = (value != 3) ? "table-row" : "none";
                 document.getElementById("dcDebounceDurationRow").style.display = (value == 3) ? "table-row" : "none";
                 document.getElementById("useToggleToCloseRow").style.display = (value == 2) ? "table-row" : "none";
@@ -312,29 +329,34 @@ function setElementsFromStatus(status) {
                 document.getElementById(key).innerHTML = value;
                 document.getElementById("firmwareVersion2").innerHTML = value;
                 break;
-            /* TODO add support for selecting WiFi PhyMode and WiFi TX Power
             case "wifiPhyMode":
+                document.getElementById("trWifiPhyMode").style.display = "table-row";
                 document.getElementById("wifiPhyMode0").checked = (value == 0) ? true : false;
                 document.getElementById("wifiPhyMode1").checked = (value == 1) ? true : false;
                 document.getElementById("wifiPhyMode2").checked = (value == 2) ? true : false;
                 document.getElementById("wifiPhyMode3").checked = (value == 3) ? true : false;
                 break;
             case "wifiPower":
+                document.getElementById("trWifiPower").style.display = "table-row";
                 document.getElementById(key).value = value;
                 document.getElementById("wifiPowerValue").innerHTML = value;
                 break;
             case "lockedAP":
                 document.getElementById("lockedAP").style.display = (value) ? "table" : "none";
                 break;
+            case "accessoryID":
+                document.getElementById("trAccessoryID").style.display = "table-row";
+                document.getElementById(key).innerHTML = value;
+                break;
             case "clients":
                 document.getElementById(key).innerHTML = (value > 0) ? `Yes (${value})` : 'No';
                 break;
-            */
             case "localIP":
                 document.getElementById(key).innerHTML = value;
                 document.getElementById("IPaddress").placeholder = value;
                 break;
             case "ipv6Addresses":
+                document.getElementById("trEnableIPv6").style.display = "table-row";
                 document.getElementById(key).innerHTML = value.split(',').join('\n');
                 break;
             case "subnetMask":
@@ -412,8 +434,9 @@ function setElementsFromStatus(status) {
             case "assistLaser":
                 document.getElementById("laserButton").value = (value == false) ? "Laser On" : "Laser Off";
                 break;
-            case "freeIramHeap":
-                // Unused... remove this case statement when/if we add to html.
+            case "minStack":
+                document.getElementById("tdStack").style.display = "table-cell";
+                document.getElementById(key).innerHTML = value;
                 break;
             case "qrPayload":
                 showQrCode(value);
@@ -428,9 +451,27 @@ function setElementsFromStatus(status) {
             case "closeDuration":
                 document.getElementById(key).innerHTML = value + "&nbsp;seconds";
                 break;
+            case "freeIramHeap":
+                // Unused... remove this case statement when/if we add to html.
+                break;
+            case "webRequests":
+                // No-op: Performance metric, not displayed in UI
+                break;
+            case "webCacheHits":
+                // No-op: Performance metric, not displayed in UI
+                break;
+            case "webDroppedConns":
+                // No-op: Performance metric, not displayed in UI
+                break;
+            case "webMaxResponseTime":
+                // No-op: Performance metric, not displayed in UI
+                break;
             default:
                 try {
-                    document.getElementById(key).innerHTML = value;
+                    if (setGDOcmds[key] == undefined) {
+                        // Only try and set if the key is not a setGDO command
+                        document.getElementById(key).innerHTML = value;
+                    }
                 } catch (error) {
                     console.warn(`Server sent unrecognized status: ${key} : ${value}`);
                 }
@@ -455,6 +496,7 @@ async function checkStatus() {
             throw ("Error RC");
         }
         serverStatus = await response.json();
+        serverStatus = { ...serverStatus, ...setGDOcmds }; // merge-in setGDO command constants
     }
     catch {
         delayStatusFn.push(setTimeout(checkStatus, 5000));
@@ -536,7 +578,7 @@ async function checkVersion(progress) {
     versionElem2.innerHTML = msg;
     const spanDots = document.getElementById(progress);
     const aniDots = dotDotDot(spanDots);
-    const response = await fetch("https://api.github.com/repos/ratgdo/homekit-ratgdo32/releases", {
+    const response = await fetch("https://api.github.com/repos/" + gitUser + "/" + gitRepo + "/releases", {
         method: "GET",
         cache: "no-cache",
         redirect: "follow"
@@ -564,9 +606,9 @@ async function checkVersion(progress) {
     if (latest) {
         console.log("Newest version: " + latest.tag_name);
         const asset = latest.assets.find((obj) => {
-            return (obj.content_type === "application/octet-stream") && obj.name.startsWith("homekit-ratgdo32") && obj.name.includes("firmware");
+            return (obj.content_type === "application/octet-stream") && (obj.name.startsWith(gitRepo));
         });
-        serverStatus.downloadURL = "https://ratgdo.github.io/homekit-ratgdo32/firmware/" + asset.name;
+        serverStatus.downloadURL = "https://ratgdo.github.io/" + gitRepo + "/firmware/" + asset.name;
         msg = "You have newest release";
         if (serverStatus.firmwareVersion < latest.tag_name) {
             // Newest version at GitHub is greater from that installed
@@ -803,7 +845,8 @@ async function setGDO(...args) {
         const formData = new FormData();
         for (let i = 0; i < args.length; i = i + 2) {
             // Only transmit setting if value has changed
-            if (serverStatus[args[i]] != args[i + 1]) {
+            console.log(`Key: ${args[i]}, Current Value: ${serverStatus[args[i]]}`);
+            if ((serverStatus[args[i]] != undefined) && (serverStatus[args[i]] != args[i + 1])) {
                 console.log(`Set: ${args[i]} to: ${args[i + 1]}`);
                 formData.append(args[i], args[i + 1]);
                 // Local copy of server status will be updated when server later reports status.
@@ -868,7 +911,6 @@ async function changePassword() {
     // MD5() function expects a Uint8Array typed ArrayBuffer...
     const passwordHash = MD5((new TextEncoder).encode(www_username + ":" + www_realm + ":" + newPW.value));
     console.log("Set new credentials to: " + passwordHash);
-    // await setGDO("credentials", passwordHash);
     await setGDO("credentials", JSON.stringify({
         username: www_username,
         credentials: passwordHash,
@@ -945,13 +987,11 @@ async function saveSettings() {
     if (isNaN(rebootHours)) rebootHours = 0;
     let newDeviceName = document.getElementById("newDeviceName").value.substring(0, 30).trim();
     if (newDeviceName.length == 0) newDeviceName = serverStatus.deviceName;
-    /* TODO add support for selecting WiFi PhyMode and WiFi TX Power
     const wifiPhyMode = (document.getElementById("wifiPhyMode3").checked) ? '3'
         : (document.getElementById("wifiPhyMode2").checked) ? '2'
             : (document.getElementById("wifiPhyMode1").checked) ? '1'
                 : '0';
     const wifiPower = Math.max(Math.min(parseInt(document.getElementById("wifiPower").value), 20), 0);
-    */
     let vehicleThreshold = Math.max(Math.min(parseInt(document.getElementById("vehicleThreshold").value), 300), 5);
     if (isNaN(vehicleThreshold)) vehicleThreshold = 0;
     const vehicleHomeKit = (document.getElementById("vehicleHomeKit").checked) ? '1' : '0';
@@ -1006,10 +1046,8 @@ async function saveSettings() {
         "passwordRequired", pwReq,
         "rebootSeconds", (rebootHours * 60 * 60),
         "deviceName", newDeviceName,
-        /* TODO add support for selecting WiFi PhyMode and WiFi TX Power
         "wifiPhyMode", wifiPhyMode,
         "wifiPower", wifiPower,
-        */
         "TTCseconds", TTCseconds,
         "builtInTTC", builtInTTC,
         "TTClight", TTClight,
