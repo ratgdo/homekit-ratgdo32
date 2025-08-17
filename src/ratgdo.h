@@ -169,6 +169,6 @@ extern GarageDoor garage_door;
 
 struct __attribute__((aligned(4))) ForceRecover
 {
-    uint8_t push_count;
+    uint32_t push_count;
     _millis_t timeout;
 };

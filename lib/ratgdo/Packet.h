@@ -1,5 +1,5 @@
 /****************************************************************************
- * RATGDO HomeKit for ESP32
+ * RATGDO HomeKit
  * https://ratcloud.llc
  * https://github.com/PaulWieland/ratgdo
  *
@@ -9,7 +9,7 @@
  *
  * Contributions acknowledged from
  * David Kerr...     https://github.com/dkerr64
- * 
+ *
  */
 #pragma once
 
@@ -470,7 +470,7 @@ struct NoData
 
     void to_string(char *buf, size_t buflen)
     {
-        snprintf(buf, buflen, "Zero: 0x%08lX, Parity: 0x%X", no_bits_set, parity);
+        snprintf(buf, buflen, "Zero: 0x%08uX, Parity: 0x%X", no_bits_set, parity);
     };
 };
 
@@ -524,7 +524,7 @@ struct PacketData
             snprintf(buf, buflen, "Battery: [%s]", subbuf);
             break;
         case PacketDataType::Unknown:
-            snprintf(buf, buflen, "Unknown: [%03lX]", value.cmd);
+            snprintf(buf, buflen, "Unknown: [%03uX]", value.cmd);
             break;
         }
     };
