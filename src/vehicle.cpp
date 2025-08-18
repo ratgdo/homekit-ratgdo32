@@ -140,8 +140,12 @@ void vehicle_loop()
                         ESP_LOGV(TAG, "Unusual VL53L4CX Range Status: %d, Range: %d", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
                         distance = MAX_DISTANCE;
                         break;
+                    case VL53L4CX_RANGESTATUS_RANGE_INVALID:
+                        // Typically a negative value... we will ignore.
+                        ESP_LOGV(TAG, "Unusual VL53L4CX Range Status: %d, Range: %d", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
+                        break;
                     default:
-                        ESP_LOGE(TAG, "WARNING: Unhandled VL53L4CX RANGESTATUS value: %d, Range: %d", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
+                        ESP_LOGE(TAG, "Unhandled VL53L4CX RANGESTATUS value: %d, Range: %d", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
                         break;
                     }
                 }
