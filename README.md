@@ -1,16 +1,12 @@
 > [!IMPORTANT]
-> This firmware is for the ratgdo32 and ratgdo32-disco series boards. It will not work with the ratgdo v2.5xi boards.
-> HomeKit support for for the original v2.5xi devices can be found [here](https://github.com/ratgdo/homekit-ratgdo)
+> This firmware is for the ESP32-based ratgdo32 and ratgdo32-disco series boards. It will not work with the ESP8266-based ratgdo v2.5xi boards. HomeKit support for for the original v2.5xi devices can be found [here](https://github.com/ratgdo/homekit-ratgdo)
+
+> [!NOTE]
+> Version 3.3.0 is a minor upgrade for ESP32-based ratgdo boards. Almost all source files for the ESP8266 and ESP32 versions of ratgdo have been merged which results in minor changes to the underlying features and function for ESP32 versions. The main benefit is for the original ESP8266-based ratgdo boards.
 >
-> **THIS IS EARLY FIRMWARE still under test.
-> Future updates MAY include breaking changes requiring a flash erase and re-upload.**
+>While source files have been merged there remain significant differences between the two board types, most notably in the library used to communicate with HomeKit which are completely different.
 >
-> Firmware for the new DISCO device is under development. The following features, documented in this README, are not currently available in this version
-> and may never be implemented
-> 
-> * Locking WiFi to specific WiFi access point.
-> * Setting WiFi protocol version.
-> * Setting WiFi transmit power.
+>* Before an Over-The-Air (OTA) upgrade it is good to first reboot your current version.
 
 # What is HomeKit-RATGDO?
 
@@ -19,18 +15,20 @@ over your _local network_ using HomeKit, or over the internet using your Apple H
 control your garage door opener. It requires no supporting infrastructure such as Home Assistant,
 Homebridge, MQTT, etc, and connects to your garage door opener with as few as three wires.
 
-This firmware supports Security+, Security+ 2.0 and Dry Contact enabled garage door openers
+This firmware supports Security+, Security+ 2.0 and Dry Contact enabled garage door openers.
 
 ## What does this firmware support?
 
-* Opening and closing multiple garage doors independently in the same HomeKit home.
-* Light Control and Status
-* Obstruction sensor reporting
-* Motion sensor reporting, if you have a "smart" wall-mounted control panel or with the obstruction sensor
-* Vehicle presence, arrival and departure sensing (ratgdo32-disco board only)
-* Parking assist laser (ratgdo32-disco board only)
+- Opening and closing garage doors independently in the same HomeKit home.
+- Light Control and Status
+- Obstruction sensor reporting with automatic fallback detection
+- Motion sensor reporting, if you have a "smart" wall-mounted control panel or with the obstruction sensor
+- Vehicle presence, arrival and departure sensing (ratgdo32-disco board only)
+- Parking assist laser (ratgdo32-disco board only)
 
 Check the [GitHub Issues](https://github.com/ratgdo/homekit-ratgdo32/issues) for planned features, or to suggest your own.
+
+For full history please see [CHANGELOG.md](https://github.com/ratgdo/homekit-ratgdo32/blob/main/CHANGELOG.md)
 
 ## How do I install it?
 
@@ -49,36 +47,31 @@ Once the device is running you can change the name and add it to HomeKit by scan
 
 The manual setup code is `2510-2023`.
 
-> [!WARNING]
-> Only add one ratgdo device at a time.  If you have multiple ratgdo devices, make sure that any not already paired to
-HomeKit are turned off... except the one that you want to add.
-
 > [!NOTE]
-> If you experience very slow or poor connection accessing the ratgdo device web page then try moving the device further away from the garage door opener.  Several users have reported that this can improve reliability of the connection. We do not know why this is the case but may suggest some RF interference between the door opener and the ratgdo device.
+> If you experience very slow or poor connection accessing the ratgdo device web page then try moving the device further away from the garage door opener. Several users have reported that this can improve reliability of the connection. We do not know why this is the case but may suggest some RF interference between the door opener and the ratgdo device.
 
 ## HomeKit support
 
 When you first add the device to HomeKit a number of accessories are added:
 
-* HomeKit _bridge_ to which all other accessories are attached
-* _garage door_ with door state, obstruction detection and lock. Lock not available with Dry Contact protocol
-* _light switch_. Not available with Dry Contact protocol
-* _motion_ sensor. Automatically added for doors with wall panels that detect motion. Also can be optionally added and triggered by a button press on the wall panel and/or triggering the obstruction sensor.
-* Vehicle arriving _motion_ sensor. Only on ratgdo32-disco boards, triggers motion if it detects arrival of a vehicle.
-* Vehicle departing _motion_ sensor. Only on ratgdo32-disco boards, triggers motion if it detects departure of a vehicle.
-* Vehicle presence _occupancy_ sensor. Only on ratgdo32-disco boards, set if the distance sensor detects presence of a vehicle.
-* Parking assist laser _light switch_. Only on ratgdo32-disco boards.
+- HomeKit _bridge_ to which all other accessories are attached (ratgdo32 board only)
+- _garage door_ with door state, obstruction detection and lock. Lock not available with Dry Contact protocol
+- _light switch_. Not available with Dry Contact protocol
+- _motion_ sensor. Automatically added for doors with wall panels that detect motion. Also can be optionally added and triggered by a button press on the wall panel and/or triggering the obstruction sensor.
+- Vehicle arriving _motion_ sensor. Only on ratgdo32-disco boards, triggers motion if it detects arrival of a vehicle.
+- Vehicle departing _motion_ sensor. Only on ratgdo32-disco boards, triggers motion if it detects departure of a vehicle.
+- Vehicle presence _occupancy_ sensor. Only on ratgdo32-disco boards, set if the distance sensor detects presence of a vehicle.
+- Parking assist laser _light switch_. Only on ratgdo32-disco boards.
 
-Vehicle arrival and departing sensors are only triggered if vehicle motion is detected within 5 minutes of door opening or closing. The parking assist
-laser is activated when vehicle arrival is detected.
+Vehicle arrival and departing sensors are only triggered if vehicle motion is detected within 5 minutes of door opening or closing. The parking assist laser is activated when vehicle arrival is detected.
 
 See below for instructions on setting the distance threshold for triggering vehicle presence.
 
-If you select _Identify_ during the add accessory process then the blue LED and Laser will light and the beeper sound for 2 seconds.
+For ratgdo32 boards, if you select _Identify_ during the add accessory process then the blue LED and Laser will light and the beeper sound for 2 seconds.
 
 ## Using ratgdo Webpage
 
-Before pairing to HomeKit / Apple Home you should open up the ratgdo webpage and configure basic settings.  Simply enter the local name or IP address of the ratgdo device to access the settings page to set a more appropriate device name and check that your door protocol is correct.
+Before pairing to HomeKit / Apple Home you should open up the ratgdo webpage and configure basic settings. Simply enter the local name or IP address of the ratgdo device to access the settings page to set a more appropriate device name and check that your door protocol is correct.
 
 [![webpage](docs/webpage/webpage.png)](#webpage)
 
@@ -86,7 +79,7 @@ The webpage comprises three sections, HomeKit and ratgdo device status, garage d
 
 ### HomeKit and ratgdo status
 
-If your ratgdo device is not yet paired to HomeKit then a QR code is displayed for you to scan and add the garage door to HomeKit. If the device is already paired then this is replaced with a statement that you must first un-pair the device if you wish to use it with another HomeKit home.  A Reset or Un-pair HomeKit button is provided for this.
+If your ratgdo device is not yet paired to HomeKit then a QR code is displayed for you to scan and add the garage door to HomeKit. If the device is already paired then this is replaced with a statement that you must first un-pair the device if you wish to use it with another HomeKit home. A Reset or Un-pair HomeKit button is provided for this.
 
 > [!NOTE]
 > If you will re-pair to the same HomeKit home you must also delete the accessory from HomeKit as well as un-pairing at the ratgdo device.
@@ -97,21 +90,21 @@ This section also displays the current firmware version, with a statement on whe
 > If the word _locked_ appears after the WiFi AP identifier then the ratgdo device will _only_ connect to that WiFi Access Point. See warning in the [Set WiFi SSID](#set-wifi-ssid) section below.
 
 > [!NOTE]
-> A link local IPv6 address (LLA) will always be shown even if your network does not support IPv6.  If your network does support IPv6 then Global Unicast Address (GUA) and/or Unique Local Address (ULA) will be displayed as well.
+> For ratgdo32 boards, a link local IPv6 address (LLA) will always be shown even if your network does not support IPv6. If your network does support IPv6 then Global Unicast Address (GUA) and/or Unique Local Address (ULA) will be displayed as well.
 
 ### Garage door opener status
 
-Status of the garage door along with action buttons are shown in this section.  The status values are updated in real time whether triggered by one of the action buttons or an external action (motion in the garage, someone using a door remote).
+Status of the garage door along with action buttons are shown in this section. The status values are updated in real time whether triggered by one of the action buttons or an external action (motion in the garage, someone using a door remote).
 
-For ratgdo32-disco boards, vehicle status is shown as Away, Parked, Arriving or Departing. A distance value in centimeters is also shown that represents the distance between the ratgdo board and either the garage floor (if no vehicle present) or the roof/hood of the vehicle.  It is normal for this value to fluctuate. See section below on setting vehicle distance threshold.
+For ratgdo32-disco boards, vehicle status is shown as Away, Parked, Arriving or Departing. A distance value in centimeters is also shown that represents the distance between the ratgdo board and either the garage floor (if no vehicle present) or the roof/hood of the vehicle. It is normal for this value to fluctuate. See section below on setting vehicle distance threshold.
 
 ### Information section
 
-The final section provides useful links to documentation and legal/license information.  At the very bottom of the page is diagnostic information, see [Troubleshooting](#troubleshooting) section below.
+The final section provides useful links to documentation and legal/license information. At the very bottom of the page is diagnostic information, see [Troubleshooting](#troubleshooting) section below.
 
 ### Authentication
 
-By default authentication is not required for any action on this web page.  However it is strongly recommended that you enable the setting to require a password and change the default. If authentication is enabled then all buttons _except_ Reboot are protected with a username and password
+By default authentication is not required for any action on this web page. However it is strongly recommended that you enable the setting to require a password and change the default. If authentication is enabled then all buttons _except_ Reboot are protected with a username and password
 
 #### Default Username/Password: `admin`/`password`
 
@@ -128,30 +121,30 @@ You can change the user name and password by clicking into the settings page:
 
 The settings page allows you to input a new user name and password. Saving a new password will return you to the main webpage from which point you will have to authenticate with the new password to access the settings page or any of the action buttons (except for reboot).
 
-When you save settings from this page the ratgdo device will either return immediately to the main page or, if required, reboot return to the main page and after a 30-second countdown.
+When you save settings from this page the ratgdo device will either return immediately to the main page or, if required, reboot return to the main page and after a countdown.
 
 ### Name
 
-This updates the name reported to HomeKit and for mDNS device discovery.  The default name is _Garage Door ABCDEF_ where the last 6 characters are set to the MAC address of the ratgdo device. Changing the name after pairing with HomeKit does not change the name within HomeKit or Apple Home.  The maximum length is 31 characters.  For network hostname the length is truncated to 23 characters and all non alphanumeric characters are replaced with a hyphen to comply with RFC952
+This updates the name reported to HomeKit and for mDNS device discovery. The default name is _Garage Door ABCDEF_ where the last 6 characters are set to the MAC address of the ratgdo device. Changing the name after pairing with HomeKit does not change the name within HomeKit or Apple Home. The maximum length is 31 characters. For network hostname the length is truncated to 23 characters and all non alphanumeric characters are replaced with a hyphen to comply with RFC952
 
 ### Require Password
 
-If selected then all the action buttons _except reboot_, and access to the settings page, will require authentication.  Default is not required.
+If selected then all the action buttons _except reboot_, and access to the settings page, will require authentication. Default is not required.
 
 ### LED activity
 
-If selected _On when idle_, then the blue LED light on the ratgdo device will remain illuminated when the device is idle and flash off when there is activity.  If you prefer the LED to remain off while idle then select _Off when idle_ and the LED to flash on with activity.  You can also _Disable_ the blue LED.  Note that the ratgdo32-disco boards also have a red power LED light. This cannot be controlled and is always on when power is connected.
+If selected _On when idle_, then the blue LED light on the ratgdo device will remain illuminated when the device is idle and flash off when there is activity. If you prefer the LED to remain off while idle then select _Off when idle_ and the LED to flash on with activity. You can also _Disable_ the blue LED. Note that the ratgdo32-disco boards also have a red power LED light. This cannot be controlled and is always on when power is connected.
 
 ### Syslog
 
-This setting allows you to send the ratgdo logs to a syslog server.  Enter the IP address of your syslog server.  Uses UDP port 514 by default and logs to the LOCAL0 Facility.
+This setting allows you to send the ratgdo logs to a syslog server. Enter the IP address of your syslog server. Uses UDP port 514 by default and logs to the LOCAL0 Facility.
 
 > [!NOTE]
-> If your ratgdo is on an IoT VLAN or otherwise isolated VLAN, then you need to make sure it has access to your syslog server.  If the syslog server is on a separate VLAN, you need to allow UDP port 514 through the firewall.
+> If your ratgdo is on an IoT VLAN or otherwise isolated VLAN, then you need to make sure it has access to your syslog server. If the syslog server is on a separate VLAN, you need to allow UDP port 514 through the firewall.
 
 ### Log Level
 
-You can select the verbosity of log messages from none to verbose.  Default is _Info_ level.  If you are diagnosing a problem then you should change this to _Debug_ level.
+You can select the verbosity of log messages from none to verbose. Default is _Info_ level. If you are diagnosing a problem then you should change this to _Debug_ level.
 
 ### Door Close Delay
 
@@ -159,84 +152,84 @@ You can select up-to 60 second delay before door starts closing. During the dela
 
 ### Flash light during time-to-close
 
-You can disable the garage door opener light from flashing during the delay period.  This has the benefit of reducing traffic on the serial communications to the door opener.  However note the WARNING below.
+You can disable the garage door opener light from flashing during the delay period. This has the benefit of reducing traffic on the serial communications to the door opener. However note the WARNING below.
 
 > [!WARNING]
 > The US Consumer Product Safety Act Regulations, section 1211.14, unattended operation requirements [16 CFR § 1211.14](https://www.law.cornell.edu/cfr/text/16/1211.14), state that there must be a minimum delay of 5 seconds before the door closes.
-> The regulation also requires that the light flash with audible beeping.  If you select a time-to-close delay of under 5 seconds, or disable light flashing, then a warning is shown in the web settings page and you accept all responsibility and liability for injury or any other loss.
+> The regulation also requires that the light flash with audible beeping. If you select a time-to-close delay of under 5 seconds, or disable light flashing, then a warning is shown in the web settings page and you accept all responsibility and liability for injury or any other loss.
 
 ### Motion Triggers
 
-This allows you to select what causes the HomeKit motion sensor accessory to trigger.  The default is to use the motion sensor built into the garage door opener, if it exists.  This checkbox is not selectable because presence of the motion sensor is detected automatically... based on detecting motion in the garage.  If your door opener does not have a motion sensor then the checkbox will show as un-checked.
+This allows you to select what causes the HomeKit motion sensor accessory to trigger. The default is to use the motion sensor built into the garage door opener, if it exists. This checkbox is not selectable because presence of the motion sensor is detected automatically... based on detecting motion in the garage. If your door opener does not have a motion sensor then the checkbox will show as un-checked.
 
-Motion can also be triggered by the obstruction sensor.  This is disabled by default but may be selected on the web page.
+Motion can also be triggered by the obstruction sensor. This is disabled by default but may be selected on the web page.
 
-### Occupancy Duration
+### Occupancy Duration _(not supported on ratgdo v2.5 boards)_
 
-A HomeKit occupancy sensor will be set active when motion is detected.  It will remain active for a user set duration between zero and 120 minutes after the last motion detected.  HomeKit accessory is disabled if set to zero.  Disabled by default.
+For ratgdo32 boards, a HomeKit occupancy sensor may be set active when motion is detected. It will remain active for a user set duration between zero and 120 minutes after the last motion detected. HomeKit accessory is disabled if set to zero. Disabled by default.
 
-### Vehicle Distance
+### Vehicle Distance _(ratgdo32-disco boards only)_
 
-Ratgdo32-disco boards detect vehicle arrival, departure and presence based on distance measured from the ratgdo board.  You should monitor the value
+Ratgdo32-disco boards detect vehicle arrival, departure and presence based on distance measured from the ratgdo board. You should monitor the value
 reported in vehicle distance when there is no vehicle present (the approximate distance to the floor) and when the vehicle is parked (the approximate
-distance to the vehicle roof or hood).  Set the vehicle distance slider to between these these two values.  Measured distance can fluctuate so allow
+distance to the vehicle roof or hood). Set the vehicle distance slider to between these these two values. Measured distance can fluctuate so allow
 for this when setting the value.
 
 > [!IMPORTANT]
 > Take care when installing the ratgdo32-disco board that the sensor is not pointing at glass (e.g. your vehicle windshield). You may need tilt the board
-> to point towards the vehicle roof.  If you get unreliable results, you should also remove the yellow sticker that may be on the sensor to protect
+> to point towards the vehicle roof. If you get unreliable results, you should also remove the yellow sticker that may be on the sensor to protect
 > it from dust during manufacture and shipping.
 
-### Laser
+### Laser _(ratgdo32-disco boards only)_
 
-If you have the parking assist laser accessory installed, select this option to enable support and optionally add HomeKit light switch accessory
+For ratgdo32-disco boards, if you have the parking assist laser accessory installed, select this option to enable support and optionally add HomeKit light switch accessory
 to allow for manual or HomeKit automation control.
 
 When enabled, you can configure how long the laser remains on during parking assist by selecting a value from zero to 300 seconds (5 minutes). Selecting
-zero disables parking assist laser.  Parking assist is triggered if an arriving vehicle is detected with 5 minutes of the door opening or closing.
+zero disables parking assist laser. Parking assist is triggered if an arriving vehicle is detected with 5 minutes of the door opening or closing.
 
 ### Door Protocol
 
-Set the protocol for your model of garage door opener.  This defaults to Security+ 2.0 and you should only change this if necessary.  Note that the changing the door protocol also resets the door opener rolling codes and whether there is a motion sensor (this will be automatically detected after reset).
+Set the protocol for your model of garage door opener. This defaults to Security+ 2.0 and you should only change this if necessary. Note that the changing the door protocol also resets the door opener rolling codes and whether there is a motion sensor (this will be automatically detected after reset).
 
 ### Debounce duration
 
-For Dry Contact door protocol, set the sensor debounce duration.  When the door opens or closes it can take time for the sensor switch to settle into its correct state.  You can set this between 50 and 1000 milliseconds.  You can observe the log messages when door reaches closed or open state to get an idea of what the correct setting should be for your door.
+For Dry Contact door protocol, set the sensor debounce duration. When the door opens or closes it can take time for the sensor switch to settle into its correct state. You can set this between 50 and 1000 milliseconds. You can observe the log messages when door reaches closed or open state to get an idea of what the correct setting should be for your door.
 
 ### Enable hardwired open/close control
 
-For Security+ 1.0 and Security +2.0 it is possible to repurpose the sensors used for dry-contact door open / close to buttons that trigger a door open / close action.  Select this check box to enable this option.
+For Security+ 1.0 and Security +2.0 it is possible to repurpose the sensors used for dry-contact door open / close to buttons that trigger a door open / close action. Select this check box to enable this option.
 
-### Use software serial emulation rather than h/w UART
+### Use software serial emulation rather than h/w UART _(ratgdo32 boards only)_
 
-For Security+ 1.0 and Security+ 2.0, communications with the garage door uses a serial port. This can be either the ESP32's built-in hardware UART or a software emulation of a UART.  Software emulation is required for Security+ 2.0 to allow for automatic sensing and changing of the baud rate... without this, the ratgdo cannot detect button presses at the garage door wall panel controler.  For Security+ 1.0, software emulation is optional.  If you experience communication errors you can try changing to use hardware UART.
+For Security+ 1.0 and Security+ 2.0, communications with the garage door uses a serial port. This can be either the ESP32's built-in hardware UART or a software emulation of a UART. Software emulation is required for Security+ 2.0 to allow for automatic sensing and changing of the baud rate... without this, the ratgdo cannot detect button presses at the garage door wall panel controller. For Security+ 1.0, software emulation is optional. If you experience communication errors you can try changing to use hardware UART.
 
 ### Get obstruction from GDO status messages
 
-For Security+ 1.0 and Security +2.0, ratgdo obtains obstruction state from status messages sent by the door opener.  These messages can sometimes be slow to report a change in obstruction status.  Unselecting this option will tell the ratgdo to monitor the hardwired obstruction sensor pin directly.
+For Security+ 1.0 and Security +2.0, ratgdo obtains obstruction state from status messages sent by the door opener. These messages can sometimes be slow to report a change in obstruction status. Unselecting this option will tell the ratgdo to monitor the hardwired obstruction sensor pin directly.
 
 ### Use TOGGLE command to close door
 
-If your Security+ 2.0 door is installed without obstruction sensors then it may not respond to the door action CLOSE command.  Use this setting to change the command sent to close an open door to the TOGGLE command.
+If your Security+ 2.0 door is installed without obstruction sensors then it may not respond to the door action CLOSE command. Use this setting to change the command sent to close an open door to the TOGGLE command.
 
 ### WiFi Version _(not supported on ratgdo32 boards)_
 
 If the device fails to connect reliably and consistently to your WiFi network it may help to lock it to a specific WiFi version. The ratgdo supports 802.11b, 802.11g and 802.11n on the 2.4GHz WiFi band and by default will auto-select. If it helps in your network, select the specific version you wish to use.
 
-### WiFi Tx Power _(not supported on ratgdo32 boards)_
+### WiFi Tx Power
 
 You can set the WiFi transmit power to between 0 and 20 dBm. It defaults to the maximum (20.5 dBm, displayed as 20 dBm) but you may wish to fine tune this to control how the device connects to available WiFi access points.
 
 > [!NOTE]
 > If the ratgdo device fails to connect to a WiFi access point by approximately 40 seconds after a reboot from a setting change, then the device will reset all the WiFi settings and will then attempt to reconnect to the server.
 
-### Enable IPv6
+### Enable IPv6 _(ratgdo32 boards only)_
 
 If your network supports IPv6 then selecting this will allow ratgdo to acquire IPv6 addresses and communicate over IPv6.
 
 ### Static IPv4
 
-If selected then you can enter a static IP address, network mask, gateway IP and DNS server IP.  Note that if the address changes, then after reboot the web page will not automatically reload from the new IP address... you will need to manually connect to the ratgdo device at its new address. __Most users should NOT select static IP__ as it is far safer to use DHCP to automatically configure the device.
+If selected then you can enter a static IP address, network mask, gateway IP and DNS server IP. Note that if the address changes, then after reboot the web page will not automatically reload from the new IP address... you will need to manually connect to the ratgdo device at its new address. **Most users should NOT select static IP** as it is far safer to use DHCP to automatically configure the device.
 
 Ratgdo tests for network connection approximately 30 seconds after a reboot from a WiFi setting change. If this fails then the device will disable static IP and will attempt to reconnect to the network using DHCP.
 
@@ -244,7 +237,7 @@ Ratgdo tests for network connection approximately 30 seconds after a reboot from
 > You must provide an IP address for DNS (Domain Name Service), this is required to set the clock on ratgdo with Network Time Protocol (NTP). Most household gateway routers act as DNS servers so you can use the same IP address as the gateway.
 
 > [!WARNING]
-> If you enter an IP address that is not valid on your network then you will not be able to access the device by web browser or from HomeKit. If the device fails to automatically recover by resetting to DHCP, then you can recover by using the soft AP mode described below in [Set WiFi SSID](#set-wifi-ssid) (press light button 5 times). If this also fails then you will need to flash the ratgdo over the USB port using the web installer AND select the option to erase the device.  This will factory reset the device and you will have to remove the garage door accessory from HomeKit and then add it again.
+> If you enter an IP address that is not valid on your network then you will not be able to access the device by web browser or from HomeKit. If the device fails to automatically recover by resetting to DHCP, then you can recover by using the soft AP mode described below in [Set WiFi SSID](#set-wifi-ssid) (press light button 5 times). If this also fails then you will need to flash the ratgdo over the USB port using the web installer AND select the option to erase the device. This will factory reset the device and you will have to remove the garage door accessory from HomeKit and then add it again.
 
 ### Enable NTP
 
@@ -254,7 +247,7 @@ When enabled, the _lastDoorChange_ date and time (reported at the bottom of the 
 
 ### Time Zone
 
-You can select time zone for your location.  On fist boot, or after changing the WiFi network SSID, the ratgdo will reset to GMT/UTC and then attempt to obtain your time zone by geo-locating the external IP address of the network that ratgdo is connected to.  The discovered time zone will take effect immediately after you view the ratgdo web page.
+You can select time zone for your location. On fist boot, or after changing the WiFi network SSID, the ratgdo will reset to GMT/UTC and then attempt to obtain your time zone by geo-locating the external IP address of the network that ratgdo is connected to. The discovered time zone will take effect immediately after you view the ratgdo web page.
 
 ### Reboot Every
 
@@ -262,7 +255,7 @@ During early development there were several reports that the ratgdo device would
 
 ### Reset Door
 
-This button resets the Security+  2.0 rolling codes and whether your door opener has a motion sensor. This may be necessary if the ratgdo device gets out-of-sync with what the door opener expects.  Selecting this button requires the ratgdo to reboot and does not save any new settings.
+This button resets the Security+ 2.0 rolling codes and whether your door opener has a motion sensor. This may be necessary if the ratgdo device gets out-of-sync with what the door opener expects. Selecting this button requires the ratgdo to reboot and does not save any new settings.
 
 ### Set WiFi SSID
 
@@ -270,9 +263,9 @@ This button enters the WiFi network selection page, similar to booting into Soft
 
 ### Boot Soft AP
 
-This button will restart the ratgdo in soft Access Point (AP) mode from where you can set a new WiFi network SSID and password.  You can connect to the ratgdo by connecting your laptop or mobile device to the ratgdo's WiFi SSID and pointing your browser to IP address 192.168.4.1.  The SSID created is based on the device name, e.g. _Garage-Door-ABCDEF_.
+This button will restart the ratgdo in soft Access Point (AP) mode from where you can set a new WiFi network SSID and password. You can connect to the ratgdo by connecting your laptop or mobile device to the ratgdo's WiFi SSID and pointing your browser to IP address 192.168.4.1. The SSID created is based on the device name, e.g. _Garage-Door-ABCDEF_.
 
-If you are unable to connect to your ratgdo, or the old WiFi network is not available, you can force the device into soft Access Point mode by rapidly pressing the wall panel light button 5 times within 3 second.  The ratgdo will respond by flashing the lights for 3 more seconds before rebooting into AP mode.  Allow 15 to 20 seconds for the ratgdo to boot.
+If you are unable to connect to your ratgdo, or the old WiFi network is not available, you can force the device into soft Access Point mode by rapidly pressing the wall panel light button 5 times within 3 second. The ratgdo will respond by flashing the lights for 3 more seconds before rebooting into AP mode. Allow 15 to 20 seconds for the ratgdo to boot.
 
 If you are preparing to move the ratgdo to a new location then, after the device has booted into soft AP mode, you can disconnect it (within 10 minutes). When it first boots in the new location it will start up in soft AP mode. In soft AP mode the ratgdo does not connect to the garage door opener or HomeKit.
 
@@ -282,58 +275,60 @@ On changing the WiFi network SSID you will have to un-pair and re-pair the ratgd
 > If you do not set a new SSID and password within 10 minutes of booting into soft AP mode then the ratgdo will reboot as normal and connect to the previously set WiFi network SSID.
 
 > [!NOTE]
-> On changing the SSID in soft AP mode the ratgdo attempts to connect to the new WiFi network.  If that fails, then the ratgdo will reset to the old SSID and password, remove any Access Point lock, and reboot.
+> On changing the SSID in soft AP mode the ratgdo attempts to connect to the new WiFi network. If that fails, then the ratgdo will reset to the old SSID and password, remove any Access Point lock, and reboot.
 
 > [!WARNING]
-> The soft AP page has an _advanced_ mode. If you select this then the full list of discovered networks are shown, including same network SSID's broadcast by multiple access points. Selecting a WiFi network in advanced mode locks the device to a specific WiFi access point by its __unique hardware BSSID__. If that access point goes offline, or you replace it, then the device will __NOT connect__ to WiFi. __Use advanced mode with extreme caution__. __Not currently implemented on ratgdo32 boards.__
+> The soft AP page has an _advanced_ mode. If you select this then the full list of discovered networks are shown, including same network SSID's broadcast by multiple access points. Selecting a WiFi network in advanced mode locks the device to a specific WiFi access point by its **unique hardware BSSID**. If that access point goes offline, or you replace it, then the device will **NOT connect** to WiFi. **Use advanced mode with extreme caution**. **Not implemented on ratgdo32 boards.**
 
 ### Factory Reset
 
-This button erases all saved settings, including WiFi, HomeKit unique IDs.  The device is reset to as-new state and must be reconfigured. HomeKit will no longer recognize the device and consider it all new.
+This button erases all saved settings, including WiFi, HomeKit unique IDs. The device is reset to as-new state and must be reconfigured. HomeKit will no longer recognize the device and consider it all new.
 
 ## How do I upgrade?
 
 Over-the-Air (OTA) updates are supported, either directly from GitHub or by selecting a firmware binary file on your computer. Follow the steps below to update:
 
-* Navigate to your ratgdo's ip address where you will see the devices webpage, Click `Firmware Update`
+- Navigate to your ratgdo's ip address where you will see the devices webpage, Click `Firmware Update`
 
 [![ota](docs/ota/ota.png)](#ota)
-* Update from Github
-  * To check for updates, click `Check for update`.
-    Select the _Include pre-releases_ box to include pre- or beta-release versions in the check. 
-  * If update is available, Click `Update`.
-* Update from local file.
-  * Download the latest release, by download the `.bin` file from the [latest release](https://github.com/ratgdo/homekit-ratgdo32/releases) page.
-[![firmware](docs/ota/firmware.png)](#firmware)
-  * Upload the firmware that was downloaded in step 1, by clicking `Choose File` under `Update from local file`.
-  * Click `Update` to proceed with upgrading.
-  * Once the update is Successful, ratgdo will now Reboot.
-  * After a firmware update, you _may_ have to go through the process of re-pairing your device to HomeKit.  If your device is showing up as unresponsive in HomeKit, please try un-pairing, reboot, and re-pairing.
+
+- Update from Github
+  - To check for updates, click `Check for update`.
+    Select the _Include pre-releases_ box to include pre- or beta-release versions in the check.
+  - If update is available, Click `Update`.
+- Update from local file.
+  - Download the latest release, by download the `.bin` file from the [latest release](https://github.com/ratgdo/homekit-ratgdo32/releases) page.
+    [![firmware](docs/ota/firmware.png)](#firmware)
+  - Upload the firmware that was downloaded in step 1, by clicking `Choose File` under `Update from local file`.
+  - Click `Update` to proceed with upgrading.
+  - Once the update is Successful, ratgdo will now Reboot.
+  - After a firmware update, you _may_ have to go through the process of re-pairing your device to HomeKit. If your device is showing up as unresponsive in HomeKit, please try un-pairing, reboot, and re-pairing.
 
 Automatic updates are not supported (and probably will never be), so set a reminder to check back again in the future.
 
 ## Upgrade failures
 
-If the OTA firmware update fails the following message will be displayed and you are given the option to reboot or cancel. If you reboot, the device will reload the same firmware as previously installed.  If you cancel then the device remains open, but the HomeKit service will be shutdown.  This may be helpful for debugging, see [Troubleshooting](#troubleshooting) section below.
+If the OTA firmware update fails the following message will be displayed and you are given the option to reboot or cancel. If you reboot, the device will reload the same firmware as previously installed. If you cancel then the device remains open, but the HomeKit service will be shutdown. This may be helpful for debugging, see [Troubleshooting](#troubleshooting) section below.
 
 [![updatefail](docs/ota/updatefail.png)](#updatefail)
 
 ### Esptool
 
-[Espressif](https://www.espressif.com) publishes [esptool](https://docs.espressif.com/projects/esptool/en/latest/esp32/index.html), a command line utility built with python.  Esptool requires that you connect a USB serial cable to the ratgdo device.
+[Espressif](https://www.espressif.com) publishes [esptool](https://docs.espressif.com/projects/esptool/en/latest/esp32/index.html), a command line utility built with python. Esptool requires that you connect a USB serial cable to the ratgdo device.
 
 > [!NOTE]
 > The ratgdo32 firmware comprises multiple files. It is strongly recommended to use the [online browser-based flash tool](https://ratgdo.github.io/homekit-ratgdo32/flash.html) described above rather than use this command directly
 
 ## Command Line Interface
 
-It is possible to query status, monitor and reboot/reset the ratgdo device from a command line.  The following have been tested on Ubuntu Linux and Apple macOS.
+It is possible to query status, monitor and reboot/reset the ratgdo device from a command line. The following have been tested on Ubuntu Linux and Apple macOS.
 
 ### Retrieve ratgdo status
 
 ```
 curl -s http://<ip-address>/status.json
 ```
+
 Status is returned as JSON formatted text.
 
 ### Set a ratgdo setting value
@@ -343,13 +338,15 @@ curl -X POST http://<ip-address>/setgdo \
    -H "Content-Type: application/x-www-form-urlencoded" \
    -d "<setting>=<value>&<setting2>=<value2>"
 ```
-Set one of more values for ratgdo settings.  Note that some settings require a reboot, the web page settings page identifies which require a reboot.  For a full list of settings see the [status.json](https://github.com/ratgdo/homekit-ratgdo32/blob/main/src/www/status.json) file.  You can also see the settings object in a browser JavaScript Console.
+
+Set one of more values for ratgdo settings. Note that some settings require a reboot, the web page settings page identifies which require a reboot. For a full list of settings see the [status.json](https://github.com/ratgdo/homekit-ratgdo32/blob/main/src/www/status.json) file. You can also see the settings object in a browser JavaScript Console.
 
 ### Reboot ratgdo device
 
 ```
 curl -s -X POST http://<ip-address>/reboot
 ```
+
 Allow 30 seconds for the device to reboot before attempting to reconnect.
 
 ### Reset ratgdo device
@@ -357,7 +354,9 @@ Allow 30 seconds for the device to reboot before attempting to reconnect.
 ```
 curl -s -X POST http://<ip-address>/reset
 ```
+
 Resets and reboots the device. This will delete HomeKit pairing.
+
 > [!NOTE]
 > Will not work if device set to require authentication
 
@@ -366,6 +365,7 @@ Resets and reboots the device. This will delete HomeKit pairing.
 ```
 curl -s http://<ip-address>/crashlog
 ```
+
 Returns details of the last crash including stack trace and the message log leading up to the crash.
 
 ### Clear crash log
@@ -373,6 +373,7 @@ Returns details of the last crash including stack trace and the message log lead
 ```
 curl -s http://<ip-address>/clearcrashlog
 ```
+
 Erase contents of the crash log.
 
 ### Show message log
@@ -380,6 +381,7 @@ Erase contents of the crash log.
 ```
 curl -s http://<ip-address>/showlog
 ```
+
 Returns recent history of message logs.
 
 ### Show last reboot log
@@ -387,32 +389,39 @@ Returns recent history of message logs.
 ```
 curl -s http://<ip-address>/showrebootlog
 ```
+
 Returns log of messages that immediately preceded the last clean reboot (e.g. not a crash or power failure).
+
 > [!NOTE]
 > This may be older than the most recent crash log.
 
 ### Monitor message log
 
 The following script is available in this repository as `viewlog.sh`
+
 ```
 UUID=$(uuidgen)
 URL=$(curl -s "http://${1}/rest/events/subscribe?id=${UUID}&log")
 curl -s "http://${1}/showlog"
 curl -s -N "http://${1}${URL}?id=${UUID}" | sed -u -n '/event: logger/{n;p;}' | cut -c 7-
 ```
+
 Run this script as `<path>/viewlog.sh <ip-address>`
 
-Displays recent history of message log and remains connected to the device.  Log messages are displayed as they occur.
+Displays recent history of message log and remains connected to the device. Log messages are displayed as they occur.
 Use Ctrl-C keystroke to terminate and return to command line prompt. You will need to download this script file from github.
 
 ### Upload new firmware
 
 > [!WARNING]
-> This should be used with extreme caution, updating from USB serial or web browser is strongly preferred.  Before using this script you should check that embedded commands like `md5` or `md5sum` and `stat` work correctly on your system. Monitoring the message log (see above) is recommended and no other browser should be connected to the ratgdo device.
+> This should be used with extreme caution, updating from USB serial or web browser is strongly preferred. Before using this script you should check that embedded commands like `md5` or `md5sum` and `stat` work correctly on your system. Monitoring the message log (see above) is recommended and no other browser should be connected to the ratgdo device.
+
 ```
 <path>/upload_firmware.sh <ip-address> <firmware_file.bin>
 ```
-Uploads a new firmware binary file to the device and reboots.  It can take some time to complete the upload, you can monitor progress using the `viewlog.sh` script in a separate command line window. You will need to download this script file from github.
+
+Uploads a new firmware binary file to the device and reboots. It can take some time to complete the upload, you can monitor progress using the `viewlog.sh` script in a separate command line window. You will need to download this script file from github.
+
 > [!NOTE]
 > Will not work if device set to require authentication
 
@@ -430,18 +439,15 @@ select after adding it.
 
 ### Unable to Pair
 
-I get a message [Unable to Add Accessory: The setup code is incorrect.](https://github.com/ratgdo/homekit-ratgdo32/issues/97)
+I get a message [Unable to Add Accessory: The setup code is incorrect.](https://github.com/ratgdo/homekit-ratgdo/issues/97)
 
 > [!WARNING]
-We have had a number of users that have encountered this error that was a result of running HomeBridge with the Bonjour-HAP mDNS backend. You can find
-more details in the issue thread, but the short story is to consider changing that backend to Avahi or Ciao.
+> We have had a number of users that have encountered this error that was a result of running HomeBridge with the Bonjour-HAP mDNS backend. You can find
+> more details in the issue thread, but the short story is to consider changing that backend to Avahi or Ciao.
 
 ### How do I re-pair my ratgdo?
 
-From the ratgdo device home page click the _Reset HomeKit_ or _Un-pair HomeKit_ button, and then delete the garage door
-from within the HomeKit app (or vice versa, order
-does not matter). Resetting or Un-pairing HomeKit will cause the ratgdo device to reboot.  You can then re-pair the
-device by adding it again as normal.
+From the ratgdo device home page click the _Reset HomeKit_ or _Un-pair HomeKit_ button, and then delete the garage door from within the HomeKit app (or vice versa, order does not matter). Resetting or Un-pairing HomeKit will cause the ratgdo device to reboot. You can then re-pair the device by adding it again as normal.
 
 ### Where can I get help?
 
@@ -461,7 +467,7 @@ has already found a fix.
 
 ## Troubleshooting
 
-Great reliability improvements have been made in recent versions of the firmware, but it is possible that things can still go wrong. As noted above you should check that the door protocol is correctly set and if WiFi connection stability is suspected then you select a specific WiFi version.
+Great reliability improvements have been made in recent versions of the firmware, but it is possible that things can still go wrong. As noted above you should check that the door protocol is correctly set and if WiFi connection stability is suspected then, on ratgdo v2.5 devices, you select a specific WiFi version.
 
 The footer of the webpage displays useful information that can help project contributors assist with diagnosing a problem. The ratgdo is a low-memory device so monitoring actual memory usage is first place to start. Whenever you connect to the webpage, the firmware reports memory utilization... current available free heap, the lowest value that free heap has reached since last reboot.
 
@@ -471,10 +477,10 @@ The _lastDoorChange_ will show the date and time that the door was last opened o
 
 ### Show system logs
 
-Clicking on the system logs link will open a new browser tab with details of current and saved logs.  On this page you can select to view the current system log, the current system status in raw JSON format, the system log immediately before the last user requested reboot or reset, and the system log immediately before the last crash. If you open an issue on GitHub then please copy/paste the full crash log into the issue.
+Clicking on the system logs link will open a new browser tab with details of current and saved logs. On this page you can select to view the current system log, the current system status in raw JSON format, the system log immediately before the last user requested reboot or reset, and the system log immediately before the last crash. If you open an issue on GitHub then please copy/paste the full crash log into the issue.
 
 > [!NOTE]
-> Logs from the last reboot and crash are saved in volatile memory and do not survive a power interruption or a firmware flash.
+> For ratgdo32 devices, logs from the last reboot and crash are saved in volatile memory and do not survive a power interruption or a firmware flash.
 > If you need to retain these logs to report an issue please make a copy before disconnecting the power or updating firmware.
 
 ## How can I contribute?
@@ -491,13 +497,19 @@ The [`x.sh`](https://github.com/ratgdo/homekit-ratgdo32/blob/main/x.sh) script i
 having to remember PlatformIO-specific `pio` commands. The important ones are `run`, `upload`, and
 `monitor`.
 
-## Who wrote this?
+## Acknowledgements & Credits.
 
-This firmware was written by [David Kerr](https://github.com/dkerr64), with lots of help from contributors:
-[Jonathan Stroud](https://github.com/jgstroud/) and [Donavan Becker](https://github.com/donavanbecker)
+The original ESP8266 firmware was written by [Brandon Matthews](https://github.com/thenewwazoo). The ESP32 firmware was written by, and ongoing maintenance for both versions is provided by, [David Kerr](https://github.com/dkerr64). We are thankful for lots of help from contributors:
 
-Special credit goes to the Chamberlain Group, without whose irredeemably stupid decision to [close their API to third parties](https://chamberlaingroup.com/press/a-message-about-our-decision-to-prevent-unauthorized-usage-of-myq),
-this firmware would never have been necessary.
+- [Donavan Becker](https://github.com/donavanbecker)
+- [Adam Franke](https://github.com/frankea)
+- [Mike La Spina](https://github.com/descipher)
+- [Mitchell Solomon](https://github.com/mitchjs)
+- [Jonathan Stroud](https://github.com/jgstroud/)
+
+We also acknowledge inspiration from [esphome-ratgdo](https://github.com/ratgdo/esphome-ratgdo) written by [Paul Wieland](https://github.com/PaulWieland) and dependence on the [secplus decoder library](https://github.com/argilo/secplus).
+
+Special credit goes to the Chamberlain Group, without whose decision to [close their API to third parties](https://chamberlaingroup.com/press/a-message-about-our-decision-to-prevent-unauthorized-usage-of-myq), this firmware would never have been necessary.
 
 [Garage icons](https://www.flaticon.com/free-icons/garage) created by Creative Squad - Flaticon
 
