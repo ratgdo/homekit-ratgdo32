@@ -83,7 +83,11 @@ enum LockTargetState : uint8_t
     TGT_LOCKED = 1,
 };
 #else
+#ifdef GRGDO1_V2
+const gpio_num_t UART_TX_PIN = GPIO_NUM_22;
+#else
 const gpio_num_t UART_TX_PIN = GPIO_NUM_17;
+#endif
 const gpio_num_t UART_RX_PIN = GPIO_NUM_21;
 const gpio_num_t LED_BUILTIN = GPIO_NUM_2;
 const gpio_num_t INPUT_OBST_PIN = GPIO_NUM_4;
@@ -140,6 +144,7 @@ extern "C" uint32_t min_heap;
 
 struct __attribute__((aligned(4))) GarageDoor
 {
+    bool wallPanelEmulated;
     bool active;
     GarageDoorCurrentState current_state;
     GarageDoorTargetState target_state;

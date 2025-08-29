@@ -10,4 +10,7 @@ Import("env")
 #print(env['PROJECT_PACKAGES_DIR']);
 #print(env['PROJECT_LIBDEPS_DIR']);
 
-os.system("patch -N " + env['PROJECT_PACKAGES_DIR'] + "/framework-arduinoespressif32/libraries/WebServer/src/WebServer.cpp url_not_found_log.patch")
+if os.name == "nt":
+    pass
+else:
+    os.system("patch -N " + env['PROJECT_PACKAGES_DIR'] + "/framework-arduinoespressif32/libraries/WebServer/src/WebServer.cpp url_not_found_log.patch")
