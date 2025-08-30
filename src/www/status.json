@@ -59,5 +59,6 @@
   "useSWserial": true,
   "TTClight": true,
   "obstFromStatus": true,
-  "occupancyDuration": 300
+  "occupancyDuration": 300,
+  "garageSec1Emulated": false
 }
