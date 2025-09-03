@@ -14,7 +14,6 @@
  */
 #pragma once
 
-
 // ESP system includes
 #ifndef ESP8266
 #include <driver/gpio.h>
