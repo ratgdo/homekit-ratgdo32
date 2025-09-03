@@ -115,8 +115,9 @@ void vehicle_loop()
                 // We will only record the furthest away.
                 for (int i = 0; i < distanceData.NumberOfObjectsFound; i++)
                 {
-                    // In testing I am seeing range status of 0, 4, 7 and 12.  These represent
+                    // In testing I am seeing range status of 0, 1, 4, 7 and 12.  These represent
                     // 0:  VL53L4CX_RANGESTATUS_RANGE_VALID
+                    // 1:  VL53L4CX_RANGESTATUS_SIGMA_FAIL
                     // 4:  VL53L4CX_RANGESTATUS_OUTOFBOUNDS_FAIL
                     // 7:  VL53L4CX_RANGESTATUS_WRAP_TARGET_FAIL
                     // 12: VL53L4CX_RANGESTATUS_TARGET_PRESENT_LACK_OF_SIGNAL
@@ -128,7 +129,7 @@ void vehicle_loop()
                     case VL53L4CX_RANGESTATUS_WRAP_TARGET_FAIL:
                     case VL53L4CX_RANGESTATUS_TARGET_PRESENT_LACK_OF_SIGNAL:
                         // Unusual, but docs say that range data is valid.
-                        ESP_LOGV(TAG, "Unusual VL53L4CX Range Status: %d, Range: %d", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
+                        ESP_LOGV(TAG, "Unusual VL53L4CX Range Status: %d, Range: %dmm", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
                         // fall through...
                     case VL53L4CX_RANGESTATUS_RANGE_VALID:
                     case VL53L4CX_RANGESTATUS_RANGE_VALID_MIN_RANGE_CLIPPED:
@@ -137,15 +138,20 @@ void vehicle_loop()
                         break;
                     case VL53L4CX_RANGESTATUS_OUTOFBOUNDS_FAIL:
                         // Target below threshold... assume no object.
-                        ESP_LOGV(TAG, "Unusual VL53L4CX Range Status: %d, Range: %d", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
+                        ESP_LOGV(TAG, "Vehicle distance out of bounds: %dmm", distanceData.RangeData[i].RangeMilliMeter);
                         distance = MAX_DISTANCE;
                         break;
                     case VL53L4CX_RANGESTATUS_RANGE_INVALID:
                         // Typically a negative value... we will ignore.
-                        ESP_LOGV(TAG, "Unusual VL53L4CX Range Status: %d, Range: %d", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
+                        ESP_LOGV(TAG, "Vehicle distance range invalid: %dmm", distanceData.RangeData[i].RangeMilliMeter);
+                        break;
+                    case VL53L4CX_RANGESTATUS_SIGMA_FAIL:
+                        // Sigma fail indicates sensor has low confidence in the range value returned.  Sensor may be pointed at glass.
+                        ESP_LOGW(TAG, "Vehicle distance sensor sigma fail. Sensor may be pointing at glass, try repositioning: %dmm", distanceData.RangeData[i].RangeMilliMeter);
+                        distance = std::max(distance, distanceData.RangeData[i].RangeMilliMeter);
                         break;
                     default:
-                        ESP_LOGE(TAG, "Unhandled VL53L4CX RANGESTATUS value: %d, Range: %d", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
+                        ESP_LOGE(TAG, "Unhandled VL53L4CX RANGESTATUS value: %d, Range: %dmm", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
                         break;
                     }
                 }
