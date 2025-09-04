@@ -30,7 +30,7 @@ def on_upload(source, target, env):
 
     # get the firmware.bin file with path
     binPath = str(source[0])
-    print("binPath", binPath)
+    #print("binPath", binPath)
 
     # get file size of "firmware.bin"
     fileSize = os.path.getsize(binPath)
