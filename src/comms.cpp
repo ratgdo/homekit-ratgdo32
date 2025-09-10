@@ -2139,6 +2139,7 @@ void TTCtimerFn(void (*callback)(), bool light)
         {
             if (light && (TTCiterations % 2 == 0))
             {
+#ifndef USE_GDOLIB
                 // only SEC+1,0
                 if (doorControlType == 1)
                 {
@@ -2146,6 +2147,7 @@ void TTCtimerFn(void (*callback)(), bool light)
                     sec1_light_press();
                 }
                 else
+#endif
                 {
                     // If light is on, turn it off.  If off, turn it on.
                     set_light((TTCiterations % 4) != 0, false);
@@ -2161,12 +2163,13 @@ void TTCtimerFn(void (*callback)(), bool light)
     {
         TTCtimer.detach();
         ESP_LOGI(TAG, "End of function delay timer");
+#ifndef USE_GDOLIB
         // only SEC+1,0
         if (doorControlType == 1)
         {
             sec1_light_release(4);
         }
-
+#endif
         if (callback)
         {
             // delay so that set_light() can do its thing
