@@ -49,6 +49,7 @@
   "laserHomeKit": true,
   "vehicleHomeKit": true,
   "assistDuration": 60,
+  "homespanCLI": false,
   "qrPayload": "X-HM://0042WZMX3RTGO",
   "batteryState": 8,
   "openingsCount": 999,
