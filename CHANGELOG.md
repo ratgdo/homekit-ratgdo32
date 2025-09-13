@@ -4,9 +4,9 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
-## v3.3.0 (2025-09-??)
+## v3.3.0 (2025-09-13)
 
-Version 3.3.0 is a minor upgrade for ESP32-based ratgdo boards. Almost all source files for the ESP8266 and ESP32 versions of ratgdo have been merged which results in minor changes to the underlying features and function for ESP32 versions. The main benefit is for the original ESP8266-based ratgdo boards.
+Version 3.3.0 is a significant upgrade for ESP32-based ratgdo boards. Almost all source files for the ESP8266 and ESP32 versions of ratgdo have been merged which results in minor changes to the underlying features and function for ESP32 versions. The main benefit is for the original ESP8266-based ratgdo boards.
 
 While source files have been merged there remain significant differences between the two board types, most notably in the library used to communicate with HomeKit which are completely different.
 
@@ -15,10 +15,11 @@ While source files have been merged there remain significant differences between
 ### What's Changed
 
 * Other... Significant source code changes to support move towards single code base for ESP8266 and ESP32
+* Other... Change garage door communications from using GDOLIB library to same code as used for ESP8266
 
 ### Known Issues
 
-* None 
+* After update, if the obstruction status has _(Message)_ noted next to the state, and you have not explicitly set to receive obstruction from GDO status messages (check settings webpage), then you should disconnect and re-connect power from the ratgdo32.
 
 ## v3.2.1 (2025-07-??)
 
