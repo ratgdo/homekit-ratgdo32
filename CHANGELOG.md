@@ -4,6 +4,17 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v3.3.2 (2025-09-14)
+
+### What's Changed
+
+* Other... Add release notes to firmware update dialog.
+* Other... Reduce unnecessary network traffic during firmware update
+
+### Known Issues
+
+* If you get a error trying to update from GitHub (e.g. MD5 file not found) then please download firmware from [here](https://github.com/ratgdo/homekit-ratgdo32/releases/download/v3.3.2/homekit-ratgdo32-v3.3.2.firmware.bin) and update from local file.
+
 ## v3.3.1 (2025-09-13)
 
 ### What's Changed
