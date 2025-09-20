@@ -4,6 +4,21 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v3.3.3 (2025-09-20)
+
+### What's Changed
+
+* Bugfix... Date and time on web page now displayed in the time zone of the server (NTP server feature must be enabled).
+* Bugfix... Log level was not getting set correctly (should take effect immediately but it required a reboot).
+* Bugfix... Park assist laser was not activating on vehicle arrival (since v3.3.0).
+* Bugfix... Displaying last reboot log was missing time stamps.
+* New Feature... last door open and close date and time is displayed under opening/closing status (NTP server feature must be enabled).
+* Other... Add a "home" button to system logs page because iOS and iPad OS 26 have removed the "done" button.
+
+### Known Issues
+
+* Sec+ 1.0 doors with digital wall panel (e.g. 889LM) sometimes do not close after a time-to-close delay. Please watch your door to make sure it closes after TTC delay.
+
 ## v3.3.2 (2025-09-14)
 
 ### What's Changed
