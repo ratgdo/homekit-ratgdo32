@@ -345,7 +345,7 @@ void connectionCallback(int count)
             userConfig->set(cfg_nameserverIP, WiFi.dnsIP().toString().c_str());
 
         // With WiFi connected, we can now initialize the rest of our app.
-        if (strlen(userConfig->getTimeZone()) == 0)
+        if (userConfig->getEnableNTP() && strlen(userConfig->getTimeZone()) == 0)
         {
             // no timeZone set, try and find it automatically
             get_auto_timezone();
