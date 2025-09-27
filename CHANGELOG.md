@@ -4,6 +4,23 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v3.3.4 (2025-09-27)
+
+### What's Changed
+
+* Bugfix: Activity LED blink was not obeying user preferences (e.g. always off). https://github.com/ratgdo/homekit-ratgdo/issues/292
+* Bugfix: Ignore implausibly long door opening / closing times. https://github.com/ratgdo/homekit-ratgdo32/issues/98
+* Bugfix: Room occupancy state not set on motion (ratgdo32 only). https://github.com/ratgdo/homekit-ratgdo32/issues/96
+* Feature: Allow user selection of Syslog facility number (Local0 .. Local7). https://github.com/ratgdo/homekit-ratgdo32/issues/94
+* Feature: Add MDNS service for _http._tcp to allow local network name discovery. https://github.com/ratgdo/homekit-ratgdo32/issues/93
+* Other: Disable HomeKit and garage door communications during OTA firmware update.
+* Other: Miscellaneous stability improvements.
+
+### Known Issues
+
+* Sec+ 1.0 doors with digital wall panel (e.g. 889LM) sometimes do not close after a time-to-close delay. Please watch your door to make sure it closes after TTC delay.
+* Sec+ 1.0 doors with "0x37" digital wall panel (e.g. 389LM) not working.
+
 ## v3.3.3 (2025-09-20)
 
 ### What's Changed
