@@ -4,6 +4,20 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v3.3.5 (2025-09-28)
+
+### What's Changed
+
+* Bugfix: Add error handling for a blank SSID... force boot into Soft AP mode, https://github.com/ratgdo/homekit-ratgdo/issues/295
+* Bugfix: Buffer overrun that caused Improv setup to fail, https://github.com/ratgdo/homekit-ratgdo/issues/298
+* Bugfix: Aog messages that are truncated for exceeding buffer size not null terminated
+* Other: Add simple serial console CLI (when HomeSpan CLI disabled) to allow setting debug level, displaying saved logs and request reboot.
+
+### Known Issues
+
+* Sec+ 1.0 doors with digital wall panel (e.g. 889LM) sometimes do not close after a time-to-close delay. Please watch your door to make sure it closes after TTC delay.
+* Sec+ 1.0 doors with "0x37" digital wall panel (e.g. 389LM) not working.
+
 ## v3.3.4 (2025-09-27)
 
 ### What's Changed
