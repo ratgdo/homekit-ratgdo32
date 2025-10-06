@@ -384,6 +384,9 @@ function setElementsFromStatus(status) {
                 document.getElementById(key).innerHTML = value;
                 document.getElementById("IPaddress").placeholder = value;
                 break;
+            case "mdnsAddress":
+                document.getElementById(key).innerHTML = `<a href="http://${value}" target="_blank">${value}</a>`;
+                break;
             case "ipv6Addresses":
                 document.getElementById("trEnableIPv6").style.display = "table-row";
                 document.getElementById(key).innerHTML = value.split(',').join('\n');

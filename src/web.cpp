@@ -755,6 +755,13 @@ void handle_status()
     JSON_ADD_BOOL("paired", homekit_is_paired());
     JSON_ADD_STR("firmwareVersion", std::string(AUTO_VERSION).c_str());
     JSON_ADD_STR(cfg_localIP, userConfig->getLocalIP());
+#ifdef ESP8266
+    std::string mdns = MDNS.hostname().c_str();
+#else
+    std::string mdns = MDNS.getHostname();
+#endif
+    mdns += ".local";
+    JSON_ADD_STR("mdnsAddress", mdns.c_str());
     JSON_ADD_STR(cfg_subnetMask, userConfig->getSubnetMask());
     JSON_ADD_STR(cfg_gatewayIP, userConfig->getGatewayIP());
     JSON_ADD_STR(cfg_nameserverIP, userConfig->getNameserverIP());
