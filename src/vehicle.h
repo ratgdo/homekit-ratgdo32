@@ -13,8 +13,6 @@
 // C/C++ language includes
 #include <stdint.h>
 
-#define PRESENCE_DETECT_DURATION (5 * 60 * 1000) // how long to calculate presence after door state change
-
 extern void setup_vehicle();
 extern void vehicle_loop();
 
