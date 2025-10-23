@@ -10,7 +10,7 @@
  */
 #ifdef RATGDO32_DISCO
 // C/C++ language includes
-// None
+#include <bitset>
 
 // Arduino includes
 #include <Wire.h>
@@ -45,7 +45,16 @@ static bool vehicleDeparting = false;
 static _millis_t lastChangeAt = 0;
 static _millis_t presence_timer = 0; // to be set by door open action
 static _millis_t vehicle_motion_timer = 0;
+
+static constexpr uint32_t PRESENCE_DETECT_DURATION = (5 * 60 * 1000); // how long to calculate presence after door state change
+#define NEW_LOGIC
+#ifdef NEW_LOGIC
+static constexpr uint32_t PRESENCE_DETECT_THRESHOLD = 5; // minimum percentage of valid samples required to detect vehicle
+static constexpr uint32_t VEHICLE_AVERAGE_OVER = 10;     // vehicle distance measure is averaged over last 10 samples
+static std::bitset<256> distanceInRange;                 // the length of this bitset determines how many out of range readings are required for presence detection to change states
+#else
 static std::vector<int16_t> distanceMeasurement(20, -1);
+#endif
 
 void calculatePresence(int16_t distance);
 
@@ -230,6 +239,34 @@ void calculatePresence(int16_t distance)
     if (distance < MIN_DISTANCE)
         return;
 
+    // Test for change in vehicle presence
+    bool priorVehicleDetected = vehicleDetected;
+
+#ifdef NEW_LOGIC
+    distanceInRange <<= 1;
+    distanceInRange.set(0, distance <= vehicleThresholdDistance);
+    uint32_t percent = distanceInRange.count() * 100 / distanceInRange.size();
+    static uint32_t last_percent = UINT32_MAX;
+
+    if (percent >= PRESENCE_DETECT_THRESHOLD)
+        vehicleDetected = true;
+    else if (percent == 0)
+        vehicleDetected = false;
+
+    if (percent != last_percent)
+    {
+        last_percent = percent;
+        ESP_LOGV(TAG, "Vehicle distance in-range: %d%%\n", percent);
+    }
+
+    // calculate average over sample size to smooth out changes
+    static int16_t average = 0;
+    static uint32_t count = 0;
+    count++;
+    average = average + ((distance - average) / static_cast<int16_t>(std::min(count, VEHICLE_AVERAGE_OVER)));
+    // convert from millimeters to centimeters
+    vehicleDistance = average / 10;
+#else
     bool allInRange = true;
     bool AllOutOfRange = true;
     int32_t sum = 0;
@@ -248,12 +285,12 @@ void calculatePresence(int16_t distance)
     // and convert from millimeters to centimeters
     vehicleDistance = sum / distanceMeasurement.size() / 10;
 
-    // Test for change in vehicle presence
-    bool priorVehicleDetected = vehicleDetected;
     if (allInRange)
         vehicleDetected = true;
     if (AllOutOfRange)
         vehicleDetected = false;
+#endif
+
     if (vehicleDetected != priorVehicleDetected)
     {
         // if change occurs with arrival/departure window then record motion,
