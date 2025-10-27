@@ -4,6 +4,25 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v3.4.0 (2025-11-01)
+
+### What's Changed
+
+* Bugfix: User selected syslog facility not restored on startup. https://github.com/ratgdo/homekit-ratgdo32/issues/116
+* Bugfix: Crash when HomeKit tries to open or close a dry contact door. https://github.com/ratgdo/homekit-ratgdo32/issues/117
+* Bugfix: Sec+2.0 only, not handling packet transmit errors during initialization
+* Feature: Sec+2.0 only, support garage door automatic close after selected delay, [SEE README](https://github.com/ratgdo/homekit-ratgdo32/blob/main/README.md#automatic-close)
+* Feature: Add time-to-close countdown timer to web page
+* Other: Allow user to disable triggering motion from Sec+2.0 wall panel motion sensors
+* Other: Ratgdo-disco only, update vehicle presence algorithm for no vehicle present to match ESPhome
+* Other: Adjust some Info-level log messages to Debug- or Error-level... reduces log clutter at default Info level
+
+### Known Issues
+
+* Sec+ 1.0 doors with digital wall panel (e.g. 889LM) sometimes do not close after a time-to-close delay. Please watch your door to make sure it closes after TTC delay.
+* Sec+ 1.0 doors with "0x37" digital wall panel (e.g. 398LM) not working.  We now detect but will not support them.  Recommend replacing with 889LM panel.
+* When creating automations in Apple Home the garage door may show only lock/unlock and not open/close as triggers.  This is a bug in Apple Home. Workaround is to use the Eve App to create the automation, it will show both options.
+
 ## v3.3.9 (2025-10-24)
 
 ### What's Changed
@@ -12,12 +31,6 @@ All notable changes to `homekit-ratgdo32` will be documented in this file. This 
 * Bugfix: Do not cancel time-to-close if second door close request received. https://github.com/ratgdo/homekit-ratgdo32/issues/112
 * Other: Ratgdo-disco only, update vehicle presence algorithm to match ESPhome https://github.com/ratgdo/esphome-ratgdo/pull/496
 * Other: Additional Serial CLI commands for development and debugging to e.g, provision WiFi SSID and password.
-
-### Known Issues
-
-* Sec+ 1.0 doors with digital wall panel (e.g. 889LM) sometimes do not close after a time-to-close delay. Please watch your door to make sure it closes after TTC delay.
-* Sec+ 1.0 doors with "0x37" digital wall panel (e.g. 398LM) not working.  We now detect but will not support them.  Recommend replacing with 889LM panel.
-* When creating automations in Apple Home the garage door may show only lock/unlock and not open/close as triggers.  This is a bug in Apple Home. Workaround is to use the Eve App to create the automation, it will show both options.
 
 ## v3.3.8 (2025-10-19)
 
