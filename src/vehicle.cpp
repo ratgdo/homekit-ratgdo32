@@ -49,9 +49,12 @@ static _millis_t vehicle_motion_timer = 0;
 static constexpr uint32_t PRESENCE_DETECT_DURATION = (5 * 60 * 1000); // how long to calculate presence after door state change
 #define NEW_LOGIC
 #ifdef NEW_LOGIC
-static constexpr uint32_t PRESENCE_DETECT_THRESHOLD = 5; // minimum percentage of valid samples required to detect vehicle
-static constexpr uint32_t VEHICLE_AVERAGE_OVER = 10;     // vehicle distance measure is averaged over last 10 samples
-static std::bitset<256> distanceInRange;                 // the length of this bitset determines how many out of range readings are required for presence detection to change states
+// increasing these values increases reliability but also increases detection time
+static constexpr uint32_t PRESENCE_DETECTION_ON_THRESHOLD = 5; // Minimum percentage of valid samples required to detect vehicle
+static constexpr uint32_t PRESENCE_DETECTION_OFF_DEBOUNCE = 2; // The number of consecutive iterations that must be 0 before clearing vehicle detected state
+
+static constexpr uint32_t VEHICLE_AVERAGE_OVER = 10; // vehicle distance measure is averaged over last 10 samples
+static std::bitset<256> distanceInRange;             // the length of this bitset determines how many out of range readings are required for presence detection to change states
 #else
 static std::vector<int16_t> distanceMeasurement(20, -1);
 #endif
@@ -135,14 +138,16 @@ void vehicle_loop()
                     // 6:  VL53L4CX_RANGESTATUS_RANGE_VALID_NO_WRAP_CHECK_FAIL
                     switch (distanceData.RangeData[i].RangeStatus)
                     {
-                    case VL53L4CX_RANGESTATUS_WRAP_TARGET_FAIL:
                     case VL53L4CX_RANGESTATUS_TARGET_PRESENT_LACK_OF_SIGNAL:
                         // Unusual, but docs say that range data is valid.
                         ESP_LOGV(TAG, "Unusual VL53L4CX Range Status: %d, Range: %dmm", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
                         // fall through...
                     case VL53L4CX_RANGESTATUS_RANGE_VALID:
+                        // The Range is valid.
                     case VL53L4CX_RANGESTATUS_RANGE_VALID_MIN_RANGE_CLIPPED:
+                        // Target is below minimum detection threshold.
                     case VL53L4CX_RANGESTATUS_RANGE_VALID_NO_WRAP_CHECK_FAIL:
+                        // The Range is valid but the wraparound check has not been done.
                         distance = std::max(distance, distanceData.RangeData[i].RangeMilliMeter);
                         break;
                     case VL53L4CX_RANGESTATUS_OUTOFBOUNDS_FAIL:
@@ -159,8 +164,12 @@ void vehicle_loop()
                         ESP_LOGW(TAG, "Vehicle distance sensor sigma fail. Sensor may be pointing at glass, try repositioning: %dmm", distanceData.RangeData[i].RangeMilliMeter);
                         distance = std::max(distance, distanceData.RangeData[i].RangeMilliMeter);
                         break;
+                    case VL53L4CX_RANGESTATUS_WRAP_TARGET_FAIL:
+                        // Wrapped target - no matching phase in other VCSEL period timing
+                        ESP_LOGV(TAG, "Vehicle distance wrap target fail: %dmm", distanceData.RangeData[i].RangeMilliMeter);
+                        break;
                     default:
-                        ESP_LOGE(TAG, "Unhandled VL53L4CX RANGESTATUS value: %d, Range: %dmm", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
+                        ESP_LOGE(TAG, "Unhandled VL53L4CX Range Status: %d, Range: %dmm", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
                         break;
                     }
                 }
@@ -247,16 +256,26 @@ void calculatePresence(int16_t distance)
     distanceInRange.set(0, distance <= vehicleThresholdDistance);
     uint32_t percent = distanceInRange.count() * 100 / distanceInRange.size();
     static uint32_t last_percent = UINT32_MAX;
+    static uint32_t off_counter = 0;
 
-    if (percent >= PRESENCE_DETECT_THRESHOLD)
+    if (percent >= PRESENCE_DETECTION_ON_THRESHOLD)
         vehicleDetected = true;
-    else if (percent == 0)
-        vehicleDetected = false;
+    else if (percent == 0 && vehicleDetected)
+    {
+        off_counter++;
+        ESP_LOGV(TAG, "Vehicle distance off_counter: %d", off_counter);
+        if (off_counter / distanceInRange.size() >= PRESENCE_DETECTION_OFF_DEBOUNCE)
+        {
+            off_counter = 0;
+            vehicleDetected = false;
+        }
+    }
 
     if (percent != last_percent)
     {
         last_percent = percent;
-        ESP_LOGV(TAG, "Vehicle distance in-range: %d%%\n", percent);
+        off_counter = 0;
+        ESP_LOGV(TAG, "Vehicle distance in-range: %d%%", percent);
     }
 
     // calculate average over sample size to smooth out changes
