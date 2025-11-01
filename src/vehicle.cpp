@@ -217,6 +217,15 @@ void vehicle_loop()
 
 void setArriveDepart(bool vehiclePresent)
 {
+    static bool lastVehiclePresent = false;
+    static bool doneOnce = false;
+
+    if (doneOnce && vehiclePresent == lastVehiclePresent)
+        return;
+
+    // Only continue if the vehicle presence state has changed, or we don't know previous state.
+    lastVehiclePresent = vehiclePresent;
+    doneOnce = true;
     if (vehiclePresent)
     {
         if (!vehicleArriving)
