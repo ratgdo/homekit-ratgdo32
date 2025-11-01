@@ -2894,6 +2894,11 @@ bool set_light(bool value, bool verify)
     }
     return true;
 }
+
+void toggle_light()
+{
+    set_light(!garage_door.light, true);
+}
 #endif // USE_GDOLIB
 
 void manual_recovery()
