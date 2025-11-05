@@ -196,22 +196,22 @@ void vehicle_loop()
 
     _millis_t current_millis = _millis();
     // Vehicle Arriving Clear Timer
-    if (vehicleArriving && (current_millis > vehicle_motion_timer))
+    if (vehicleArriving && (current_millis - vehicle_motion_timer) > MOTION_TIMER_DURATION)
     {
         vehicleArriving = false;
         strlcpy(vehicleStatus, vehicleDetected ? "Parked" : "Away", sizeof(vehicleStatus));
         vehicleStatusChange = true;
-        ESP_LOGI(TAG, "Vehicle status: %s at %s", vehicleStatus, timeString());
-        notify_homekit_vehicle_arriving(vehicleArriving);
+        ESP_LOGI(TAG, "Vehicle %s at %s", vehicleStatus, timeString());
+        notify_homekit_vehicle_arriving(false);
     }
     // Vehicle Departing Clear Timer
-    if (vehicleDeparting && (current_millis > vehicle_motion_timer))
+    if (vehicleDeparting && (current_millis - vehicle_motion_timer) > MOTION_TIMER_DURATION)
     {
         vehicleDeparting = false;
         strlcpy(vehicleStatus, vehicleDetected ? "Parked" : "Away", sizeof(vehicleStatus));
         vehicleStatusChange = true;
-        ESP_LOGI(TAG, "Vehicle status: %s at %s", vehicleStatus, timeString());
-        notify_homekit_vehicle_departing(vehicleDeparting);
+        ESP_LOGI(TAG, "Vehicle %s at %s", vehicleStatus, timeString());
+        notify_homekit_vehicle_departing(false);
     }
 }
 
@@ -232,11 +232,13 @@ void setArriveDepart(bool vehiclePresent)
         {
             vehicleArriving = true;
             vehicleDeparting = false;
-            vehicle_motion_timer = lastChangeAt + MOTION_TIMER_DURATION;
+            vehicle_motion_timer = lastChangeAt;
             strlcpy(vehicleStatus, "Arriving", sizeof(vehicleStatus));
             if (userConfig->getAssistDuration() > 0)
                 laser.flash(userConfig->getAssistDuration() * 1000);
-            notify_homekit_vehicle_arriving(vehicleArriving);
+            vehicleStatusChange = true;
+            ESP_LOGI(TAG, "Vehicle %s at %s", vehicleStatus, timeString());
+            notify_homekit_vehicle_arriving(true);
         }
     }
     else
@@ -245,9 +247,11 @@ void setArriveDepart(bool vehiclePresent)
         {
             vehicleArriving = false;
             vehicleDeparting = true;
-            vehicle_motion_timer = lastChangeAt + MOTION_TIMER_DURATION;
+            vehicle_motion_timer = lastChangeAt;
             strlcpy(vehicleStatus, "Departing", sizeof(vehicleStatus));
-            notify_homekit_vehicle_departing(vehicleDeparting);
+            vehicleStatusChange = true;
+            ESP_LOGI(TAG, "Vehicle %s at %s", vehicleStatus, timeString());
+            notify_homekit_vehicle_departing(true);
         }
     }
 }
@@ -268,7 +272,9 @@ void calculatePresence(int16_t distance)
     static uint32_t off_counter = 0;
 
     if (percent >= PRESENCE_DETECTION_ON_THRESHOLD)
+    {
         vehicleDetected = true;
+    }
     else if (percent == 0 && vehicleDetected)
     {
         off_counter++;
@@ -322,18 +328,19 @@ void calculatePresence(int16_t distance)
     if (vehicleDetected != priorVehicleDetected)
     {
         // if change occurs with arrival/departure window then record motion,
-        // presence timer is set when door opens.
+        // presence timer is set when door opens or closes.
         lastChangeAt = _millis();
-        if (lastChangeAt < presence_timer)
+        if (presence_timer && ((lastChangeAt - presence_timer) < PRESENCE_DETECT_DURATION))
         {
+            presence_timer = 0;
             setArriveDepart(vehicleDetected);
         }
         else
         {
             strlcpy(vehicleStatus, vehicleDetected ? "Parked" : "Away", sizeof(vehicleStatus));
+            ESP_LOGI(TAG, "Vehicle %s at %s", vehicleStatus, timeString());
         }
         vehicleStatusChange = true;
-        ESP_LOGI(TAG, "Vehicle status: %s at %s", vehicleStatus, timeString());
         notify_homekit_vehicle_occupancy(vehicleDetected);
     }
 }
@@ -344,7 +351,7 @@ void doorOpening()
     if (!vehicle_setup_done)
         return;
 
-    presence_timer = _millis() + PRESENCE_DETECT_DURATION;
+    presence_timer = _millis();
 }
 
 // if notified of door closing, check for arrived/departed vehicle within time window (looking back)
@@ -353,10 +360,11 @@ void doorClosing()
     if (!vehicle_setup_done)
         return;
 
-    if ((_millis() > PRESENCE_DETECT_DURATION) && ((_millis() - lastChangeAt) < PRESENCE_DETECT_DURATION))
+    presence_timer = _millis();
+    // On door closing, the vehicle status change could already have happened...
+    if (lastChangeAt && ((presence_timer - lastChangeAt) < PRESENCE_DETECT_DURATION))
     {
         setArriveDepart(vehicleDetected);
-        ESP_LOGI(TAG, "Vehicle status: %s at %s", vehicleStatus, timeString());
     }
 }
 #endif // RATGDO32_DISCO
