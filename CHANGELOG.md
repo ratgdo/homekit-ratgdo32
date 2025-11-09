@@ -4,6 +4,24 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v3.4.1 (2025-11-??)
+
+### What's Changed
+
+* Bugfix: Vehicle departing motion sensor may not trigger correctly (ratgdo32-disco only) 
+* Feature: Add a warning and countdown timer to web page when Sec+2.0 doors have automatic door close (TTC) active
+* Other: Display "Off" instead of "0" when settings sliders are set to zero seconds/minutes
+* Other: Improved web page design for iPhone and iPad devices
+* Other: Attempt to recover from out-of-sync Sec+2.0 rolling code https://github.com/ratgdo/homekit-ratgdo/issues/315
+* Other: HomeSpan library updated to version 2.1.6 (ratgdo32 only)
+* Other: Various log message cleanup to make debugging easier and reduce log clutter at default Info level
+
+### Known Issues
+
+* Sec+ 1.0 doors with digital wall panel (e.g. 889LM) sometimes do not close after a time-to-close delay. Please watch your door to make sure it closes after TTC delay.
+* Sec+ 1.0 doors with "0x37" digital wall panel (e.g. 398LM) not working.  We now detect but will not support them.  Recommend replacing with 889LM panel.
+* When creating automations in Apple Home the garage door may show only lock/unlock and not open/close as triggers.  This is a bug in Apple Home. Workaround is to use the Eve App to create the automation, it will show both options.
+
 ## v3.4.0 (2025-11-01)
 
 ### What's Changed
@@ -16,12 +34,6 @@ All notable changes to `homekit-ratgdo32` will be documented in this file. This 
 * Other: Allow user to disable triggering motion from Sec+2.0 wall panel motion sensors
 * Other: Ratgdo-disco only, update vehicle presence algorithm for no vehicle present to match ESPhome
 * Other: Adjust some Info-level log messages to Debug- or Error-level... reduces log clutter at default Info level
-
-### Known Issues
-
-* Sec+ 1.0 doors with digital wall panel (e.g. 889LM) sometimes do not close after a time-to-close delay. Please watch your door to make sure it closes after TTC delay.
-* Sec+ 1.0 doors with "0x37" digital wall panel (e.g. 398LM) not working.  We now detect but will not support them.  Recommend replacing with 889LM panel.
-* When creating automations in Apple Home the garage door may show only lock/unlock and not open/close as triggers.  This is a bug in Apple Home. Workaround is to use the Eve App to create the automation, it will show both options.
 
 ## v3.3.9 (2025-10-24)
 
