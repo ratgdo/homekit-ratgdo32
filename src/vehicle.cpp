@@ -31,8 +31,7 @@ bool vehicle_setup_error = false;
 
 VL53L4CX distanceSensor(&Wire, SENSOR_SHUTDOWN_PIN);
 
-static const int MIN_DISTANCE = 25;   // ignore bugs crawling on the distance sensor
-static const int MAX_DISTANCE = 4500; // 4.5 meters, maximum range of the sensor
+static const int32_t MIN_DISTANCE = 25; // ignore bugs crawling on the distance sensor
 
 int16_t vehicleDistance = 0;
 int16_t vehicleThresholdDistance = 1000; // set by user
@@ -47,19 +46,12 @@ static _millis_t presence_timer = 0; // to be set by door open action
 static _millis_t vehicle_motion_timer = 0;
 
 static constexpr uint32_t PRESENCE_DETECT_DURATION = (5 * 60 * 1000); // how long to calculate presence after door state change
-#define NEW_LOGIC
-#ifdef NEW_LOGIC
 // increasing these values increases reliability but also increases detection time
 static constexpr uint32_t PRESENCE_DETECTION_ON_THRESHOLD = 5; // Minimum percentage of valid samples required to detect vehicle
 static constexpr uint32_t PRESENCE_DETECTION_OFF_DEBOUNCE = 2; // The number of consecutive iterations that must be 0 before clearing vehicle detected state
-
-static constexpr uint32_t VEHICLE_AVERAGE_OVER = 10; // vehicle distance measure is averaged over last 10 samples
-static std::bitset<256> distanceInRange;             // the length of this bitset determines how many out of range readings are required for presence detection to change states
-#else
-static std::vector<int16_t> distanceMeasurement(20, -1);
-#endif
-
-void calculatePresence(int16_t distance);
+static constexpr int32_t VEHICLE_AVERAGE_OVER = 50;            // vehicle distance measure is averaged over last X samples
+static std::bitset<256> distanceInRange;                       // the length of this bitset determines how many out of range readings are required for presence detection to change states
+void calculatePresence(int32_t distance);
 
 void setup_vehicle()
 {
@@ -121,7 +113,7 @@ void vehicle_loop()
         {
             if (distanceData.NumberOfObjectsFound > 0)
             {
-                int16_t distance = -1;
+                int32_t distance = -1;
                 // Multiple objects could be found. During testing if I wave my hand in front of the
                 // sensor I get two distances... that of my hand, and that of the background.
                 // We will only record the furthest away.
@@ -136,11 +128,12 @@ void vehicle_loop()
                     // Documentation also suggests that valid data can be returned with:
                     // 3:  VL53L4CX_RANGESTATUS_RANGE_VALID_MIN_RANGE_CLIPPED
                     // 6:  VL53L4CX_RANGESTATUS_RANGE_VALID_NO_WRAP_CHECK_FAIL
+                    int32_t reportedRange = static_cast<int32_t>(distanceData.RangeData[i].RangeMilliMeter);
                     switch (distanceData.RangeData[i].RangeStatus)
                     {
                     case VL53L4CX_RANGESTATUS_TARGET_PRESENT_LACK_OF_SIGNAL:
                         // Unusual, but docs say that range data is valid.
-                        ESP_LOGV(TAG, "Unusual VL53L4CX Range Status: %d, Range: %dmm", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
+                        ESP_LOGV(TAG, "Unusual VL53L4CX Range Status: %d, Range: %dmm", distanceData.RangeData[i].RangeStatus, reportedRange);
                         // fall through...
                     case VL53L4CX_RANGESTATUS_RANGE_VALID:
                         // The Range is valid.
@@ -148,37 +141,32 @@ void vehicle_loop()
                         // Target is below minimum detection threshold.
                     case VL53L4CX_RANGESTATUS_RANGE_VALID_NO_WRAP_CHECK_FAIL:
                         // The Range is valid but the wraparound check has not been done.
-                        distance = std::max(distance, distanceData.RangeData[i].RangeMilliMeter);
+                        distance = std::max(distance, reportedRange);
                         break;
                     case VL53L4CX_RANGESTATUS_OUTOFBOUNDS_FAIL:
-                        // Target below threshold... assume no object.
-                        ESP_LOGV(TAG, "Vehicle distance out of bounds: %dmm", distanceData.RangeData[i].RangeMilliMeter);
-                        distance = MAX_DISTANCE;
+                        // Target below threshold... we will ignore.
+                        ESP_LOGV(TAG, "Vehicle distance out of bounds: %dmm", reportedRange);
                         break;
                     case VL53L4CX_RANGESTATUS_RANGE_INVALID:
                         // Typically a negative value... we will ignore.
-                        ESP_LOGV(TAG, "Vehicle distance range invalid: %dmm", distanceData.RangeData[i].RangeMilliMeter);
+                        ESP_LOGV(TAG, "Vehicle distance range invalid: %dmm", reportedRange);
                         break;
                     case VL53L4CX_RANGESTATUS_SIGMA_FAIL:
                         // Sigma fail indicates sensor has low confidence in the range value returned.  Sensor may be pointed at glass.
-                        ESP_LOGW(TAG, "Vehicle distance sensor sigma fail. Sensor may be pointing at glass, try repositioning: %dmm", distanceData.RangeData[i].RangeMilliMeter);
-                        distance = std::max(distance, distanceData.RangeData[i].RangeMilliMeter);
+                        ESP_LOGW(TAG, "Vehicle distance sensor sigma fail. Sensor may be pointing at glass, try repositioning: %dmm", reportedRange);
+                        distance = std::max(distance, reportedRange);
                         break;
                     case VL53L4CX_RANGESTATUS_WRAP_TARGET_FAIL:
                         // Wrapped target - no matching phase in other VCSEL period timing
-                        ESP_LOGV(TAG, "Vehicle distance wrap target fail: %dmm", distanceData.RangeData[i].RangeMilliMeter);
+                        ESP_LOGV(TAG, "Vehicle distance wrap target fail: %dmm", reportedRange);
                         break;
                     default:
-                        ESP_LOGE(TAG, "Unhandled VL53L4CX Range Status: %d, Range: %dmm", distanceData.RangeData[i].RangeStatus, distanceData.RangeData[i].RangeMilliMeter);
+                        ESP_LOGE(TAG, "Unhandled VL53L4CX Range Status: %d, Range: %dmm", distanceData.RangeData[i].RangeStatus, reportedRange);
                         break;
                     }
                 }
+                // If no distance is set in above switch statement, we calculate presence based on the most recent set.
                 calculatePresence(distance);
-            }
-            else
-            {
-                // No objects found, assume maximum range for purpose of calculating vehicle presence.
-                calculatePresence(MAX_DISTANCE);
             }
             // And start the sensor measuring again...
             distanceSensor.VL53L4CX_ClearInterruptAndStartMeasurement();
@@ -256,7 +244,7 @@ void setArriveDepart(bool vehiclePresent)
     }
 }
 
-void calculatePresence(int16_t distance)
+void calculatePresence(int32_t distance)
 {
     if (distance < MIN_DISTANCE)
         return;
@@ -264,7 +252,6 @@ void calculatePresence(int16_t distance)
     // Test for change in vehicle presence
     bool priorVehicleDetected = vehicleDetected;
 
-#ifdef NEW_LOGIC
     distanceInRange <<= 1;
     distanceInRange.set(0, distance <= vehicleThresholdDistance);
     uint32_t percent = distanceInRange.count() * 100 / distanceInRange.size();
@@ -294,36 +281,20 @@ void calculatePresence(int16_t distance)
     }
 
     // calculate average over sample size to smooth out changes
-    static int16_t average = 0;
-    static uint32_t count = 0;
-    count++;
-    average = average + ((distance - average) / static_cast<int16_t>(std::min(count, VEHICLE_AVERAGE_OVER)));
+    static double average = 0;
+    static int32_t count = 0;
+    if (count < VEHICLE_AVERAGE_OVER)
+        count++;
+    // must use double float math, integer math does not work
+    average = average + (static_cast<double>(distance) - average) / count;
     // convert from millimeters to centimeters
-    vehicleDistance = average / 10;
-#else
-    bool allInRange = true;
-    bool AllOutOfRange = true;
-    int32_t sum = 0;
-
-    distanceMeasurement.insert(distanceMeasurement.begin(), distance);
-    distanceMeasurement.pop_back();
-    for (int16_t value : distanceMeasurement)
+    vehicleDistance = static_cast<int16_t>(std::round(average / 10));
+    static int16_t lastDistance = 0;
+    if (vehicleDistance != lastDistance)
     {
-        if (value >= vehicleThresholdDistance || value == -1)
-            allInRange = false;
-        if (value < vehicleThresholdDistance && value != -1)
-            AllOutOfRange = false;
-        sum += value;
+        lastDistance = vehicleDistance;
+        ESP_LOGD(TAG, "Vehicle distance: %dcm (average over %d samples), current measured: %dcm", vehicleDistance, count, distance / 10);
     }
-    // calculate average of all distances... to smooth out changes
-    // and convert from millimeters to centimeters
-    vehicleDistance = sum / distanceMeasurement.size() / 10;
-
-    if (allInRange)
-        vehicleDetected = true;
-    if (AllOutOfRange)
-        vehicleDetected = false;
-#endif
 
     if (vehicleDetected != priorVehicleDetected)
     {
