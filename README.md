@@ -1,13 +1,6 @@
 > [!IMPORTANT]
 > This firmware is for the ESP32-based ratgdo32 and ratgdo32-disco series boards. It will not work with the ESP8266-based ratgdo v2.5xi boards. HomeKit support for for the original v2.5xi devices can be found [here](https://github.com/ratgdo/homekit-ratgdo)
 
-> [!NOTE]
-> Version 3.3.0 is a minor upgrade for ESP32-based ratgdo boards. Almost all source files for the ESP8266 and ESP32 versions of ratgdo have been merged which results in minor changes to the underlying features and function for ESP32 versions. The main benefit is for the original ESP8266-based ratgdo boards.
->
->While source files have been merged there remain significant differences between the two board types, most notably in the library used to communicate with HomeKit which are completely different.
->
->* Before an Over-The-Air (OTA) upgrade it is good to first reboot your current version.
-
 # What is HomeKit-RATGDO?
 
 HomeKit-ratgdo32 is alternative firmware for the ratgdo32-series WiFi control boards that works
@@ -32,6 +25,7 @@ For full history please see [CHANGELOG.md](https://github.com/ratgdo/homekit-rat
 
 ### Known Issues
 
+- ESP32 (ratgdo32) only... Some users may get an error during OTA upload that firmware is too large for the OTA partition. See [Upgrade failures](#upgrade-failures) below for work-around.
 - Security+ 1.0 doors with digital wall panel (e.g. LiftMaster 889LM) sometimes do not close after a time-to-close delay. Please watch your door to make sure it closes after TTC delay.
 - Security+ 1.0 doors with "0x37" digital wall panel (e.g. LiftMaster 398LM) not working. We detect but do not support them. Recommend replacing with 889LM panel.
 - When creating automations in Apple Home the garage door may show only lock/unlock and not open/close as triggers. This is a bug in Apple Home. Workaround is to use the Eve App to create the automation, it will show both options.
@@ -335,6 +329,7 @@ This button erases all saved settings, including WiFi, HomeKit unique IDs. The d
 
 Over-the-Air (OTA) updates are supported, either directly from GitHub or by selecting a firmware binary file on your computer. Follow the steps below to update:
 
+- Before an Over-The-Air (OTA) upgrade it is good to first reboot your current version.
 - Navigate to your ratgdo's ip address where you will see the devices webpage, Click `Firmware Update`
 
 [![ota](docs/ota/ota.png)](#ota)
@@ -348,12 +343,15 @@ Over-the-Air (OTA) updates are supported, either directly from GitHub or by sele
     [![firmware](docs/ota/firmware.png)](#firmware)
   - Upload the firmware that was downloaded in step 1, by clicking `Choose File` under `Update from local file`.
   - Click `Update` to proceed with upgrading.
-  - Once the update is Successful, ratgdo will now Reboot.
-  - After a firmware update, you _may_ have to go through the process of re-pairing your device to HomeKit. If your device is showing up as unresponsive in HomeKit, please try un-pairing, reboot, and re-pairing.
+- Once the update is Successful, ratgdo will now Reboot.
+- The first time you open the ratgdo webpage after a upgrade it is a good idea to reload the browser page while holding down the shift key. This forces the browser to reload pages from the server rather than using a local cached copy.
+- After a firmware update, you _may_ have to go through the process of re-pairing your device to HomeKit. If your device is showing up as unresponsive in HomeKit, please try un-pairing, reboot, and re-pairing.
 
 Automatic updates are not supported (and probably will never be), so set a reminder to check back again in the future.
 
 ## Upgrade failures
+
+If you get an error message stating that the firmware size is too large for the OTA partition then you must install the firmware using USB Serial method described in [How do I install it](#how-do-i-install-it) above. This error may be a symptom of having installed non-HomeKit firmware onto the ratgdo device.
 
 If the OTA firmware update fails the following message will be displayed and you are given the option to reboot or cancel. If you reboot, the device will reload the same firmware as previously installed. If you cancel then the device remains open, but the HomeKit service will be shutdown. This may be helpful for debugging, see [Troubleshooting](#troubleshooting) section below.
 
