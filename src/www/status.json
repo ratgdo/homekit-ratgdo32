@@ -67,5 +67,7 @@
   "TTClight": true,
   "obstFromStatus": true,
   "occupancyDuration": 300,
+  "lightHomeKit": true,
+  "motionHomeKit": true,
   "garageSec1Emulated": false
 }
