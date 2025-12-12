@@ -194,11 +194,17 @@ Setting the slider to zero, and saving the settings, will cancel the garage door
 > [!WARNING]
 > Automatic close will not work if on battery power or if the obstruction sensors are misaligned. This feature is NOT intended to be the primary method of closing the door. **A keyless entry should be installed in the event of an accidental lock out while using this feature.**
 
+### Light
+
+On ratgdo32 devices you can select whether to create a HomeKit light switch accessory to control the garage door opener lights.  This is enabled by default.
+
 ### Motion Triggers
 
 This allows you to select what causes the HomeKit motion sensor accessory to trigger. The default is to use the motion sensor built into the garage door opener, if it exists. The presence of a motion sensor is detected automatically... based on detecting motion in the garage. If your door opener does not have a motion sensor then the checkbox will show as un-checked and un-selectable.
 
 Motion can also be triggered by the obstruction sensor or by a user pressing the door, light or lock buttons on the wall panel. This is disabled by default but may be selected on the web page.
+
+On ratgdo32 devices you can select whether to create a HomeKit motion sensor accessory.  This is enabled by default.
 
 ### Occupancy Duration _(not supported on ratgdo v2.5 boards)_
 
