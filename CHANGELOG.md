@@ -9,6 +9,7 @@ All notable changes to `homekit-ratgdo32` will be documented in this file. This 
 ### What's Changed
 
 * Feature: Query the state of emergency back up battery on boot and every 55 minutes (Sec+2.0 only).
+* Feature: User can select whether to create HomeKit accessories for motion sensor and light switch (ratgdo32 only). With thanks to https://github.com/DaveLinger
 * Bugfix: If firmware upload error detected before update begins, do not require a reboot.
 * Other: Average vehicle distance over larger sample size (now 50) to smooth out spurious readings (ratgdo32-disco only).
 
