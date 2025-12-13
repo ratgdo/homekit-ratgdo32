@@ -13,6 +13,167 @@ var evtSource = undefined;      // for Server Sent Events (SSE)
 var delayStatusFn = [];         // to keep track of possible checkStatus timeouts
 const clientUUID = uuidv4();    // uniquely identify this session
 var rebootSeconds = 10;         // How long to wait before reloading page after reboot
+var peerPollTimer = null;       // polling timer for /peers.json
+const peerPollInterval = 20000; // 20 second poll cadence
+var peerDrawerOpen = false;
+var peerCache = null;
+var peerSelfId = null;
+var peerActionsBound = false;
+const peerCredentialStorageKey = "ratgdoPeerCredentials";
+var peerCredentialStore = {};
+
+const htmlEscape = (value) => {
+    if (value === undefined || value === null) {
+        return "";
+    }
+    return String(value).replace(/[&<>"']/g, (char) => {
+        switch (char) {
+            case "&":
+                return "&amp;";
+            case "<":
+                return "&lt;";
+            case ">":
+                return "&gt;";
+            case '"':
+                return "&quot;";
+            case "'":
+                return "&#39;";
+            default:
+                return char;
+        }
+    });
+};
+function loadPeerCredentialStore() {
+    try {
+        const stored = localStorage.getItem(peerCredentialStorageKey);
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (parsed && typeof parsed === "object") {
+                return parsed;
+            }
+        }
+    }
+    catch (error) {
+        console.warn(`Unable to parse stored peer credentials: ${error}`);
+    }
+    return {};
+}
+
+function persistPeerCredentialStore() {
+    try {
+        localStorage.setItem(peerCredentialStorageKey, JSON.stringify(peerCredentialStore));
+    }
+    catch (error) {
+        console.warn(`Unable to persist peer credentials: ${error}`);
+    }
+}
+
+function getPeerAuthRecord(peerId) {
+    if (!peerId) {
+        return null;
+    }
+    return peerCredentialStore[peerId] || null;
+}
+
+function getPeerAuthToken(peerId) {
+    const record = getPeerAuthRecord(peerId);
+    return record ? record.token : null;
+}
+
+function savePeerCredential(peerId, username, password) {
+    if (!peerId || !username || password === null || password === undefined) {
+        return null;
+    }
+    try {
+        const token = btoa(`${username}:${password}`);
+        peerCredentialStore[peerId] = { username, token };
+        persistPeerCredentialStore();
+        return token;
+    }
+    catch (error) {
+        console.warn(`Unable to encode credentials for ${peerId}: ${error}`);
+        return null;
+    }
+}
+
+function clearPeerCredential(peerId) {
+    if (peerCredentialStore[peerId]) {
+        delete peerCredentialStore[peerId];
+        persistPeerCredentialStore();
+    }
+}
+
+async function promptPeerCredentials(peerId, reason = "") {
+    const record = getPeerAuthRecord(peerId);
+    const prefix = reason ? `${reason}\n` : "";
+    const username = window.prompt(`${prefix}Enter username for ${peerId}`, record?.username || "admin");
+    if (username === null) {
+        return null;
+    }
+    const password = window.prompt(`Enter password for ${peerId}`);
+    if (password === null) {
+        return null;
+    }
+    return savePeerCredential(peerId, username, password);
+}
+
+peerCredentialStore = loadPeerCredentialStore();
+
+const normalizedState = (value) => String(value || "").trim().toLowerCase();
+
+const peerDoorActionMeta = (doorState) => {
+    const state = normalizedState(doorState);
+    const openStates = ["open", "opening"];
+    const shouldOpen = !openStates.includes(state);
+    return {
+        label: shouldOpen ? "Open Door" : "Close Door",
+        value: shouldOpen ? "1" : "0",
+    };
+};
+
+const peerLockActionMeta = (lockState) => {
+    const enabled = normalizedState(lockState) === "enabled";
+    return {
+        label: enabled ? "Disable Remotes" : "Enable Remotes",
+        value: enabled ? "1" : "0",
+    };
+};
+
+const peerLightActionMeta = (lightState) => {
+    const lightOn = normalizedState(lightState) === "on";
+    return {
+        label: lightOn ? "Light Off" : "Light On",
+        value: lightOn ? "0" : "1",
+    };
+};
+
+const peerActionButtonMarkup = (peerId, isSelf, key, actionMeta) => {
+    const safePeerId = htmlEscape(peerId);
+    const safeLabel = htmlEscape(actionMeta.label);
+    return `<button type="button" class="peer-action-btn" data-peer-id="${safePeerId}" data-key="${key}" data-value="${actionMeta.value}" data-self="${isSelf ? "true" : "false"}">${safeLabel}</button>`;
+};
+
+const peerFeedbackElementId = (peerId) => `peer-feedback-${peerDomId(peerId)}`;
+
+const setPeerFeedback = (peerId, message, isError = false) => {
+    const elem = document.getElementById(peerFeedbackElementId(peerId));
+    if (!elem) {
+        return;
+    }
+    elem.textContent = message || "";
+    if (isError) {
+        elem.classList.add("error");
+    } else {
+        elem.classList.remove("error");
+    }
+};
+
+const peerDomId = (value) => {
+    if (!value) {
+        return "self";
+    }
+    return String(value).replace(/[^a-z0-9_-]/gi, "-");
+};
 var setGDOcmds = {              // setGDO commands that are not sent from server nor exist in HTML
     credentials: "",
     updateUnderway: "",
@@ -64,7 +225,7 @@ async function loadTimeZones() {
                 console.warn(`Promise rejection error fetching time zone information: ${error}`);
                 throw ("Promise rejection");
             });
-        if (!response.ok || response.status !== 200) {
+        if (!response.ok) {
             console.warn(`Error RC ${response.status} fetching time zone information.`);
             throw ("Error RC");
         }
@@ -725,6 +886,271 @@ function setElementsFromStatus(status) {
                     console.warn(`Server sent unrecognized status: ${key} : ${value}`);
                 }
         }
+    }
+}
+
+function initPeerUI() {
+    const banner = document.getElementById("peer-banner");
+    const bannerBtn = document.getElementById("peer-banner-button");
+    const drawer = document.getElementById("peer-drawer");
+    const overlay = document.getElementById("peer-drawer-overlay");
+    const closeBtn = document.getElementById("peer-drawer-close");
+    if (!(banner && bannerBtn && drawer && overlay && closeBtn)) {
+        return;
+    }
+    banner.addEventListener("click", () => {
+        if (banner.style.display !== "none") {
+            openPeerDrawer();
+        }
+    });
+    bannerBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        openPeerDrawer();
+    });
+    closeBtn.addEventListener("click", closePeerDrawer);
+    overlay.addEventListener("click", closePeerDrawer);
+    document.addEventListener("visibilitychange", handlePeerVisibilityChange);
+    ensurePeerActionHandler();
+    fetchPeers();
+}
+
+function handlePeerVisibilityChange() {
+    if (document.visibilityState === "visible") {
+        fetchPeers();
+    } else {
+        if (peerPollTimer) {
+            clearTimeout(peerPollTimer);
+            peerPollTimer = null;
+        }
+    }
+}
+
+function schedulePeerPoll() {
+    if (peerPollTimer) {
+        clearTimeout(peerPollTimer);
+    }
+    peerPollTimer = setTimeout(fetchPeers, peerPollInterval);
+}
+
+async function fetchPeers() {
+    try {
+        const response = await fetch("peers.json", {
+            method: "GET",
+            cache: "no-cache",
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        peerCache = await response.json();
+        peerSelfId = (peerCache?.self?.id) || (peerCache?.self?.ip) || null;
+        updatePeerBanner(peerCache);
+        if (peerDrawerOpen) {
+            renderPeerDrawer(peerCache);
+        }
+    }
+    catch (error) {
+        console.warn(`Unable to load peers.json: ${error}`);
+    }
+    finally {
+        schedulePeerPoll();
+    }
+}
+
+function updatePeerBanner(peerData) {
+    const banner = document.getElementById("peer-banner");
+    const bannerText = document.getElementById("peer-banner-text");
+    if (!banner || !peerData) {
+        return;
+    }
+    const peerCount = peerData.peers ? peerData.peers.length : 0;
+    if (peerCount > 0) {
+        banner.style.display = "flex";
+        bannerText.innerHTML = `Other RATGDOs detected (${peerCount})`;
+    } else {
+        banner.style.display = "none";
+        if (peerDrawerOpen) {
+            closePeerDrawer();
+        }
+    }
+}
+
+function renderPeerDrawer(peerData) {
+    const list = document.getElementById("peer-list");
+    if (!list || !peerData) {
+        return;
+    }
+    let cards = "";
+    if (peerData.self) {
+        cards += peerCardMarkup(peerData.self, true);
+    }
+    if (peerData.peers && peerData.peers.length) {
+        peerData.peers.forEach(peer => {
+            cards += peerCardMarkup(peer, false);
+        });
+    }
+    if (!cards) {
+        cards = '<p class="peer-empty">No peers discovered yet.</p>';
+    }
+    list.innerHTML = cards;
+    ensurePeerActionHandler();
+}
+
+function peerCardMarkup(info, isSelf) {
+    const name = info.name || info.id || "RATGDO";
+    const door = info.door || "Unknown";
+    const lock = info.lock || "Unknown";
+    const ip = info.ip || info.host || "Unknown";
+    const firmware = info.firmware || "—";
+    const light = (info.lightOn === true || info.lightOn === "true") ? "On" : "Off";
+    const rssi = (info.rssi || info.rssi === 0) ? `${info.rssi} dBm` : "n/a";
+    const badge = isSelf ? '<span class="peer-badge">This Device</span>' : "";
+    const peerId = info.id || info.host || info.ip || name;
+    const doorAction = peerDoorActionMeta(door);
+    const lockAction = peerLockActionMeta(lock);
+    const lightAction = peerLightActionMeta(light);
+    // Laser button logic
+    const hasLaser = info.hasLaser === true || info.hasLaser === "true";
+    const laserAction = hasLaser ? {
+        label: (info.assistLaser === true || info.assistLaser === "true") ? "Laser Off" : "Laser On",
+        value: (info.assistLaser === true || info.assistLaser === "true") ? "0" : "1"
+    } : null;
+    const safeName = htmlEscape(name);
+    const safeIp = htmlEscape(ip);
+    const safeFirmware = htmlEscape(firmware);
+    const safeRssi = htmlEscape(rssi);
+    const safeDoor = htmlEscape(door);
+    const safeLock = htmlEscape(lock);
+    const safeLight = htmlEscape(light);
+    return `
+        <div class="peer-card" data-peer-id="${htmlEscape(peerId)}">
+            <h4>${safeName}${badge}</h4>
+            <div class="peer-meta">
+                <span>${safeIp}</span>
+                <span>FW ${safeFirmware}</span>
+                <span>${safeRssi}</span>
+            </div>
+            <div class="peer-state">
+                <span>Door: <strong>${safeDoor}</strong></span>
+                <span>Remotes: <strong>${safeLock}</strong></span>
+                <span>Light: <strong>${safeLight}</strong></span>
+            </div>
+            <div class="peer-actions">
+                ${peerActionButtonMarkup(peerId, isSelf, "garageDoorState", doorAction)}
+                ${peerActionButtonMarkup(peerId, isSelf, "garageLockState", lockAction)}
+                ${peerActionButtonMarkup(peerId, isSelf, "garageLightOn", lightAction)}
+                ${laserAction ? peerActionButtonMarkup(peerId, isSelf, "assistLaser", laserAction) : ""}
+            </div>
+            <p class="peer-feedback" id="${peerFeedbackElementId(peerId)}"></p>
+        </div>`;
+}
+
+function openPeerDrawer() {
+    const drawer = document.getElementById("peer-drawer");
+    const overlay = document.getElementById("peer-drawer-overlay");
+    if (!(drawer && overlay)) {
+        return;
+    }
+    drawer.classList.add("open");
+    drawer.setAttribute("aria-hidden", "false");
+    overlay.classList.add("visible");
+    peerDrawerOpen = true;
+    if (peerCache) {
+        renderPeerDrawer(peerCache);
+    }
+}
+
+function closePeerDrawer() {
+    const drawer = document.getElementById("peer-drawer");
+    const overlay = document.getElementById("peer-drawer-overlay");
+    if (!(drawer && overlay)) {
+        return;
+    }
+    drawer.classList.remove("open");
+    drawer.setAttribute("aria-hidden", "true");
+    overlay.classList.remove("visible");
+    peerDrawerOpen = false;
+}
+
+function ensurePeerActionHandler() {
+    if (peerActionsBound) {
+        return;
+    }
+    const list = document.getElementById("peer-list");
+    if (!list) {
+        return;
+    }
+    peerActionsBound = true;
+    list.addEventListener("click", async (event) => {
+        const btn = event.target.closest(".peer-action-btn");
+        if (!btn) {
+            return;
+        }
+        event.preventDefault();
+        const peerId = btn.getAttribute("data-peer-id") || peerSelfId || "self";
+        const key = btn.getAttribute("data-key");
+        const value = btn.getAttribute("data-value");
+        const isSelfAction = btn.getAttribute("data-self") === "true";
+        await processPeerAction(btn, peerId, key, value, isSelfAction);
+    });
+}
+
+async function forwardPeerCommand(peerId, key, value) {
+    const params = new URLSearchParams({ target: peerId, key, value });
+    const token = getPeerAuthToken(peerId);
+    if (token) {
+        params.append("auth", token);
+    }
+    const response = await fetch("peer-command", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: params,
+    });
+    const text = await response.text();
+    return { response, text };
+}
+
+async function processPeerAction(btn, peerId, key, value, isSelfAction) {
+    if (!peerId || !key) {
+        return;
+    }
+    setPeerFeedback(peerId, "Sending...", false);
+    btn.disabled = true;
+    try {
+        if (isSelfAction || (peerSelfId && peerId === peerSelfId)) {
+            await setGDO(key, value);
+            setPeerFeedback(peerId, "Command sent to this RATGDO");
+        } else {
+            let prompted = false;
+            while (true) {
+                const { response, text } = await forwardPeerCommand(peerId, key, value);
+                if (response.ok) {
+                    setPeerFeedback(peerId, text || "Peer acknowledged command");
+                    break;
+                }
+                if (response.status === 401) {
+                    if (prompted) {
+                        clearPeerCredential(peerId);
+                        throw new Error(text || "Peer responded 401");
+                    }
+                    const token = await promptPeerCredentials(peerId, "Peer requires authentication.");
+                    if (token) {
+                        prompted = true;
+                        continue;
+                    }
+                    throw new Error("Authentication canceled");
+                }
+                if (response.status === 403) {
+                    clearPeerCredential(peerId);
+                    throw new Error(text || "Peer responded 403");
+                }
+                throw new Error(text || `Peer responded ${response.status}`);
+            }
+        }
+        setTimeout(fetchPeers, 750);
+    } catch (error) {
+        setPeerFeedback(peerId, error.message || "Command failed", true);
+    } finally {
+        btn.disabled = false;
     }
 }
 

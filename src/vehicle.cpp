@@ -1,3 +1,4 @@
+#include "utilities.h"
 /****************************************************************************
  * RATGDO HomeKit for ESP32
  * https://ratcloud.llc
@@ -41,7 +42,7 @@ bool vehicleStatusChange = false;
 static bool vehicleDetected = false;
 static bool vehicleArriving = false;
 static bool vehicleDeparting = false;
-static _millis_t lastChangeAt = 0;
+_millis_t lastChangeAt = 0;
 static _millis_t presence_timer = 0; // to be set by door open action
 static _millis_t vehicle_motion_timer = 0;
 

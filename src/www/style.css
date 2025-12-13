@@ -1,3 +1,59 @@
+@media (max-width: 600px) {
+    .header {
+        margin-bottom: 12px;
+        position: static !important;
+        z-index: auto !important;
+    }
+
+    .peer-banner {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: center;
+        gap: 0;
+        font-size: 1.1em;
+        padding: 6px 0;
+        text-align: center;
+        word-break: break-word;
+        background: #ffcc4d;
+        color: #222;
+        font-weight: bold;
+        border-radius: 0;
+        box-shadow: none;
+        margin: 0 0 4px 0;
+        border: 2px solid #e6b800;
+        width: 100vw;
+        max-width: 100vw;
+        left: 0;
+        right: 0;
+        position: relative;
+        z-index: 1;
+        box-sizing: border-box;
+        margin-top: 0;
+        margin-bottom: 0;
+    }
+
+    #main-page {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+
+    .peer-banner button {
+        width: 100%;
+        min-width: 0;
+        font-size: 1em;
+        padding: 10px 0;
+        margin: 0;
+        box-sizing: border-box;
+        background: #f5b800;
+        color: #222;
+        font-weight: bold;
+        border-radius: 0;
+        border: none;
+        box-shadow: none;
+    }
+}
+
 /*************************************************************
  * Stylesheet for RATDGO web status page
  *
@@ -178,6 +234,190 @@ div.header {
     padding: 0px;
     padding-top: 5px;
     padding-bottom: 5px;
+}
+
+.peer-banner {
+    width: 100%;
+    max-width: 800px;
+    background: #2b2b2b;
+    color: #fef1d4;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 8px 12px;
+    font-size: 0.8em;
+    cursor: pointer;
+}
+
+.peer-banner button {
+    min-width: 72px;
+    font-size: 0.8em;
+    padding: 4px 12px;
+    background-color: darkgoldenrod;
+    border: 1px solid #f5c56b;
+}
+
+.peer-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100%;
+    width: min(360px, 85vw);
+    background-color: #111;
+    color: #fef1d4;
+    box-shadow: -12px 0 32px rgba(0, 0, 0, 0.6);
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    z-index: 1500;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    border-left: 2px solid rgba(255, 215, 128, 0.4);
+}
+
+.peer-drawer.open {
+    transform: translateX(0);
+}
+
+.peer-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease;
+    z-index: 1400;
+}
+
+.peer-overlay.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.peer-drawer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid rgba(255, 215, 128, 0.3);
+    padding-bottom: 8px;
+}
+
+.peer-drawer-label {
+    font-weight: bold;
+    margin: 0;
+    color: #ffd98c;
+}
+
+.peer-drawer-sub {
+    margin: 0;
+    font-size: 0.75em;
+    opacity: 0.75;
+}
+
+#peer-drawer-close {
+    background: #2b2b2b;
+    border: 1px solid rgba(255, 215, 128, 0.5);
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    font-size: 1.2em;
+    line-height: 1;
+    cursor: pointer;
+    color: #fef1d4;
+}
+
+.peer-list {
+    overflow-y: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.peer-card {
+    background: rgba(43, 34, 23, 0.9);
+    border: 1px solid rgba(255, 215, 128, 0.4);
+    border-radius: 10px;
+    padding: 12px;
+    color: #fff6dc;
+    box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.4);
+}
+
+.peer-card h4 {
+    margin: 0;
+    font-size: 1em;
+    color: #ffd98c;
+}
+
+.peer-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    margin-top: 6px;
+    font-size: 0.7em;
+    opacity: 0.8;
+}
+
+.peer-state {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+    font-size: 0.85em;
+}
+
+.peer-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.peer-action-btn {
+    flex: 1 1 30%;
+    background-color: darkgoldenrod;
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 0.75em;
+    cursor: pointer;
+}
+
+.peer-action-btn:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+.peer-feedback {
+    margin: 6px 0 0 0;
+    font-size: 0.7em;
+    min-height: 1em;
+    color: #d8caa5;
+}
+
+.peer-feedback.error {
+    color: #ff9b7b;
+}
+
+.peer-badge {
+    display: inline-block;
+    font-size: 0.65em;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.15);
+    margin-left: 6px;
+}
+
+.peer-empty {
+    font-size: 0.9em;
+    opacity: 0.7;
+    margin: 0;
 }
 
 div.fullpage {

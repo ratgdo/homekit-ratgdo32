@@ -115,6 +115,7 @@ constexpr char nvram_close_history[] PROGMEM = "close_history";
 constexpr char nvram_ratgdo_pw[] PROGMEM = "ratgdo_pw";
 constexpr char nvram_has_distance[] PROGMEM = "has_distance";
 #endif
+constexpr char cfg_peers[] PROGMEM = "peers";
 
 struct configStr
 {

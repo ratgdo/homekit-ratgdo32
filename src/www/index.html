@@ -48,6 +48,10 @@
             style="display:none; width:1.5em; height:1.5em;">
         </div>
       </div>
+      <div id="peer-banner" class="peer-banner" style="display:none;">
+        <span id="peer-banner-text">Other RATGDOs detected</span>
+        <button id="peer-banner-button" type="button">View</button>
+      </div>
       <!-- Main section of page ------------------------------------------------------------------>
       <div id="main-page" style="padding: 0px; padding-bottom: 8px;">
         <div class="serverstatus">
@@ -713,6 +717,20 @@
     </footer>
   </div>
 
+  <div id="peer-drawer-overlay" class="peer-overlay"></div>
+  <aside id="peer-drawer" class="peer-drawer" aria-hidden="true">
+    <div class="peer-drawer-header">
+      <div>
+        <p class="peer-drawer-label">Multi-Door Dashboard</p>
+        <p class="peer-drawer-sub">See every RATGDO on your network.</p>
+      </div>
+      <button id="peer-drawer-close" type="button" aria-label="Close dashboard">×</button>
+    </div>
+    <div id="peer-list" class="peer-list">
+      <p class="peer-empty">Searching for peers…</p>
+    </div>
+  </aside>
+
   <!-- Popup / modal dialog ------------------------------------------------------------------>
   <div id="myModal" class="modal">
     <div class="modal-content">
@@ -771,6 +789,8 @@
     checkStatus();
     // Load time zone info, this runs asynchronously
     loadTimeZones();
+    // Initialize peer discovery banner/drawer
+    initPeerUI();
 
     // reload status if visibility change
     window.addEventListener("visibilitychange", (event) => {

@@ -11,7 +11,7 @@ Import("env")
 def post_program_action(source, target, env):
     print(".bin file built, coping to dropbox")
     binPath = target[0].get_abspath()
-    env.Execute(f"copy {binPath} \"C:\\Users\\mitchjs\\Dropbox\Public\\\"")
+    env.Execute(f"copy {binPath} r'c:\\Users\\mitchjs\\Dropbox\\Public\\'")
 #
 #env.AddPostAction("$BUILD_DIR/firmware.bin", post_program_action)
 

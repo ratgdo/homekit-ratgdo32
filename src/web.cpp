@@ -45,6 +45,7 @@
 #include "softAP.h"
 #include "json.h"
 #include "led.h"
+#include "peers.h"
 #ifdef ESP8266
 #include "wifi_8266.h"
 #endif
@@ -68,6 +69,8 @@ void handle_everything();
 void handle_setgdo();
 void handle_logout();
 void handle_auth();
+void handle_peers();
+void handle_peer_command();
 void handle_subscribe();
 void handle_showlog();
 void handle_showrebootlog();
@@ -87,6 +90,8 @@ void SSEHandler(uint32_t channel);
 const char restEvents[] = "/rest/events/";
 const std::unordered_map<std::string, std::pair<const HTTPMethod, void (*)()>> builtInUri = {
     {"/status.json", {HTTP_GET, handle_status}},
+    {"/peers.json", {HTTP_GET, handle_peers}},
+    {"/peer-command", {HTTP_POST, handle_peer_command}},
     {"/reset", {HTTP_POST, handle_reset}},
     {"/reboot", {HTTP_POST, handle_reboot}},
     {"/setgdo", {HTTP_POST, handle_setgdo}},
@@ -424,6 +429,7 @@ void web_loop()
     }
 
     server.handleClient();
+    peers_loop();
     // Update last request time after handling client
     last_request_time = current_time;
 }
@@ -510,6 +516,8 @@ void setup_web()
         ESP_LOGE(TAG, "Failed to add MDNS service for _http._tcp on port 80");
     }
 
+    peers_begin();
+
     web_setup_done = true;
     return;
 }
@@ -546,6 +554,35 @@ void handle_auth()
     AUTHENTICATE();
     server.send_P(200, type_txt, PSTR("Authenticated"));
     return;
+}
+
+void handle_peers()
+{
+    TAKE_MUTEX();
+    char *payload = peers_json();
+    GIVE_MUTEX();
+    server.send(200, type_json, payload);
+}
+
+void handle_peer_command()
+{
+    AUTHENTICATE();
+
+    if (!(server.hasArg("target") && server.hasArg("key") && server.hasArg("value")))
+    {
+        server.send_P(400, type_txt, PSTR("Missing target/key/value"));
+        return;
+    }
+
+    String message;
+    const String authToken = server.hasArg("auth") ? server.arg("auth") : String();
+    int upstreamStatus = 502;
+    const bool success = peers_send_command(server.arg("target"), server.arg("key"), server.arg("value"), authToken, upstreamStatus, message);
+    if (!message.length())
+    {
+        message = success ? F("OK") : F("Unable to reach peer");
+    }
+    server.send(upstreamStatus, FPSTR(type_txt), message);
 }
 
 void handle_reset()
