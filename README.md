@@ -222,6 +222,10 @@ for this when setting the value.
 > to point towards the vehicle roof. You should also remove the yellow sticker that may be on the sensor to protect
 > it from dust during manufacture and shipping.
 
+#### HomeKit Vehicle Occupancy & Motion
+
+Selecting this will add HomeKit accessories for vehicle activity... an occupancy sensor that is active when vehicle is parked, and motion sensor accessory types to signal a vehicle arriving or departing. Default is to enable all three accessories.
+
 ### Laser _(ratgdo32-disco boards only)_
 
 For ratgdo32-disco boards, if you have the parking assist laser accessory installed, select this option to enable support and optionally add HomeKit light switch accessory
