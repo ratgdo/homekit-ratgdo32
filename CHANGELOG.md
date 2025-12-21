@@ -4,14 +4,14 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
-## v3.4.2 (2025-12-xx)
+## v3.4.3 (2026-01-??)
 
 ### What's Changed
 
-* Feature: Query the state of emergency back up battery on boot and every 55 minutes (Sec+2.0 only).
-* Feature: User can select whether to create HomeKit accessories for motion sensor and light switch (ratgdo32 only). With thanks to https://github.com/DaveLinger
-* Bugfix: If firmware upload error detected before update begins, do not require a reboot.
-* Other: Average vehicle distance over larger sample size (now 50) to smooth out spurious readings (ratgdo32-disco only).
+* Bugfix: (Sec+2.0 only) door not closing if ratgdo thinks it is still opening (rightly or wrongly). https://github.com/ratgdo/homekit-ratgdo32/issues/131
+* Bugfix: Escape backslash and double quotes inside JSON strings.  https://github.com/ratgdo/homekit-ratgdo32/issues/134
+* Bugfix/feature: (Sec+2.0 only) allow user to select sending TOGGLE command instead of CLOSE. https://github.com/ratgdo/homekit-ratgdo32/issues/131
+* Other: Update settings page visuals to disable/enable options rather than hide/show.
 
 ### Known Issues
 
@@ -19,6 +19,15 @@ All notable changes to `homekit-ratgdo32` will be documented in this file. This 
 * Sec+ 1.0 doors with digital wall panel (e.g. 889LM) sometimes do not close after a time-to-close delay. Please watch your door to make sure it closes after TTC delay.
 * Sec+ 1.0 doors with "0x37" digital wall panel (e.g. 398LM) not working.  We now detect but will not support them. Recommend replacing with 889LM panel.
 * When creating automations in Apple Home the garage door may show only lock/unlock and not open/close as triggers. This is a bug in Apple Home. Workaround is to use the Eve App to create the automation, it will show both options.
+
+## v3.4.2 (2025-12-13)
+
+### What's Changed
+
+* Feature: Query the state of emergency back up battery on boot and every 55 minutes (Sec+2.0 only).
+* Feature: User can select whether to create HomeKit accessories for motion sensor and light switch (ratgdo32 only). With thanks to https://github.com/DaveLinger
+* Bugfix: If firmware upload error detected before update begins, do not require a reboot.
+* Other: Average vehicle distance over larger sample size (now 50) to smooth out spurious readings (ratgdo32-disco only).
 
 ## v3.4.1 (2025-11-22)
 
