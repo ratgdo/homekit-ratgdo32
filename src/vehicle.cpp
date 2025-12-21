@@ -290,10 +290,14 @@ void calculatePresence(int32_t distance)
     // convert from millimeters to centimeters
     vehicleDistance = static_cast<int16_t>(std::round(average / 10));
     static int16_t lastDistance = 0;
+    static uint32_t lastChange = 0;
+    lastChange++;
     if (vehicleDistance != lastDistance)
     {
+
+        ESP_LOGD(TAG, "Vehicle distance: %dcm (average over %d samples, last changed %d samples ago), current measured: %dcm", vehicleDistance, count, lastChange, distance / 10);
         lastDistance = vehicleDistance;
-        ESP_LOGD(TAG, "Vehicle distance: %dcm (average over %d samples), current measured: %dcm", vehicleDistance, count, distance / 10);
+        lastChange = 0;
     }
 
     if (vehicleDetected != priorVehicleDetected)
