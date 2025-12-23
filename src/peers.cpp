@@ -378,8 +378,9 @@ bool peers_available()
 
 char *peers_json()
 {
-    static char *json = status_json;
-
+    char *json = status_json;
+    // status_json is malloc()'d as a global during initialization of size STATUS_JSON_BUFFER_SIZE
+    // Use of it needs to be serialized, this is handled in calling function in web.cpp.
     JSON_START(json);
     JSON_START_OBJ("self");
     JSON_ADD_STR("id", WiFi.macAddress().c_str());
@@ -396,57 +397,60 @@ char *peers_json()
     JSON_ADD_INT("rssi", (int32_t)WiFi.RSSI());
     JSON_END_OBJ();
 
-    if (peers.size() + manualPeers.size() > 0)
+    if (peers.size() + manualPeers.size() == 0)
     {
-        JSON_START_ARRAY("peers");
-        for (size_t i = 0; i < peers.size(); i++)
-        {
-            if (i > 0)
-                JSON_INSERT_COMMA_NL();
-            JSON_START_OBJ(nullptr);
-            JSON_ADD_STR("id", peers[i].id.c_str());
-            JSON_ADD_STR("name", peers[i].name.c_str());
-            JSON_ADD_STR("host", peers[i].host.c_str());
-            JSON_ADD_STR("ip", peers[i].ip.toString().c_str());
-            JSON_ADD_INT("port", (uint32_t)peers[i].port);
-            JSON_ADD_STR("firmware", peers[i].firmware.c_str());
-            JSON_ADD_STR("door", peers[i].doorState.length() ? peers[i].doorState.c_str() : "Unknown");
-            JSON_ADD_STR("lock", peers[i].lockState.length() ? peers[i].lockState.c_str() : "Unknown");
-            JSON_ADD_BOOL("lightOn", peers[i].lightOn);
-#ifdef RATGDO32_DISCO
-            JSON_ADD_BOOL("hasLaser", peers[i].hasLaser);
-#endif
-            JSON_ADD_BOOL("paired", peers[i].paired);
-            JSON_ADD_INT("rssi", peers[i].rssi);
-            JSON_ADD_INT("lastSeen", peers[i].lastSeen);
-            JSON_END_OBJ();
-        }
-
-        if (peers.size() > 0 && manualPeers.size() > 0)
-            JSON_INSERT_COMMA_NL();
-
-        for (size_t i = 0; i < manualPeers.size(); i++)
-        {
-            if (i > 0)
-                JSON_INSERT_COMMA_NL();
-            JSON_START_OBJ(nullptr);
-            JSON_ADD_STR("id", manualPeers[i].id.c_str());
-            JSON_ADD_STR("name", manualPeers[i].name.c_str());
-            JSON_ADD_STR("host", manualPeers[i].host.c_str());
-            JSON_ADD_STR("ip", manualPeers[i].ip.toString().c_str());
-            JSON_ADD_INT("port", (uint32_t)manualPeers[i].port);
-            JSON_ADD_STR("firmware", manualPeers[i].firmware.c_str());
-            JSON_ADD_STR("door", manualPeers[i].doorState.length() ? manualPeers[i].doorState.c_str() : "Unknown");
-            JSON_ADD_STR("lock", manualPeers[i].lockState.length() ? manualPeers[i].lockState.c_str() : "Unknown");
-            JSON_ADD_BOOL("lightOn", manualPeers[i].lightOn);
-            JSON_ADD_BOOL("paired", manualPeers[i].paired);
-            JSON_ADD_INT("rssi", manualPeers[i].rssi);
-            JSON_ADD_INT("lastSeen", manualPeers[i].lastSeen);
-            JSON_END_OBJ();
-        }
-        JSON_END_ARRAY();
+        JSON_END();
+        return status_json;
     }
 
+    // We get this far only if we have peers to report.
+    JSON_START_ARRAY("peers");
+    for (size_t i = 0; i < peers.size(); i++)
+    {
+        if (i > 0)
+            JSON_INSERT_COMMA_NL();
+        JSON_START_OBJ(nullptr);
+        JSON_ADD_STR("id", peers[i].id.c_str());
+        JSON_ADD_STR("name", peers[i].name.c_str());
+        JSON_ADD_STR("host", peers[i].host.c_str());
+        JSON_ADD_STR("ip", peers[i].ip.toString().c_str());
+        JSON_ADD_INT("port", (uint32_t)peers[i].port);
+        JSON_ADD_STR("firmware", peers[i].firmware.c_str());
+        JSON_ADD_STR("door", peers[i].doorState.length() ? peers[i].doorState.c_str() : "Unknown");
+        JSON_ADD_STR("lock", peers[i].lockState.length() ? peers[i].lockState.c_str() : "Unknown");
+        JSON_ADD_BOOL("lightOn", peers[i].lightOn);
+#ifdef RATGDO32_DISCO
+        JSON_ADD_BOOL("hasLaser", peers[i].hasLaser);
+#endif
+        JSON_ADD_BOOL("paired", peers[i].paired);
+        JSON_ADD_INT("rssi", peers[i].rssi);
+        JSON_ADD_INT("lastSeen", peers[i].lastSeen);
+        JSON_END_OBJ();
+    }
+
+    if (peers.size() > 0 && manualPeers.size() > 0)
+        JSON_INSERT_COMMA_NL();
+
+    for (size_t i = 0; i < manualPeers.size(); i++)
+    {
+        if (i > 0)
+            JSON_INSERT_COMMA_NL();
+        JSON_START_OBJ(nullptr);
+        JSON_ADD_STR("id", manualPeers[i].id.c_str());
+        JSON_ADD_STR("name", manualPeers[i].name.c_str());
+        JSON_ADD_STR("host", manualPeers[i].host.c_str());
+        JSON_ADD_STR("ip", manualPeers[i].ip.toString().c_str());
+        JSON_ADD_INT("port", (uint32_t)manualPeers[i].port);
+        JSON_ADD_STR("firmware", manualPeers[i].firmware.c_str());
+        JSON_ADD_STR("door", manualPeers[i].doorState.length() ? manualPeers[i].doorState.c_str() : "Unknown");
+        JSON_ADD_STR("lock", manualPeers[i].lockState.length() ? manualPeers[i].lockState.c_str() : "Unknown");
+        JSON_ADD_BOOL("lightOn", manualPeers[i].lightOn);
+        JSON_ADD_BOOL("paired", manualPeers[i].paired);
+        JSON_ADD_INT("rssi", manualPeers[i].rssi);
+        JSON_ADD_INT("lastSeen", manualPeers[i].lastSeen);
+        JSON_END_OBJ();
+    }
+    JSON_END_ARRAY();
     JSON_END();
     return status_json;
 }
