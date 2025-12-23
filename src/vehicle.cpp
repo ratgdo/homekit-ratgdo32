@@ -42,7 +42,7 @@ bool vehicleStatusChange = false;
 static bool vehicleDetected = false;
 static bool vehicleArriving = false;
 static bool vehicleDeparting = false;
-_millis_t lastChangeAt = 0;
+_millis_t lastVehicleChangeAt = 0;
 static _millis_t presence_timer = 0; // to be set by door open action
 static _millis_t vehicle_motion_timer = 0;
 
@@ -221,7 +221,7 @@ void setArriveDepart(bool vehiclePresent)
         {
             vehicleArriving = true;
             vehicleDeparting = false;
-            vehicle_motion_timer = lastChangeAt;
+            vehicle_motion_timer = lastVehicleChangeAt;
             strlcpy(vehicleStatus, "Arriving", sizeof(vehicleStatus));
             if (userConfig->getAssistDuration() > 0)
                 laser.flash(userConfig->getAssistDuration() * 1000);
@@ -236,7 +236,7 @@ void setArriveDepart(bool vehiclePresent)
         {
             vehicleArriving = false;
             vehicleDeparting = true;
-            vehicle_motion_timer = lastChangeAt;
+            vehicle_motion_timer = lastVehicleChangeAt;
             strlcpy(vehicleStatus, "Departing", sizeof(vehicleStatus));
             vehicleStatusChange = true;
             ESP_LOGI(TAG, "Vehicle %s at %s", vehicleStatus, timeString());
@@ -305,8 +305,8 @@ void calculatePresence(int32_t distance)
     {
         // if change occurs with arrival/departure window then record motion,
         // presence timer is set when door opens or closes.
-        lastChangeAt = _millis();
-        if (presence_timer && ((lastChangeAt - presence_timer) < PRESENCE_DETECT_DURATION))
+        lastVehicleChangeAt = _millis();
+        if (presence_timer && ((lastVehicleChangeAt - presence_timer) < PRESENCE_DETECT_DURATION))
         {
             presence_timer = 0;
             setArriveDepart(vehicleDetected);
@@ -338,7 +338,7 @@ void doorClosing()
 
     presence_timer = _millis();
     // On door closing, the vehicle status change could already have happened...
-    if (lastChangeAt && ((presence_timer - lastChangeAt) < PRESENCE_DETECT_DURATION))
+    if (lastVehicleChangeAt && ((presence_timer - lastVehicleChangeAt) < PRESENCE_DETECT_DURATION))
     {
         setArriveDepart(vehicleDetected);
     }

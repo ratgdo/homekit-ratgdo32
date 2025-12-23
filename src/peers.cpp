@@ -237,7 +237,7 @@ void update_service_txt()
 #ifndef ESP8266
     // Values specific to the ESP32 build.
     MDNS.addServiceTxt("ratgdo", "tcp", "hasLaser", String(userConfig->getLaserEnabled() ? "1" : "0"));
-    MDNS.addServiceTxt("ratgdo", "tcp", "lastchange", String(lastChangeAt / 1000));
+    MDNS.addServiceTxt("ratgdo", "tcp", "lastchange", String(lastVehicleChangeAt / 1000));
     MDNS.addServiceTxt("ratgdo", "tcp", "vehicle", String(vehicleDistance));
 #endif
 }

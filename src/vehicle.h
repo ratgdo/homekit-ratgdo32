@@ -24,4 +24,4 @@ extern int16_t vehicleThresholdDistance;
 extern char vehicleStatus[];
 extern bool vehicleStatusChange;
 extern bool vehicle_setup_done;
-extern _millis_t lastChangeAt;
+extern _millis_t lastVehicleChangeAt;
