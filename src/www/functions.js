@@ -140,26 +140,36 @@ function toggleSyslog() {
 
 function toggleDCOpenClose(radio) {
     let value = radio.value;
-    document.getElementById("dcOpenCloseRow").style.display = (value != 3) ? "table-row" : "none";
     if (serverStatus["useSWserial"] != undefined) {
-        document.getElementById("useSWserialRow").style.display = (value != 3) ? "table-row" : "none";
+        document.getElementById("useSWserialRow").style.display = "table-row";
+        document.getElementById("useSWserial").disabled = (value == 3);
     }
-    document.getElementById("obstFromStatusRow").style.display = (value != 3) ? "table-row" : "none";
-    document.getElementById("dcDebounceDurationRow").style.display = (value == 3) ? "table-row" : "none";
+    document.getElementById("dcOpenClose").disabled = (value == 3);
+    document.getElementById("obstFromStatus").disabled = (value == 3);
+    document.getElementById("useToggle").disabled = (value != 2);
+    document.getElementById("homekitLight").disabled = (value == 3);
+    document.getElementById("dcDebounceDurationRow").style.opacity = (value == 3) ? 1 : 0.5;
+    document.getElementById("dcDebounceDuration").disabled = (value != 3);
+    document.getElementById("motionMotion").disabled = (value != 2);
     toggleHardwiredBypassRow();
 }
 
 function toggleHardwiredBypassRow() {
     const supportsHardwired = !document.getElementById("gdodrycontact").checked;
     const hardwiredEnabled = document.getElementById("dcOpenClose").checked;
-    document.getElementById("dcBypassTTCRow").style.display = (supportsHardwired && hardwiredEnabled) ? "table-row" : "none";
+    const row = document.getElementById("dcBypassTTCRow");
+    const checkbox = document.getElementById("dcBypassTTC");
+    const enabled = supportsHardwired && hardwiredEnabled;
+    row.style.opacity = enabled ? "1" : "0.5";
+    checkbox.disabled = !enabled;
 }
 
 // enable laser
 function enableLaser(value) {
     document.getElementById('laserHomeKit').disabled = !value;
     document.getElementById("laserButton").style.display = (value) ? "inline-block" : "none";
-    document.getElementById("parkAssist").style.display = (value) ? "table-row" : "none";
+    document.getElementById("assistDuration").disabled = !value;
+    document.getElementById("parkAssist").style.opacity = value ? "1" : "0.5";
 }
 
 // Show or hide the static IP fields
@@ -175,7 +185,8 @@ function toggleStaticIP() {
 
 // Show or hide the syslog IP field
 function toggleTimeZone() {
-    document.getElementById("timeZoneTable").style.display = (this.event.target.checked) ? "table" : "none";
+    document.getElementById("timeZoneRow").style.opacity = (this.event.target.checked) ? 1 : 0.5;
+    document.getElementById("timeZoneInput").disabled = !this.event.target.checked;
     // called for both checked and unchecked... to reset selection if necessary.
     loadTZinfo(document.getElementById("timeZoneInput"));
 }
@@ -381,15 +392,17 @@ function setElementsFromStatus(status) {
                 document.getElementById("doorButton").style.margin = (value != 3) ? "" : "auto"; // auto will center the button
                 document.getElementById("lightButton").style.display = (value != 3) ? "inline-block" : "none";
                 document.getElementById("lockLightRow").style.display = (value != 3) ? "table-row" : "none";
-                document.getElementById("dcOpenCloseRow").style.display = (value != 3) ? "table-row" : "none";
                 if (serverStatus["useSWserial"] != undefined) {
-                    document.getElementById("useSWserialRow").style.display = (value != 3) ? "table-row" : "none";
+                    document.getElementById("useSWserialRow").style.display = "table-row";
+                    document.getElementById("useSWserial").disabled = (value == 3);
                 }
-                document.getElementById("obstFromStatusRow").style.display = (value != 3) ? "table-row" : "none";
-                document.getElementById("dcDebounceDurationRow").style.display = (value == 3) ? "table-row" : "none";
-                document.getElementById("motionMotion").disabled = (value == 2) ? false : true;
-                // Hide Light HomeKit checkbox for dry contact mode (no light control)
-                document.getElementById("lightHomeKitSpan").style.display = (value != 3) ? "inline" : "none";
+                document.getElementById("dcOpenClose").disabled = (value == 3);
+                document.getElementById("obstFromStatus").disabled = (value == 3);
+                document.getElementById("useToggle").disabled = (value != 2);
+                document.getElementById("homekitLight").disabled = (value == 3);
+                document.getElementById("dcDebounceDurationRow").style.opacity = (value == 3) ? 1 : 0.5;
+                document.getElementById("dcDebounceDuration").disabled = (value != 3);
+                document.getElementById("motionMotion").disabled = (value != 2);
                 toggleHardwiredBypassRow();
                 break;
             case "pinBasedObst":
@@ -481,7 +494,7 @@ function setElementsFromStatus(status) {
                 document.getElementById(key).checked = value;
                 document.getElementById("homespanSetting").style.display = "table-row";
                 break;
-            case "lightHomeKit":
+            case "homekitLight":
                 document.getElementById(key).checked = value;
                 document.getElementById("homekitLightRow").style.display = "table-row";
                 break;
@@ -494,6 +507,7 @@ function setElementsFromStatus(status) {
                 setVehicleSensorOptionState(value);
                 break;
             case "laserHomeKit":
+            case "useToggle":
             case "useSWserial":
             case "obstFromStatus":
                 document.getElementById(key).checked = value;
@@ -606,7 +620,8 @@ function setElementsFromStatus(status) {
                 break;
             case "enableNTP":
                 document.getElementById(key).checked = value;
-                document.getElementById("timeZoneTable").style.display = (value) ? "table" : "none";
+                document.getElementById("timeZoneRow").style.opacity = (value) ? 1 : 0.5;
+                document.getElementById("timeZoneInput").disabled = !value;
                 break;
             case "enableIPv6":
                 document.getElementById(key).checked = value;
@@ -1323,6 +1338,7 @@ async function saveSettings() {
     const laserHomeKit = (document.getElementById("laserHomeKit").checked) ? '1' : '0';
     const dcOpenClose = (document.getElementById("dcOpenClose").checked) ? '1' : '0';
     const dcBypassTTC = (document.getElementById("dcBypassTTC").checked) ? '1' : '0';
+    const useToggle = (document.getElementById("useToggle").checked) ? '1' : '0';
     const useSWserial = (document.getElementById("useSWserial").checked) ? '1' : '0';
     const obstFromStatus = (document.getElementById("obstFromStatus").checked) ? '1' : '0';
 
@@ -1359,7 +1375,7 @@ async function saveSettings() {
     const list = document.getElementById("timeZoneInput");
     const timeZone = list.options[list.selectedIndex].text + ';' + list.options[list.selectedIndex].value;
     const homespanCLI = (document.getElementById("homespanCLI").checked) ? '1' : '0';
-    const lightHomeKit = (document.getElementById("lightHomeKit").checked) ? '1' : '0';
+    const homekitLight = (document.getElementById("homekitLight").checked) ? '1' : '0';
     const motionHomeKit = (document.getElementById("motionHomeKit").checked) ? '1' : '0';
 
     // check IP addresses valid
@@ -1389,6 +1405,7 @@ async function saveSettings() {
         "laserHomeKit", laserHomeKit,
         "dcOpenClose", dcOpenClose,
         "dcBypassTTC", dcBypassTTC,
+        "useToggle", useToggle,
         "assistDuration", assistDuration,
         "motionTriggers", motionTriggers,
         "occupancyDuration", occupancyDuration,
@@ -1410,7 +1427,7 @@ async function saveSettings() {
         "obstFromStatus", obstFromStatus,
         "dcDebounceDuration", dcDebounceDuration,
         "homespanCLI", homespanCLI,
-        "lightHomeKit", lightHomeKit,
+        "homekitLight", homekitLight,
         "motionHomeKit", motionHomeKit,
     );
     if (reboot) {

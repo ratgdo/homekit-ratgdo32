@@ -407,6 +407,7 @@ userSettings::userSettings()
         {cfg_logLevel, {false, false, ESP_LOG_INFO, helperLogLevel}},              // call fn to set log level
         {cfg_dcOpenClose, {true, false, false, NULL}},
         {cfg_dcBypassTTC, {false, false, false, NULL}},
+        {cfg_useToggle, {false, false, false, NULL}},
         {cfg_dcDebounceDuration, {true, false, 50, NULL}},
         {cfg_obstFromStatus, {true, false, false, NULL}},
 #ifdef RATGDO32_DISCO

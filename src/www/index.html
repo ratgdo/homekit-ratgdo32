@@ -372,13 +372,11 @@
               <tr>
                 <td colspan="2">&nbsp;</td>
               </tr>
-              <tr id="homekitLightRow" style="display:none;">
+              <tr id="homekitLightRow" style="display: none;">
                 <td class="label">Light:</td>
                 <td>
-                  <span id="lightHomeKitSpan">
-                    <input type="checkbox" id="lightHomeKit" name="lightHomeKit" value="no" checked>
-                    <label for="lightHomeKit">HomeKit Light Switch</label>
-                  </span>
+                  <input type="checkbox" id="homekitLight" name="homekitLight" value="no" checked>
+                  <label for="homekitLight">HomeKit Light Switch</label>
                 </td>
               <tr>
                 <td class="label">Motion Triggers:</td>
@@ -494,7 +492,7 @@
                   <label for="gdodrycontact">Dry Contact</label>
                 </td>
               </tr>
-              <tr id="dcDebounceDurationRow" style="display:none;">
+              <tr id="dcDebounceDurationRow">
                 <td></td>
                 <td>
                   <table class="settings">
@@ -509,28 +507,35 @@
                   </table>
                 </td>
               </tr>
-              <tr id="dcOpenCloseRow" style="display:none;">
+              <tr id="useToggleRow">
+                <td></td>
+                <td>
+                  <input type="checkbox" id="useToggle" name="useToggle" value="no">
+                  <label for="useToggle">Use Sec+2.0 toggle instead of close command</label>
+                </td>
+              </tr>
+              <tr id="dcOpenCloseRow">
                 <td></td>
                 <td>&nbsp;
                   <input type="checkbox" id="dcOpenClose" name="dcOpenClose" value="no" onclick="toggleHardwiredBypassRow()">
                   <label for="dcOpenClose">Enable hardwired open/close/light control</label>
                 </td>
               </tr>
-              <tr id="dcBypassTTCRow" style="display:none;">
+              <tr id="dcBypassTTCRow">
                 <td></td>
                 <td>&nbsp;
                   <input type="checkbox" id="dcBypassTTC" name="dcBypassTTC" value="no">
                   <label for="dcBypassTTC">Bypass time-to-close delay for hardwired controls</label>
                 </td>
               </tr>
-              <tr id="useSWserialRow" style="display:none;">
+              <tr id="useSWserialRow" style="display: none;">
                 <td></td>
                 <td>
                   <input type="checkbox" id="useSWserial" name="useSWserial" value="no">
                   <label for="useSWserial">Use software serial emulation rather than h/w UART</label>
                 </td>
               </tr>
-              <tr id="obstFromStatusRow" style="display:none;">
+              <tr id="obstFromStatusRow">
                 <td></td>
                 <td>
                   <input type="checkbox" id="obstFromStatus" name="obstFromStatus" value="no">
@@ -616,8 +621,8 @@
               <tr>
                 <td></td>
                 <td>
-                  <table class="settings" id="timeZoneTable" style="display: none;">
-                    <tr>
+                  <table class="settings">
+                    <tr id="timeZoneRow">
                       <td class="IPlabel">Time Zone:</td>
                       <td>
                         <select class="TZinput" id="timeZoneInput">
