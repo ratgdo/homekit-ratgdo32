@@ -305,9 +305,9 @@ void web_loop()
     _millis_t upTime = _millis();
     static _millis_t last_request_time = 0;
 
-    // Re-announce mDNS every two minutes
+    // Re-announce mDNS and update TXT records every 5 seconds
     static _millis_t lastMDNSannounce = upTime;
-#define MDNS_ANNOUNCE_TIMEOUT (2 * 60 * 1000)
+#define MDNS_ANNOUNCE_TIMEOUT 5000
     if (upTime - lastMDNSannounce > MDNS_ANNOUNCE_TIMEOUT)
     {
         lastMDNSannounce = upTime;
@@ -316,6 +316,8 @@ void web_loop()
 #else
         MDNS.setInstanceName(device_name_rfc952);
 #endif
+        // Update TXT records with current status
+        update_mdns_txt_records();
     }
 
     TAKE_MUTEX();
@@ -501,13 +503,15 @@ void setup_web()
 
     IRAM_END(TAG);
 
-    if (MDNS.addService("http", "tcp", 80))
+    if (MDNS.addService("ratgdo", "tcp", 80))
     {
-        ESP_LOGI(TAG, "Added MDNS service for _http._tcp on port 80");
+        ESP_LOGI(TAG, "Added MDNS service for _ratgdo._tcp on port 80");
+        // Add TXT records
+        update_mdns_txt_records();
     }
     else
     {
-        ESP_LOGE(TAG, "Failed to add MDNS service for _http._tcp on port 80");
+        ESP_LOGE(TAG, "Failed to add MDNS service for _ratgdo._tcp on port 80");
     }
 
     web_setup_done = true;
@@ -878,6 +882,123 @@ void handle_status()
     GIVE_MUTEX();
     return;
 }
+
+void update_mdns_txt_records()
+{
+    char buffer[16];
+    
+    // Get paired clients count
+    int pairedClients = 0;
+#ifdef ESP8266
+    if (arduino_homekit_get_running_server())
+    {
+        pairedClients = arduino_homekit_get_running_server()->nfds;
+    }
+#else
+    // ESP32/HomeSpan - paired clients count not directly available
+    pairedClients = 0;
+#endif
+
+    // battery (0 for non-battery powered units)
+    MDNS.addServiceTxt("ratgdo", "tcp", "battery", "0");
+    
+    // closeDuration (in seconds)
+    snprintf(buffer, sizeof(buffer), "%lu", garage_door.closeDuration);
+    MDNS.addServiceTxt("ratgdo", "tcp", "closeDuration", buffer);
+    
+    // cycle (openings count)
+    snprintf(buffer, sizeof(buffer), "%lu", garage_door.openingsCount);
+    MDNS.addServiceTxt("ratgdo", "tcp", "cycle", buffer);
+    
+    // door state
+    const char* doorState = garage_door.active ? DOOR_STATE(garage_door.current_state) : "Unknown";
+    MDNS.addServiceTxt("ratgdo", "tcp", "door", doorState);
+    
+    // fw (firmware version)
+    MDNS.addServiceTxt("ratgdo", "tcp", "fw", AUTO_VERSION);
+    
+    // fwdate (build date and time)
+    MDNS.addServiceTxt("ratgdo", "tcp", "fwdate", __DATE__ " " __TIME__);
+    
+    // hasLaser (1 if distance sensor present, 0 otherwise)
+#ifdef RATGDO32_DISCO
+    MDNS.addServiceTxt("ratgdo", "tcp", "hasLaser", garage_door.has_distance_sensor ? "1" : "0");
+#else
+    MDNS.addServiceTxt("ratgdo", "tcp", "hasLaser", "0");
+#endif
+    
+    // id (MAC address)
+    MDNS.addServiceTxt("ratgdo", "tcp", "id", WiFi.macAddress().c_str());
+    
+    // ip (local IP address)
+    MDNS.addServiceTxt("ratgdo", "tcp", "ip", WiFi.localIP().toString().c_str());
+    
+    // lastchange (time since last door state change in seconds)
+    _millis_t upTime = _millis();
+    snprintf(buffer, sizeof(buffer), "%lu", (unsigned long)((upTime - lastDoorUpdateAt) / 1000));
+    MDNS.addServiceTxt("ratgdo", "tcp", "lastchange", buffer);
+    
+    // light state
+    MDNS.addServiceTxt("ratgdo", "tcp", "light", garage_door.light ? "on" : "off");
+    
+    // lock state
+    MDNS.addServiceTxt("ratgdo", "tcp", "lock", REMOTES_STATE(garage_door.current_lock));
+    
+    // model
+    MDNS.addServiceTxt("ratgdo", "tcp", "model", MODEL_NAME);
+    
+    // motion state
+    MDNS.addServiceTxt("ratgdo", "tcp", "motion", garage_door.motion ? "on" : "off");
+    
+    // name (device name)
+    MDNS.addServiceTxt("ratgdo", "tcp", "name", userConfig->getDeviceName());
+    
+    // obstruction state
+    MDNS.addServiceTxt("ratgdo", "tcp", "obstruction", garage_door.obstructed ? "true" : "false");
+    
+    // openDuration (in seconds)
+    snprintf(buffer, sizeof(buffer), "%lu", garage_door.openDuration);
+    MDNS.addServiceTxt("ratgdo", "tcp", "openDuration", buffer);
+    
+    // paired (0 or 1)
+    MDNS.addServiceTxt("ratgdo", "tcp", "paired", homekit_is_paired() ? "1" : "0");
+    
+    // pairedClients
+    snprintf(buffer, sizeof(buffer), "%d", pairedClients);
+    MDNS.addServiceTxt("ratgdo", "tcp", "pairedClients", buffer);
+    
+    // rssi (WiFi signal strength)
+    snprintf(buffer, sizeof(buffer), "%d", WiFi.RSSI());
+    MDNS.addServiceTxt("ratgdo", "tcp", "rssi", buffer);
+    
+    // secure (security type - 0, 1, or 2)
+    snprintf(buffer, sizeof(buffer), "%d", (int)userConfig->getGDOSecurityType());
+    MDNS.addServiceTxt("ratgdo", "tcp", "secure", buffer);
+    
+    // ttc (time to close countdown in seconds, 0 if inactive)
+    snprintf(buffer, sizeof(buffer), "%d", is_ttc_active());
+    MDNS.addServiceTxt("ratgdo", "tcp", "ttc", buffer);
+    
+    // uptime (in seconds)
+    snprintf(buffer, sizeof(buffer), "%lu", (unsigned long)(upTime / 1000));
+    MDNS.addServiceTxt("ratgdo", "tcp", "uptime", buffer);
+    
+    // vehicle (distance in cm, or 0 if no distance sensor)
+#ifdef RATGDO32_DISCO
+    if (garage_door.has_distance_sensor)
+    {
+        snprintf(buffer, sizeof(buffer), "%d", (int)vehicleDistance);
+        MDNS.addServiceTxt("ratgdo", "tcp", "vehicle", buffer);
+    }
+    else
+#endif
+    {
+        MDNS.addServiceTxt("ratgdo", "tcp", "vehicle", "0");
+    }
+
+    ESP_LOGI(TAG, "Updated mDNS TXT records");
+}
+
 
 void handle_logout()
 {
