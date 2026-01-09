@@ -32,6 +32,7 @@ extern ESP8266WebServer server;
 
 extern void setup_web();
 extern void web_loop();
+extern void update_mdns_txt_records();
 
 extern void handle_notfound();
 extern void handle_reboot();
