@@ -883,6 +883,42 @@ void handle_status()
     return;
 }
 
+/**
+ * @brief Update the mDNS TXT records advertised by this device.
+ *
+ * This function refreshes the set of mDNS TXT records so that HomeKit
+ * controllers and other discovery tools can obtain current accessory
+ * information (e.g. configuration, capabilities and pairing state)
+ * without opening an HTTP connection.
+ *
+ * Typical TXT keys published here include:
+ * - "pv": HomeKit protocol version.
+ * - "id": Accessory identifier (usually derived from the MAC address).
+ * - "c#": Configuration number that changes when the accessory setup
+ *         or configuration is modified.
+ * - "s#": Current state number for the accessory.
+ * - "sf": Status flags (e.g. unpaired, paired, or problem state).
+ * - "ff": Feature flags indicating supported features.
+ * - "md": Model / product name of the accessory.
+ * - "ci": Category identifier (e.g. garage door opener).
+ * - "pc": Current number of paired HomeKit clients (derived from
+ *         @c pairedClients in this function).
+ *
+ * Expected calling pattern:
+ * - This function is intended to be called periodically (currently
+ *   approximately every 5 seconds) from a timer or main loop so that
+ *   dynamic values such as the paired client count are kept in sync
+ *   with what is advertised over mDNS.
+ *
+ * Platform-specific behavior:
+ * - On ESP8266, the number of paired clients is obtained from the
+ *   running Arduino HomeKit server instance and exported via a TXT
+ *   record (e.g. "pc").
+ * - On ESP32 (HomeSpan), the paired client count is not directly
+ *   available, so this function uses a value of 0 and only updates
+ *   the other TXT records that do not depend on the precise number
+ *   of paired clients.
+ */
 void update_mdns_txt_records()
 {
     char buffer[16];
