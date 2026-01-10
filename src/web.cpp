@@ -910,6 +910,15 @@ void handle_status()
  *   dynamic values such as the paired client count are kept in sync
  *   with what is advertised over mDNS.
  *
+ * Memory optimization:
+ * - Uses a static cache to track previous values and only calls
+ *   MDNS.addServiceTxt() when values actually change. This avoids
+ *   potential memory issues from repeatedly updating unchanged TXT
+ *   records every 5 seconds.
+ * - Time-based values (uptime, lastchange) are only updated when they
+ *   change by at least 60 seconds, and RSSI only when it changes by
+ *   more than 5 dBm, to reduce unnecessary mDNS traffic.
+ *
  * Platform-specific behavior:
  * - On ESP8266, the number of paired clients is obtained from the
  *   running Arduino HomeKit server instance and exported via a TXT
@@ -921,7 +930,32 @@ void handle_status()
  */
 void update_mdns_txt_records()
 {
+    // Structure to cache previous TXT record values to avoid unnecessary updates
+    static struct {
+        uint32_t closeDuration;
+        uint32_t openingsCount;
+        uint8_t doorState;
+        bool light;
+        uint8_t lock;
+        bool motion;
+        bool obstruction;
+        uint32_t openDuration;
+        bool paired;
+        int pairedClients;
+        int rssi;
+        uint8_t secure;
+        int ttc;
+        uint32_t uptime;
+        uint32_t lastchange;
+#ifdef RATGDO32_DISCO
+        int vehicle;
+        bool hasLaser;
+#endif
+        bool initialized;
+    } cached = {0};
+    
     char buffer[16];
+    bool needsUpdate = false;
     
     // Get paired clients count
     int pairedClients = 0;
@@ -935,6 +969,78 @@ void update_mdns_txt_records()
     pairedClients = 0;
 #endif
 
+    // Calculate current values
+    _millis_t upTime = _millis();
+    uint32_t currentUptime = (unsigned long)(upTime / 1000);
+    uint32_t currentLastchange = (unsigned long)((upTime - lastDoorUpdateAt) / 1000);
+    uint8_t currentDoorState = garage_door.current_state;
+    uint8_t currentLock = garage_door.current_lock;
+    bool currentPaired = homekit_is_paired();
+    int currentRssi = WiFi.RSSI();
+    uint8_t currentSecure = (uint8_t)userConfig->getGDOSecurityType();
+    int currentTtc = is_ttc_active();
+#ifdef RATGDO32_DISCO
+    int currentVehicle = garage_door.has_distance_sensor ? (int)vehicleDistance : 0;
+    bool currentHasLaser = garage_door.has_distance_sensor;
+#endif
+
+    // Check if any values changed or first run
+    if (!cached.initialized ||
+        cached.closeDuration != garage_door.closeDuration ||
+        cached.openingsCount != garage_door.openingsCount ||
+        cached.doorState != currentDoorState ||
+        cached.light != garage_door.light ||
+        cached.lock != currentLock ||
+        cached.motion != garage_door.motion ||
+        cached.obstruction != garage_door.obstructed ||
+        cached.openDuration != garage_door.openDuration ||
+        cached.paired != currentPaired ||
+        cached.pairedClients != pairedClients ||
+        abs(cached.rssi - currentRssi) > 5 ||  // Only update RSSI if changed by >5 dBm
+        cached.secure != currentSecure ||
+        cached.ttc != currentTtc ||
+        (currentUptime - cached.uptime) >= 60 ||  // Update uptime every minute
+        (currentLastchange - cached.lastchange) >= 60  // Update lastchange every minute
+#ifdef RATGDO32_DISCO
+        || cached.vehicle != currentVehicle ||
+        cached.hasLaser != currentHasLaser
+#endif
+        )
+    {
+        needsUpdate = true;
+    }
+
+    if (!needsUpdate)
+    {
+        return;  // No changes, skip update
+    }
+
+    // Update cache
+    cached.closeDuration = garage_door.closeDuration;
+    cached.openingsCount = garage_door.openingsCount;
+    cached.doorState = currentDoorState;
+    cached.light = garage_door.light;
+    cached.lock = currentLock;
+    cached.motion = garage_door.motion;
+    cached.obstruction = garage_door.obstructed;
+    cached.openDuration = garage_door.openDuration;
+    cached.paired = currentPaired;
+    cached.pairedClients = pairedClients;
+    cached.rssi = currentRssi;
+    cached.secure = currentSecure;
+    cached.ttc = currentTtc;
+    cached.uptime = currentUptime;
+    cached.lastchange = currentLastchange;
+#ifdef RATGDO32_DISCO
+    cached.vehicle = currentVehicle;
+    cached.hasLaser = currentHasLaser;
+#endif
+    cached.initialized = true;
+
+    // Now update all TXT records
+    // Note: According to ESP8266/ESP32 mDNS library documentation, addServiceTxt()
+    // replaces existing values for the same key, so repeated calls are safe.
+    
     // battery (0 for non-battery powered units)
     MDNS.addServiceTxt("ratgdo", "tcp", "battery", "0");
     
@@ -972,8 +1078,7 @@ void update_mdns_txt_records()
     MDNS.addServiceTxt("ratgdo", "tcp", "ip", ipAddress.c_str());
     
     // lastchange (time since last door state change in seconds)
-    _millis_t upTime = _millis();
-    snprintf(buffer, sizeof(buffer), "%lu", (unsigned long)((upTime - lastDoorUpdateAt) / 1000));
+    snprintf(buffer, sizeof(buffer), "%lu", currentLastchange);
     MDNS.addServiceTxt("ratgdo", "tcp", "lastchange", buffer);
     
     // light state
@@ -1018,7 +1123,7 @@ void update_mdns_txt_records()
     MDNS.addServiceTxt("ratgdo", "tcp", "ttc", buffer);
     
     // uptime (in seconds)
-    snprintf(buffer, sizeof(buffer), "%lu", (unsigned long)(upTime / 1000));
+    snprintf(buffer, sizeof(buffer), "%lu", currentUptime);
     MDNS.addServiceTxt("ratgdo", "tcp", "uptime", buffer);
     
     // vehicle (distance in cm, or 0 if no distance sensor)
