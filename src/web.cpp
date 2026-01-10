@@ -964,10 +964,12 @@ void update_mdns_txt_records()
 #endif
     
     // id (MAC address)
-    MDNS.addServiceTxt("ratgdo", "tcp", "id", WiFi.macAddress().c_str());
+    String macAddress = WiFi.macAddress();
+    MDNS.addServiceTxt("ratgdo", "tcp", "id", macAddress.c_str());
     
     // ip (local IP address)
-    MDNS.addServiceTxt("ratgdo", "tcp", "ip", WiFi.localIP().toString().c_str());
+    String ipAddress = WiFi.localIP().toString();
+    MDNS.addServiceTxt("ratgdo", "tcp", "ip", ipAddress.c_str());
     
     // lastchange (time since last door state change in seconds)
     _millis_t upTime = _millis();
