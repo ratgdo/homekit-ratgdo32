@@ -220,6 +220,9 @@ struct ActiveRequest
 ActiveRequest activeRequests[MAX_CONCURRENT_REQUESTS];
 int activeRequestCount = 0;
 
+// Track MDNS service registration status
+static bool mdns_service_registered = false;
+
 #define CLIENT_WRITE_TIMEOUT 500
 static char writeBuffer[512];
 bool clientWrite(WiFiClient client, const char *data)
@@ -505,12 +508,14 @@ void setup_web()
 
     if (MDNS.addService("ratgdo", "tcp", 80))
     {
+        mdns_service_registered = true;
         ESP_LOGI(TAG, "Added MDNS service for _ratgdo._tcp on port 80");
         // Add TXT records
         update_mdns_txt_records();
     }
     else
     {
+        mdns_service_registered = false;
         ESP_LOGE(TAG, "Failed to add MDNS service for _ratgdo._tcp on port 80");
     }
 
@@ -921,6 +926,13 @@ void handle_status()
  */
 void update_mdns_txt_records()
 {
+    // Guard: Check if MDNS service is available before updating TXT records
+    if (!mdns_service_registered)
+    {
+        ESP_LOGW(TAG, "MDNS service not registered, skipping TXT record update");
+        return;
+    }
+    
     char buffer[16];
     
     // Get paired clients count
