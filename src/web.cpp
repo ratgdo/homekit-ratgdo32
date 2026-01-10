@@ -515,7 +515,6 @@ void setup_web()
     }
     else
     {
-        mdns_service_registered = false;
         ESP_LOGE(TAG, "Failed to add MDNS service for _ratgdo._tcp on port 80");
     }
 
