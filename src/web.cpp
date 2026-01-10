@@ -953,6 +953,9 @@ void update_mdns_txt_records()
     // firmwareVersion
     MDNS.addServiceTxt("ratgdo", "tcp", "firmwareVersion", AUTO_VERSION);
     
+    // buildDateTime (firmware build date and time)
+    MDNS.addServiceTxt("ratgdo", "tcp", "buildDateTime", __DATE__ " " __TIME__);
+    
     // distanceSensor (true/false if distance sensor present)
 #ifdef RATGDO32_DISCO
     MDNS.addServiceTxt("ratgdo", "tcp", "distanceSensor", garage_door.has_distance_sensor ? "true" : "false");
@@ -984,6 +987,9 @@ void update_mdns_txt_records()
     
     // deviceName
     MDNS.addServiceTxt("ratgdo", "tcp", "deviceName", userConfig->getDeviceName());
+    
+    // modelName
+    MDNS.addServiceTxt("ratgdo", "tcp", "modelName", MODEL_NAME);
     
     // garageObstructed
     MDNS.addServiceTxt("ratgdo", "tcp", "garageObstructed", garage_door.obstructed ? "true" : "false");
