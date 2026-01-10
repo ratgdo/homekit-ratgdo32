@@ -618,6 +618,10 @@ function setElementsFromStatus(status) {
                 document.getElementById("logLevel4").checked = (value == 4) ? true : false;
                 document.getElementById("logLevel5").checked = (value == 5) ? true : false;
                 break;
+            case "mdnsAnnounceInterval":
+                document.getElementById(key).value = value;
+                document.getElementById("mdnsAnnounceIntervalValue").innerText = value;
+                break;
             case "enableNTP":
                 document.getElementById(key).checked = value;
                 document.getElementById("timeZoneRow").style.opacity = (value) ? 1 : 0.5;
@@ -1361,6 +1365,9 @@ async function saveSettings() {
                 : (document.getElementById("logLevel2").checked) ? 2
                     : (document.getElementById("logLevel1").checked) ? 1 : 0;
 
+    let mdnsAnnounceInterval = Math.max(Math.min(parseInt(document.getElementById("mdnsAnnounceInterval").value), 300), 5);
+    if (isNaN(mdnsAnnounceInterval)) mdnsAnnounceInterval = 30;
+
     const staticIP = (document.getElementById("staticIP").checked) ? '1' : '0';
     let localIP = document.getElementById("IPaddress").value.substring(0, 15);
     if (localIP.length == 0) localIP = serverStatus.localIP;
@@ -1423,6 +1430,7 @@ async function saveSettings() {
         "syslogPort", syslogPort,
         "syslogFacility", syslogFacility,
         "logLevel", logLevel,
+        "mdnsAnnounceInterval", mdnsAnnounceInterval,
         "useSWserial", useSWserial,
         "obstFromStatus", obstFromStatus,
         "dcDebounceDuration", dcDebounceDuration,
