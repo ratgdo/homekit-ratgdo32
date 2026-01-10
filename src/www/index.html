@@ -337,6 +337,14 @@
                 </td>
               </tr>
               <tr>
+                <td class="label">mDNS Announce:</td>
+                <td>
+                  <input type="range" min="5" max="300" value="30" id="mdnsAnnounceInterval" name="mdnsAnnounceInterval" class="slider"
+                    style="width:150px;">
+                  <span style="vertical-align: middle; font-size: 0.8em"><span id="mdnsAnnounceIntervalValue"></span> Seconds</span>
+                </td>
+              </tr>
+              <tr>
                 <td colspan="2">&nbsp;</td>
               </tr>
               <tr>
@@ -901,6 +909,14 @@
         document.getElementById("builtInUnits").style.display = "none";
         document.getElementById("builtInWarning").style.display = "none";
       }
+    };
+
+    // mDNS Announce Interval slider
+    mdnsSlider = document.getElementById("mdnsAnnounceInterval");
+    mdnsText = document.getElementById("mdnsAnnounceIntervalValue");
+    mdnsText.innerText = mdnsSlider.value;
+    mdnsSlider.oninput = function () {
+      mdnsText.innerText = this.value;
     };
 
     // Vehicle distance threshold slider
