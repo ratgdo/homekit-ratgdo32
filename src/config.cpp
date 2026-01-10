@@ -424,6 +424,7 @@ userSettings::userSettings()
         {cfg_useSWserial, {true, false, true, helperUseSWserial}}, // call fn to shut down GDO before switch
 #endif
         {cfg_builtInTTC, {false, false, 0, helperBuiltInTTC}},
+        {cfg_mdnsAnnounceInterval, {false, false, 30, NULL}}, // mDNS announcement interval in seconds, default 30s
 #ifndef ESP8266
         // These features not available on ESP8266
         {cfg_occupancyDuration, {false, false, 0, helperOccupancyDuration}}, // call fn to enable/disable HomeKit accessories

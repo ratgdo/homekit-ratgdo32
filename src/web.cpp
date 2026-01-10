@@ -305,12 +305,13 @@ void web_loop()
     _millis_t upTime = _millis();
     static _millis_t last_request_time = 0;
 
-    // Re-announce mDNS and update TXT records every 5 seconds
+    // Re-announce mDNS and update TXT records at user-configured interval (default 30 seconds)
     static _millis_t lastMDNSannounce = upTime;
-#define MDNS_ANNOUNCE_TIMEOUT 5000
-    if (upTime - lastMDNSannounce > MDNS_ANNOUNCE_TIMEOUT)
+    static uint32_t mdnsAnnounceTimeout = userConfig->getMdnsAnnounceInterval() * 1000; // Convert seconds to milliseconds
+    if (upTime - lastMDNSannounce > mdnsAnnounceTimeout)
     {
         lastMDNSannounce = upTime;
+        mdnsAnnounceTimeout = userConfig->getMdnsAnnounceInterval() * 1000; // Refresh in case config changed
 #ifdef ESP8266
         MDNS.announce();
 #else
