@@ -996,7 +996,7 @@ void update_mdns_txt_records()
         cached.openDuration != garage_door.openDuration ||
         cached.paired != currentPaired ||
         cached.pairedClients != pairedClients ||
-        abs(cached.rssi - currentRssi) > 5 ||  // Only update RSSI if changed by >5 dBm
+        abs(cached.rssi - currentRssi) >= 5 ||  // Only update RSSI if changed by >=5 dBm
         cached.secure != currentSecure ||
         cached.ttc != currentTtc ||
         (currentUptime - cached.uptime) >= 60 ||  // Update uptime every minute
