@@ -208,8 +208,14 @@ static uint32_t max_response_time = 0;
 static SemaphoreHandle_t jsonMutex = NULL;
 #define TAKE_MUTEX() xSemaphoreTake(jsonMutex, portMAX_DELAY)
 #define GIVE_MUTEX() xSemaphoreGive(jsonMutex)
-esp_netif_t *wifi_netif = NULL;
 #endif
+
+// mDNS update management... re-announcing every 2 minutes.
+#define MDNS_ANNOUNCE_TIMEOUT (2 * 60 * 1000)
+// But not more often than every 10 seconds if pending updates.
+#define MDNS_UPDATE_INTERVAL (10 * 1000)
+static _millis_t lastMDNSupdate = 0;
+static bool mdnsUpdatePending = false;
 
 // Connection throttling
 #define MAX_CONCURRENT_REQUESTS 8
@@ -308,12 +314,16 @@ void web_loop()
     _millis_t upTime = _millis();
     static _millis_t last_request_time = 0;
 
-    // Re-announce mDNS every 2 minutes
-    static _millis_t lastMDNSannounce = upTime;
-#define MDNS_ANNOUNCE_TIMEOUT (2 * 60 * 1000)
-    if (upTime - lastMDNSannounce > MDNS_ANNOUNCE_TIMEOUT)
+    // manage frequency of mDNS updates
+    if (mdnsUpdatePending) {
+        if (upTime - lastMDNSupdate > MDNS_UPDATE_INTERVAL) {
+            // This function also resets mdnsUpdatePending and lastMDNSupdate.
+            add_dynamic_mdns();
+        }
+    }
+    else if (upTime - lastMDNSupdate > MDNS_ANNOUNCE_TIMEOUT)
     {
-        lastMDNSannounce = upTime;
+        // if it has been more than MDNS_ANNOUNCE_TIMEOUT since last update, re-announce
         add_dynamic_mdns();
     }
 
@@ -412,14 +422,16 @@ void web_loop()
         JSON_REMOVE_NL(json);
         if (!firmwareUpdateSub) // Only send if we are not in middle of firmware upgrade.
             SSEBroadcastState(json);
-        add_dynamic_mdns();
+
+        mdnsUpdatePending = true;
     }
     GIVE_MUTEX();
     static time_t mdnsDoorUpdateAt = 0;
-    if (lastDoorUpdateAt != mdnsDoorUpdateAt)
+    if (lastDoorUpdateAt && !mdnsDoorUpdateAt)
     {
+        // First time setting it... subsequent changes handled above.
         mdnsDoorUpdateAt = lastDoorUpdateAt;
-        add_dynamic_mdns();
+        mdnsUpdatePending = true;
     }
     // Rate limiting - minimum interval between requests
     _millis_t current_time = _millis();
@@ -505,14 +517,6 @@ void setup_web()
     activeRequestCount = 0;
 
     IRAM_END(TAG);
-
-#ifndef ESP8266
-    wifi_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
-    if (!wifi_netif)
-    {
-        ESP_LOGE(TAG, "Failed to get esp_netif handle for WiFi STA");
-    }
-#endif
 
     if (MDNS.addService("http", "tcp", 80))
     {
@@ -923,9 +927,7 @@ void add_dynamic_mdns()
     if (garage_door.has_distance_sensor)
     {
         MDNS.addServiceTxt("ratgdo", "tcp", "vehicleStatus", (const char *)vehicleStatus);
-        MDNS.addServiceTxt("ratgdo", "tcp", "vehicleDist", std::to_string((uint32_t)vehicleDistance).c_str());
-        //MDNS.addServiceTxt("ratgdo", "tcp", "vehicleChangeAt", std::to_string(upTime - lastVehicleChangeAt).c_str());
-    }
+        MDNS.addServiceTxt("ratgdo", "tcp", "vehicleDist", std::to_string((uint32_t)vehicleDistance).c_str());    }
 #endif
     if (enableNTP && (bool)clockSet)
     {
@@ -938,6 +940,8 @@ void add_dynamic_mdns()
 #else
     MDNS.setInstanceName(device_name);
 #endif
+    mdnsUpdatePending = false;
+    lastMDNSupdate = _millis();
 }
 
 void handle_status()
