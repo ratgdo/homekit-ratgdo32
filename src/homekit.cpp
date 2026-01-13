@@ -420,6 +420,16 @@ void connectionCallback(int count)
     if (WiFi.dnsIP().type() == IPv4)
         userConfig->set(cfg_nameserverIP, WiFi.dnsIP().toString().c_str());
 
+    // Broadcast the network configuration to connected clients
+    char networkJson[512];
+    snprintf(networkJson, sizeof(networkJson),
+             "{\"localIP\":\"%s\",\"subnetMask\":\"%s\",\"gatewayIP\":\"%s\",\"nameserverIP\":\"%s\"}",
+             WiFi.localIP().toString().c_str(),
+             WiFi.subnetMask().toString().c_str(),
+             WiFi.gatewayIP().toString().c_str(),
+             WiFi.dnsIP().toString().c_str());
+    SSEBroadcastState(networkJson);
+
     // With WiFi connected, we can now initialize the rest of our app.
 #ifdef USE_GDOLIB
     // start communications with garage door opener
