@@ -279,20 +279,8 @@ void load_all_config_settings()
         sntp_set_sync_interval(SNTP_SYNC_INTERVAL);
 #endif
         ESP_LOGI(TAG, "Timezone: %s", userConfig->getTimeZone());
-        std::string tz = userConfig->getTimeZone();
-        size_t pos = tz.find(';');
-        if (pos != std::string::npos)
-        {
-            // semicolon may separate continent/city from posix TZ string
-            ESP_LOGI(TAG, "Set timezone: %s", tz.substr(pos + 1).c_str());
-            configTzTime(tz.substr(pos + 1).c_str(), NTP_SERVER);
-        }
-        else
-        {
-            // if no semicolon then no POSIX code, so use UTC
-            ESP_LOGI(TAG, "Set timezone: UTC0");
-            configTzTime("UTC0", NTP_SERVER);
-        }
+        ESP_LOGI(TAG, "NTP Server: %s", userConfig->getNTPServer());
+        applyTimezoneWithNTP(userConfig->getNTPServer());
     }
 }
 

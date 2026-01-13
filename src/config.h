@@ -71,6 +71,7 @@ constexpr char cfg_rebootSeconds[] PROGMEM = "rebootSeconds";
 constexpr char cfg_LEDidle[] PROGMEM = "LEDidle";
 constexpr char cfg_motionTriggers[] PROGMEM = "motionTriggers";
 constexpr char cfg_enableNTP[] PROGMEM = "enableNTP";
+constexpr char cfg_ntpServer[] PROGMEM = "ntpServer";
 constexpr char cfg_doorUpdateAt[] PROGMEM = "doorUpdateAt";
 constexpr char cfg_doorOpenAt[] PROGMEM = "doorOpenAt";
 constexpr char cfg_doorCloseAt[] PROGMEM = "doorCloseAt";
@@ -131,6 +132,9 @@ struct configSetting
     bool (*fn)(const std::string &key, const char *value, configSetting *actions);
 };
 
+// Helper function to apply timezone configuration with NTP server
+void applyTimezoneWithNTP(const char *ntpServer);
+
 class userSettings
 {
 private:
@@ -183,6 +187,7 @@ public:
     uint32_t getLEDidle() { return std::get<int>(get(cfg_LEDidle)); };
     uint32_t getMotionTriggers() { return std::get<int>(get(cfg_motionTriggers)); };
     bool getEnableNTP() { return std::get<bool>(get(cfg_enableNTP)); };
+    const char *getNTPServer() { return (std::get<configStr>(get(cfg_ntpServer)).str); };
     uint32_t getDoorUpdateAt() { return std::get<int>(get(cfg_doorUpdateAt)); };
     uint32_t getDoorOpenAt() { return std::get<int>(get(cfg_doorOpenAt)); };
     uint32_t getDoorCloseAt() { return std::get<int>(get(cfg_doorCloseAt)); };

@@ -804,6 +804,7 @@ void build_status_json(char *json)
     {
         JSON_ADD_INT("serverTime", time(NULL));
     }
+    JSON_ADD_STR(cfg_ntpServer, userConfig->getNTPServer());
     JSON_ADD_STR(cfg_timeZone, userConfig->getTimeZone());
     JSON_ADD_BOOL(cfg_dcOpenClose, userConfig->getDCOpenClose());
     JSON_ADD_BOOL(cfg_dcBypassTTC, userConfig->getDCBypassTTC());
