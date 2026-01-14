@@ -125,10 +125,11 @@ _millis_t lastDoorCloseAt;
 GarageDoorCurrentState lastDoorState = (GarageDoorCurrentState)0xff;
 
 // Track last reported network configuration
-static IPAddress last_reported_localIP = IPAddress(0, 0, 0, 0);
-static IPAddress last_reported_subnetMask = IPAddress(0, 0, 0, 0);
-static IPAddress last_reported_gatewayIP = IPAddress(0, 0, 0, 0);
-static IPAddress last_reported_nameserverIP = IPAddress(0, 0, 0, 0);
+static const IPAddress zeroIP = IPAddress(0, 0, 0, 0);
+static IPAddress last_reported_localIP = zeroIP;
+static IPAddress last_reported_subnetMask = zeroIP;
+static IPAddress last_reported_gatewayIP = zeroIP;
+static IPAddress last_reported_nameserverIP = zeroIP;
 static String last_reported_ipv6Addresses = "";
 
 bool web_setup_done = false;
@@ -427,7 +428,7 @@ void web_loop()
     if (!currentNameserverIP.fromString(userConfig->getNameserverIP()))
     {
         // If parsing fails, use 0.0.0.0
-        currentNameserverIP = IPAddress(0, 0, 0, 0);
+        currentNameserverIP = zeroIP;
     }
     
     if (currentLocalIP != last_reported_localIP)
@@ -446,7 +447,6 @@ void web_loop()
         JSON_ADD_STR("gatewayIP", currentGatewayIP.toString().c_str());
     }
     // Only broadcast nameserverIP if it has a valid value (non-zero)
-    static const IPAddress zeroIP = IPAddress(0, 0, 0, 0);
     if (currentNameserverIP != zeroIP && currentNameserverIP != last_reported_nameserverIP)
     {
         last_reported_nameserverIP = currentNameserverIP;
