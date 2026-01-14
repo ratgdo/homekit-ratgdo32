@@ -418,9 +418,10 @@ void web_loop()
     JSON_ADD_INT_C("closeDuration", garage_door.closeDuration, last_reported_garage_door.closeDuration);
     JSON_ADD_INT_C("ttcActive", is_ttc_active(), last_reported_garage_door.ttcActive);
     
-    // Track network configuration changes using conditional macros
+    // Track network configuration changes using conditional macros that only emit a field
+    // when the current value differs from the last reported value, avoiding redundant updates.
     IPAddress currentLocalIP = WiFi.localIP();
-    IPAddress currentSubnetMask = WiFi.subnetMask();
+    IPAddress currentSubnetMask = WiWi.subnetMask();
     IPAddress currentGatewayIP = WiFi.gatewayIP();
     IPAddress currentNameserverIP;
     
