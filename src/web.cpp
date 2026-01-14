@@ -318,7 +318,7 @@ void web_loop()
     if (!web_setup_done)
         return;
 
-    static char *json = loop_json;
+    static char *json = status_json;
     _millis_t upTime = _millis();
     static _millis_t last_request_time = 0;
 
@@ -418,9 +418,10 @@ void web_loop()
     JSON_ADD_INT_C("closeDuration", garage_door.closeDuration, last_reported_garage_door.closeDuration);
     JSON_ADD_INT_C("ttcActive", is_ttc_active(), last_reported_garage_door.ttcActive);
     
-    // Check for network configuration changes (IPv4)
+    // Track network configuration changes using conditional macros that only emit a field
+    // when the current value differs from the last reported value, avoiding redundant updates.
     IPAddress currentLocalIP = WiFi.localIP();
-    IPAddress currentSubnetMask = WiFi.subnetMask();
+    IPAddress currentSubnetMask = WiWi.subnetMask();
     IPAddress currentGatewayIP = WiFi.gatewayIP();
     IPAddress currentNameserverIP;
     
@@ -431,35 +432,18 @@ void web_loop()
         currentNameserverIP = zeroIP;
     }
     
-    if (currentLocalIP != last_reported_localIP)
-    {
-        last_reported_localIP = currentLocalIP;
-        JSON_ADD_STR("localIP", currentLocalIP.toString().c_str());
-    }
-    if (currentSubnetMask != last_reported_subnetMask)
-    {
-        last_reported_subnetMask = currentSubnetMask;
-        JSON_ADD_STR("subnetMask", currentSubnetMask.toString().c_str());
-    }
-    if (currentGatewayIP != last_reported_gatewayIP)
-    {
-        last_reported_gatewayIP = currentGatewayIP;
-        JSON_ADD_STR("gatewayIP", currentGatewayIP.toString().c_str());
-    }
+    JSON_ADD_STR_C("localIP", currentLocalIP.toString().c_str(), currentLocalIP, last_reported_localIP);
+    JSON_ADD_STR_C("subnetMask", currentSubnetMask.toString().c_str(), currentSubnetMask, last_reported_subnetMask);
+    JSON_ADD_STR_C("gatewayIP", currentGatewayIP.toString().c_str(), currentGatewayIP, last_reported_gatewayIP);
     // Only broadcast nameserverIP if it has a valid value (non-zero)
-    if (currentNameserverIP != zeroIP && currentNameserverIP != last_reported_nameserverIP)
+    if (currentNameserverIP != zeroIP)
     {
-        last_reported_nameserverIP = currentNameserverIP;
-        JSON_ADD_STR("nameserverIP", currentNameserverIP.toString().c_str());
+        JSON_ADD_STR_C("nameserverIP", currentNameserverIP.toString().c_str(), currentNameserverIP, last_reported_nameserverIP);
     }
     
     // Check for IPv6 address changes
     String currentIPv6Addresses = userConfig->getIPv6Addresses();
-    if (currentIPv6Addresses != last_reported_ipv6Addresses)
-    {
-        last_reported_ipv6Addresses = currentIPv6Addresses;
-        JSON_ADD_STR("ipv6Addresses", currentIPv6Addresses.c_str());
-    }
+    JSON_ADD_STR_C("ipv6Addresses", currentIPv6Addresses.c_str(), currentIPv6Addresses, last_reported_ipv6Addresses);
     
     // got any json?
     if (strlen(json) > 2)
@@ -467,7 +451,7 @@ void web_loop()
         // Have we added anything to the JSON string?
         JSON_ADD_INT("upTime", upTime);
         JSON_END();
-        if (strlen(json) > LOOP_JSON_BUFFER_SIZE * 8 / 10)
+        if (strlen(json) > STATUS_JSON_BUFFER_SIZE * 8 / 10)
         {
             ESP_LOGW(TAG, "WARNING web_loop JSON length: %d is over 80%% of available buffer", strlen(json));
         }
@@ -1311,7 +1295,7 @@ void SSEheartbeat(SSESubscription *s)
     if (s->client.connected())
     {
         static int8_t lastRSSI = 0;
-        static char *json = loop_json;
+        static char *json = status_json;
         TAKE_MUTEX();
         JSON_START(json);
         JSON_ADD_INT("upTime", _millis());
@@ -1808,7 +1792,7 @@ void handle_firmware_upload()
                 // Report percentage to browser client if it is listening
                 if (firmwareUpdateSub && firmwareUpdateSub->client.connected())
                 {
-                    static char *json = loop_json;
+                    static char *json = status_json;
                     TAKE_MUTEX();
                     JSON_START(json);
                     JSON_ADD_INT("uploadPercent", uploadPercent);
