@@ -124,6 +124,14 @@ _millis_t lastDoorOpenAt;
 _millis_t lastDoorCloseAt;
 GarageDoorCurrentState lastDoorState = (GarageDoorCurrentState)0xff;
 
+// Track last reported network configuration
+static const IPAddress zeroIP = IPAddress(0, 0, 0, 0);
+static IPAddress last_reported_localIP = zeroIP;
+static IPAddress last_reported_subnetMask = zeroIP;
+static IPAddress last_reported_gatewayIP = zeroIP;
+static IPAddress last_reported_nameserverIP = zeroIP;
+static String last_reported_ipv6Addresses = "";
+
 bool web_setup_done = false;
 
 // Implement our own firmware update so can enforce MD5 check.
@@ -409,6 +417,50 @@ void web_loop()
     JSON_ADD_INT_C("openDuration", garage_door.openDuration, last_reported_garage_door.openDuration);
     JSON_ADD_INT_C("closeDuration", garage_door.closeDuration, last_reported_garage_door.closeDuration);
     JSON_ADD_INT_C("ttcActive", is_ttc_active(), last_reported_garage_door.ttcActive);
+    
+    // Check for network configuration changes (IPv4)
+    IPAddress currentLocalIP = WiFi.localIP();
+    IPAddress currentSubnetMask = WiFi.subnetMask();
+    IPAddress currentGatewayIP = WiFi.gatewayIP();
+    IPAddress currentNameserverIP;
+    
+    // Use the stored nameserverIP from config (which is only set for IPv4) for consistency
+    if (!currentNameserverIP.fromString(userConfig->getNameserverIP()))
+    {
+        // If parsing fails, use 0.0.0.0
+        currentNameserverIP = zeroIP;
+    }
+    
+    if (currentLocalIP != last_reported_localIP)
+    {
+        last_reported_localIP = currentLocalIP;
+        JSON_ADD_STR("localIP", currentLocalIP.toString().c_str());
+    }
+    if (currentSubnetMask != last_reported_subnetMask)
+    {
+        last_reported_subnetMask = currentSubnetMask;
+        JSON_ADD_STR("subnetMask", currentSubnetMask.toString().c_str());
+    }
+    if (currentGatewayIP != last_reported_gatewayIP)
+    {
+        last_reported_gatewayIP = currentGatewayIP;
+        JSON_ADD_STR("gatewayIP", currentGatewayIP.toString().c_str());
+    }
+    // Only broadcast nameserverIP if it has a valid value (non-zero)
+    if (currentNameserverIP != zeroIP && currentNameserverIP != last_reported_nameserverIP)
+    {
+        last_reported_nameserverIP = currentNameserverIP;
+        JSON_ADD_STR("nameserverIP", currentNameserverIP.toString().c_str());
+    }
+    
+    // Check for IPv6 address changes
+    String currentIPv6Addresses = userConfig->getIPv6Addresses();
+    if (currentIPv6Addresses != last_reported_ipv6Addresses)
+    {
+        last_reported_ipv6Addresses = currentIPv6Addresses;
+        JSON_ADD_STR("ipv6Addresses", currentIPv6Addresses.c_str());
+    }
+    
     // got any json?
     if (strlen(json) > 2)
     {
