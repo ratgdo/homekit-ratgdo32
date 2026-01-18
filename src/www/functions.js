@@ -183,8 +183,11 @@ function toggleStaticIP() {
 
 // Show or hide the syslog IP field
 function toggleTimeZone() {
-    document.getElementById("timeZoneRow").style.opacity = (this.event.target.checked) ? 1 : 0.5;
-    document.getElementById("timeZoneInput").disabled = !this.event.target.checked;
+    const enabled = this.event.target.checked;
+    document.getElementById("ntpServerRow").style.opacity = enabled ? 1 : 0.5;
+    document.getElementById("ntpServer").disabled = !enabled;
+    document.getElementById("timeZoneRow").style.opacity = enabled ? 1 : 0.5;
+    document.getElementById("timeZoneInput").disabled = !enabled;
     // called for both checked and unchecked... to reset selection if necessary.
     loadTZinfo(document.getElementById("timeZoneInput"));
 }
@@ -618,8 +621,13 @@ function setElementsFromStatus(status) {
                 break;
             case "enableNTP":
                 document.getElementById(key).checked = value;
+                document.getElementById("ntpServerRow").style.opacity = (value) ? 1 : 0.5;
+                document.getElementById("ntpServer").disabled = !value;
                 document.getElementById("timeZoneRow").style.opacity = (value) ? 1 : 0.5;
                 document.getElementById("timeZoneInput").disabled = !value;
+                break;
+            case "ntpServer":
+                document.getElementById(key).placeholder = value;
                 break;
             case "enableIPv6":
                 document.getElementById(key).checked = value;
@@ -1369,6 +1377,8 @@ async function saveSettings() {
     let nameserverIP = document.getElementById("IPnameserver").value.substring(0, 15);
     if (nameserverIP.length == 0) nameserverIP = serverStatus.nameserverIP;
     const enableNTP = (document.getElementById("enableNTP").checked) ? '1' : '0';
+    let ntpServer = document.getElementById("ntpServer").value.substring(0, 63).trim();
+    if (ntpServer.length == 0) ntpServer = serverStatus.ntpServer;
     const enableIPv6 = (document.getElementById("enableIPv6").checked) ? '1' : '0';
     const list = document.getElementById("timeZoneInput");
     const timeZone = list.options[list.selectedIndex].text + ';' + list.options[list.selectedIndex].value;
@@ -1414,6 +1424,7 @@ async function saveSettings() {
         "gatewayIP", gatewayIP,
         "nameserverIP", nameserverIP,
         "enableNTP", enableNTP,
+        "ntpServer", ntpServer,
         "enableIPv6", enableIPv6,
         "timeZone", timeZone,
         "syslogEn", syslogEn,

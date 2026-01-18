@@ -517,7 +517,8 @@
               <tr id="dcOpenCloseRow">
                 <td></td>
                 <td>
-                  <input type="checkbox" id="dcOpenClose" name="dcOpenClose" value="no" onclick="toggleHardwiredBypassRow()">
+                  <input type="checkbox" id="dcOpenClose" name="dcOpenClose" value="no"
+                    onclick="toggleHardwiredBypassRow()">
                   <label for="dcOpenClose">Enable hardwired open/close/light control</label>
                 </td>
               </tr>
@@ -622,6 +623,12 @@
                 <td></td>
                 <td>
                   <table class="settings">
+                    <tr id="ntpServerRow">
+                      <td class="IPlabel">NTP Server:</td>
+                      <td>
+                        <input type="text" class="TZinput" id="ntpServer" name="ntpServer" maxlength="63">
+                      </td>
+                    </tr>
                     <tr id="timeZoneRow">
                       <td class="IPlabel">Time Zone:</td>
                       <td>

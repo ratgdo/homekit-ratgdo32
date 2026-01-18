@@ -166,22 +166,57 @@ bool helperMotionTriggers(const std::string &key, const char *value, configSetti
     return true;
 }
 
-bool helperTimeZone(const std::string &key, const char *value, configSetting *action)
+// Helper function to apply timezone configuration with NTP server
+// Reduces code duplication between helperNTPServer, helperTimeZone, and load_all_config_settings
+void applyTimezoneWithNTP(const char *ntpServer)
 {
-    userConfig->set(key, value);
-    if (char *p = strchr(value, ';'))
+    std::string tz = userConfig->getTimeZone();
+    size_t pos = tz.find(';');
+    if (pos != std::string::npos)
     {
         // semicolon may separate continent/city from posix TZ string
-        // if no semicolon then no POSIX code, so use UTC
-        p++;
-        ESP_LOGI(TAG, "Set timezone: %s", p);
-        configTzTime(p, NTP_SERVER);
+        ESP_LOGI(TAG, "Apply timezone: %s with NTP server: %s", tz.substr(pos + 1).c_str(), ntpServer);
+        configTzTime(tz.substr(pos + 1).c_str(), ntpServer);
     }
     else
     {
-        ESP_LOGI(TAG, "Set timezone: UTC0");
-        configTzTime("UTC0", NTP_SERVER);
+        // if no semicolon then no POSIX code, so use UTC
+        ESP_LOGI(TAG, "Apply timezone: UTC0 with NTP server: %s", ntpServer);
+        configTzTime("UTC0", ntpServer);
     }
+}
+
+bool helperNTPServer(const std::string &key, const char *value, configSetting *action)
+{
+    // Validate that NTP server is not empty or whitespace only
+    if (value == nullptr || strlen(value) == 0 || strspn(value, " \t\r\n") == strlen(value))
+    {
+        ESP_LOGW(TAG, "Invalid NTP server value, defaulting to pool.ntp.org");
+        userConfig->set(key, "pool.ntp.org");
+        value = "pool.ntp.org";
+    }
+    else
+    {
+        userConfig->set(key, value);
+    }
+
+    // Re-apply the current timezone with the new NTP server if NTP is enabled
+    if (userConfig->getEnableNTP())
+    {
+        applyTimezoneWithNTP(value);
+        ESP_LOGI(TAG, "Local time: %s", timeString());
+    }
+    else
+    {
+        ESP_LOGI(TAG, "Set NTP server: %s (NTP disabled, no time sync)", value);
+    }
+    return true;
+}
+
+bool helperTimeZone(const std::string &key, const char *value, configSetting *action)
+{
+    userConfig->set(key, value);
+    applyTimezoneWithNTP(userConfig->getNTPServer());
     ESP_LOGI(TAG, "Local time: %s", timeString());
     return true;
 }
@@ -367,6 +402,8 @@ userSettings::userSettings()
     strlcpy(syslogIPBuf, "0.0.0.0", 16);
     char *timezoneBuf = static_cast<char *>(malloc(64));
     *timezoneBuf = (char)0;
+    char *ntpServerBuf = static_cast<char *>(malloc(64));
+    strlcpy(ntpServerBuf, "pool.ntp.org", 64);
     char *usernameBuf = static_cast<char *>(malloc(32));
     strlcpy(usernameBuf, "admin", 32);
     char *credentialsBuf = static_cast<char *>(malloc(36));
@@ -393,6 +430,7 @@ userSettings::userSettings()
         {cfg_LEDidle, {false, false, 0, helperLEDidle}},               // call fn to set LED object
         {cfg_motionTriggers, {false, false, 0, helperMotionTriggers}}, // call fn to enable HomeSpan service
         {cfg_enableNTP, {true, false, false, NULL}},
+        {cfg_ntpServer, {false, false, (configStr){64, ntpServerBuf}, helperNTPServer}}, // call fn to re-sync time with new NTP server
         {cfg_doorUpdateAt, {false, false, 0, NULL}},
         {cfg_doorOpenAt, {false, false, 0, NULL}},
         {cfg_doorCloseAt, {false, false, 0, NULL}},
@@ -412,11 +450,11 @@ userSettings::userSettings()
         {cfg_dcDebounceDuration, {true, false, 50, NULL}},
         {cfg_obstFromStatus, {true, false, false, NULL}},
 #ifdef RATGDO32_DISCO
-        {cfg_vehicleThreshold, {false, false, 100, helperVehicleThreshold}}, // call fn to set globals
-        {cfg_vehicleHomeKit, {false, false, false, helperVehicleHomeKit}},   // call fn to enable/disable HomeKit accessories
-    {cfg_vehicleOccupancyHomeKit, {false, false, true, helperVehicleOccupancyHomeKit}}, // granular control for occupancy sensor
-    {cfg_vehicleArrivingHomeKit, {false, false, true, helperVehicleArrivingHomeKit}},   // granular control for arriving motion sensor
-    {cfg_vehicleDepartingHomeKit, {false, false, true, helperVehicleDepartingHomeKit}}, // granular control for departing motion sensor
+        {cfg_vehicleThreshold, {false, false, 100, helperVehicleThreshold}},                // call fn to set globals
+        {cfg_vehicleHomeKit, {false, false, false, helperVehicleHomeKit}},                  // call fn to enable/disable HomeKit accessories
+        {cfg_vehicleOccupancyHomeKit, {false, false, true, helperVehicleOccupancyHomeKit}}, // granular control for occupancy sensor
+        {cfg_vehicleArrivingHomeKit, {false, false, true, helperVehicleArrivingHomeKit}},   // granular control for arriving motion sensor
+        {cfg_vehicleDepartingHomeKit, {false, false, true, helperVehicleDepartingHomeKit}}, // granular control for departing motion sensor
         {cfg_laserEnabled, {false, false, false, helperLaser}},
         {cfg_laserHomeKit, {false, false, true, helperLaser}}, // call fn to enable/disable HomeKit accessories
         {cfg_assistDuration, {false, false, 60, NULL}},
@@ -429,7 +467,7 @@ userSettings::userSettings()
         // These features not available on ESP8266
         {cfg_occupancyDuration, {false, false, 0, helperOccupancyDuration}}, // call fn to enable/disable HomeKit accessories
         {cfg_enableIPv6, {true, false, false, NULL}},
-        {cfg_homespanCLI, {false, false, false, helperHomeSpanCLI}}, // call fn to enable/disable HomeSpan CLI and Improv
+        {cfg_homespanCLI, {false, false, false, helperHomeSpanCLI}},    // call fn to enable/disable HomeSpan CLI and Improv
         {cfg_lightHomeKit, {false, false, true, helperLightHomeKit}},   // call fn to enable/disable HomeKit light accessory (default: enabled)
         {cfg_motionHomeKit, {false, false, true, helperMotionHomeKit}}, // call fn to enable/disable HomeKit motion accessory (default: enabled)
 #endif

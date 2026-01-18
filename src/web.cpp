@@ -315,8 +315,10 @@ void web_loop()
     static _millis_t last_request_time = 0;
 
     // manage frequency of mDNS updates
-    if (mdnsUpdatePending) {
-        if (upTime - lastMDNSupdate > MDNS_UPDATE_INTERVAL) {
+    if (mdnsUpdatePending)
+    {
+        if (upTime - lastMDNSupdate > MDNS_UPDATE_INTERVAL)
+        {
             // This function also resets mdnsUpdatePending and lastMDNSupdate.
             add_dynamic_mdns();
         }
@@ -804,6 +806,7 @@ void build_status_json(char *json)
     {
         JSON_ADD_INT("serverTime", time(NULL));
     }
+    JSON_ADD_STR(cfg_ntpServer, userConfig->getNTPServer());
     JSON_ADD_STR(cfg_timeZone, userConfig->getTimeZone());
     JSON_ADD_BOOL(cfg_dcOpenClose, userConfig->getDCOpenClose());
     JSON_ADD_BOOL(cfg_dcBypassTTC, userConfig->getDCBypassTTC());
@@ -927,7 +930,8 @@ void add_dynamic_mdns()
     if (garage_door.has_distance_sensor)
     {
         MDNS.addServiceTxt("ratgdo", "tcp", "vehicleStatus", (const char *)vehicleStatus);
-        MDNS.addServiceTxt("ratgdo", "tcp", "vehicleDist", std::to_string((uint32_t)vehicleDistance).c_str());    }
+        MDNS.addServiceTxt("ratgdo", "tcp", "vehicleDist", std::to_string((uint32_t)vehicleDistance).c_str());
+    }
 #endif
     if (enableNTP && (bool)clockSet)
     {
