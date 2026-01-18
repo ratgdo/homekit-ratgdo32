@@ -627,7 +627,7 @@ function setElementsFromStatus(status) {
                 document.getElementById("timeZoneInput").disabled = !value;
                 break;
             case "ntpServer":
-                document.getElementById(key).value = value;
+                document.getElementById(key).placeholder = value;
                 break;
             case "enableIPv6":
                 document.getElementById(key).checked = value;
@@ -1378,7 +1378,7 @@ async function saveSettings() {
     if (nameserverIP.length == 0) nameserverIP = serverStatus.nameserverIP;
     const enableNTP = (document.getElementById("enableNTP").checked) ? '1' : '0';
     let ntpServer = document.getElementById("ntpServer").value.substring(0, 63).trim();
-    if (ntpServer.length == 0) ntpServer = "pool.ntp.org";
+    if (ntpServer.length == 0) ntpServer = serverStatus.ntpServer;
     const enableIPv6 = (document.getElementById("enableIPv6").checked) ? '1' : '0';
     const list = document.getElementById("timeZoneInput");
     const timeZone = list.options[list.selectedIndex].text + ';' + list.options[list.selectedIndex].value;

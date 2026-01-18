@@ -450,11 +450,11 @@ userSettings::userSettings()
         {cfg_dcDebounceDuration, {true, false, 50, NULL}},
         {cfg_obstFromStatus, {true, false, false, NULL}},
 #ifdef RATGDO32_DISCO
-        {cfg_vehicleThreshold, {false, false, 100, helperVehicleThreshold}}, // call fn to set globals
-        {cfg_vehicleHomeKit, {false, false, false, helperVehicleHomeKit}},   // call fn to enable/disable HomeKit accessories
-    {cfg_vehicleOccupancyHomeKit, {false, false, true, helperVehicleOccupancyHomeKit}}, // granular control for occupancy sensor
-    {cfg_vehicleArrivingHomeKit, {false, false, true, helperVehicleArrivingHomeKit}},   // granular control for arriving motion sensor
-    {cfg_vehicleDepartingHomeKit, {false, false, true, helperVehicleDepartingHomeKit}}, // granular control for departing motion sensor
+        {cfg_vehicleThreshold, {false, false, 100, helperVehicleThreshold}},                // call fn to set globals
+        {cfg_vehicleHomeKit, {false, false, false, helperVehicleHomeKit}},                  // call fn to enable/disable HomeKit accessories
+        {cfg_vehicleOccupancyHomeKit, {false, false, true, helperVehicleOccupancyHomeKit}}, // granular control for occupancy sensor
+        {cfg_vehicleArrivingHomeKit, {false, false, true, helperVehicleArrivingHomeKit}},   // granular control for arriving motion sensor
+        {cfg_vehicleDepartingHomeKit, {false, false, true, helperVehicleDepartingHomeKit}}, // granular control for departing motion sensor
         {cfg_laserEnabled, {false, false, false, helperLaser}},
         {cfg_laserHomeKit, {false, false, true, helperLaser}}, // call fn to enable/disable HomeKit accessories
         {cfg_assistDuration, {false, false, 60, NULL}},
@@ -467,7 +467,7 @@ userSettings::userSettings()
         // These features not available on ESP8266
         {cfg_occupancyDuration, {false, false, 0, helperOccupancyDuration}}, // call fn to enable/disable HomeKit accessories
         {cfg_enableIPv6, {true, false, false, NULL}},
-        {cfg_homespanCLI, {false, false, false, helperHomeSpanCLI}}, // call fn to enable/disable HomeSpan CLI and Improv
+        {cfg_homespanCLI, {false, false, false, helperHomeSpanCLI}},    // call fn to enable/disable HomeSpan CLI and Improv
         {cfg_lightHomeKit, {false, false, true, helperLightHomeKit}},   // call fn to enable/disable HomeKit light accessory (default: enabled)
         {cfg_motionHomeKit, {false, false, true, helperMotionHomeKit}}, // call fn to enable/disable HomeKit motion accessory (default: enabled)
 #endif
