@@ -44,6 +44,12 @@ input[type="checkbox"] {
     margin: 0px;
 }
 
+input[type="text"],
+input[type="password"],
+input[type="number"] {
+    font-weight: normal;
+}
+
 input[type="checkbox"][disabled] {
     cursor: not-allowed;
 }
