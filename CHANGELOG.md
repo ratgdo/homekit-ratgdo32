@@ -4,6 +4,22 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v3.4.4 (2026-02-??)
+
+### What's Changed
+
+* Bugfix: Inform browser whenever IP address is set or changed
+* Bugfix: Fix setting keyname mismatch between browser and server (homekitLight / lightHomeKit)
+* Feature: Allow user to set NTP server URL
+* Other: ESP32 only, update HomeSpan library to version 2.1.7
+
+### Known Issues
+
+* ESP32 (ratgdo32) only... Some users may get an error during OTA upload that firmware is too large for the OTA partition. See [README.md](https://github.com/ratgdo/homekit-ratgdo32/blob/main/README.md#upgrade-failures) for work-around.
+* Sec+ 1.0 doors with digital wall panel (e.g. 889LM) sometimes do not close after a time-to-close delay. Please watch your door to make sure it closes after TTC delay.
+* Sec+ 1.0 doors with "0x37" digital wall panel (e.g. 398LM) not working.  We now detect but will not support them. Recommend replacing with 889LM panel.
+* When creating automations in Apple Home the garage door may show only lock/unlock and not open/close as triggers. This is a bug in Apple Home. Workaround is to use the Eve App to create the automation, it will show both options.
+
 ## v3.4.3 (2026-01-11)
 
 ### What's Changed
