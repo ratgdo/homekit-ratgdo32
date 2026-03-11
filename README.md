@@ -184,7 +184,7 @@ You can disable the garage door opener light from flashing during the delay peri
 
 ### Automatic Close
 
-Security+ 2.0 doors have a built-in time-to-close feature that automatically closes the door a specified time after it is opened. This slider lets you set the duration between one minute and one hour after which the door will automatically close. The door will sound an audible warning and flash the lights for 5-6 seconds before closing.
+Some Security+ 2.0 doors have a built-in time-to-close feature that automatically closes the door a specified time after it is opened. This slider lets you set the duration between one minute and one hour after which the door will automatically close. The door will sound an audible warning and flash the lights for 5-6 seconds before closing.
 
 Setting the slider to zero, and saving the settings, will cancel the garage door built-in automatic close timer. If you need to send a cancel command and the slider is currently at zero, first set a non-zero duration, save that, then set it back to zero and save. The door opener will beep on receipt of a cancel command.
 
