@@ -192,13 +192,9 @@ bool helperNTPServer(const std::string &key, const char *value, configSetting *a
     if (value == nullptr || strlen(value) == 0 || strspn(value, " \t\r\n") == strlen(value))
     {
         ESP_LOGW(TAG, "Invalid NTP server value, defaulting to pool.ntp.org");
-        userConfig->set(key, "pool.ntp.org");
         value = "pool.ntp.org";
     }
-    else
-    {
-        userConfig->set(key, value);
-    }
+    userConfig->set(key, value);
 
     // Re-apply the current timezone with the new NTP server if NTP is enabled
     if (userConfig->getEnableNTP())
@@ -215,9 +211,17 @@ bool helperNTPServer(const std::string &key, const char *value, configSetting *a
 
 bool helperTimeZone(const std::string &key, const char *value, configSetting *action)
 {
-    userConfig->set(key, value);
-    applyTimezoneWithNTP(userConfig->getNTPServer());
-    ESP_LOGI(TAG, "Local time: %s", timeString());
+    // Validate that timezone value does not contain whitespace or line breaks
+    if (value == nullptr || strlen(value) == 0 || strpbrk(value, " \t\r\n"))
+    {
+        ESP_LOGW(TAG, "Invalid timezone value [%s], ignoring change", value);
+    }
+    else
+    {
+        userConfig->set(key, value);
+        applyTimezoneWithNTP(userConfig->getNTPServer());
+        ESP_LOGI(TAG, "Local time: %s", timeString());
+    }
     return true;
 }
 

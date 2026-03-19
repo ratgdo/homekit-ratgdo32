@@ -764,8 +764,13 @@ async function checkStatus() {
                 }
             })
             .then((text) => {
-                serverStatus = JSON.parse(text);
-                console.log(serverStatus);
+                try {
+                    serverStatus = JSON.parse(text);
+                    console.log(serverStatus);
+                } catch (error) {
+                    console.error(`Error parsing status JSON: ${error}`);
+                    console.log(`Status text: ${text}`);
+                }
                 serverStatus = { ...serverStatus, ...setGDOcmds }; // merge-in setGDO command constants
                 // Add letter 'v' to front of returned firmware version.
                 // Hack because firmware uses v0.0.0 and 0.0.0 for different purposes.
