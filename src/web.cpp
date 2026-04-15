@@ -61,6 +61,9 @@ static const char *TAG = "ratgdo-http";
 // This is used for CSS, JS and IMAGE file types.  Set to 30 days !!
 #define CACHE_CONTROL (60 * 60 * 24 * 30)
 
+// Per-request setgdo error message (populated by handlers to return specific text)
+static std::string setgdo_error_message = "";
+
 // Forward declare the internal URI handling functions...
 void handle_reset();
 void handle_status();
@@ -821,6 +824,67 @@ void build_status_json(char *json)
     JSON_ADD_BOOL("garageObstructed", garage_door.obstructed);
     JSON_ADD_BOOL("pinBasedObst", garage_door.pinModeObstructionSensor);
     JSON_ADD_BOOL(cfg_passwordRequired, userConfig->getPasswordRequired());
+    // Force password change only on first boot after a new firmware version
+    bool forcePwChange = false;
+    const char *storedCreds = userConfig->getwwwCredentials();
+    const char *factory_default_hash = "10d3c00fa1e09696601ef113b99f8a87";
+
+#ifdef ESP8266
+    // On ESP8266 persist last seen firmware in a small file and a password-set marker
+    String lastSeen = "";
+    const char *lastSeenFile = "/lastSeenFirmware";
+    const char *passwordSetFile = "/passwordSet";
+    bool passwordSet = false;
+    if (LittleFS.exists(passwordSetFile)) {
+        File pf = LittleFS.open(passwordSetFile, "r");
+        if (pf) {
+            String v = pf.readString();
+            pf.close();
+            if (v.toInt() != 0) passwordSet = true;
+        }
+    }
+    if (LittleFS.exists(lastSeenFile)) {
+        File f = LittleFS.open(lastSeenFile, "r");
+        if (f) {
+            lastSeen = f.readString();
+            f.close();
+        }
+    }
+    if (lastSeen != String(AUTO_VERSION)) {
+        if (!passwordSet && storedCreds && (strncmp(storedCreds, factory_default_hash, 32) == 0))
+        {
+            // User hasn't set a non-default password yet; force change
+            forcePwChange = true;
+        }
+        else
+        {
+            // Either password already set or credentials not default; mark this version as seen
+            File f = LittleFS.open(lastSeenFile, "w");
+            if (f) {
+                f.print(AUTO_VERSION);
+                f.close();
+            }
+        }
+    }
+#else
+    // On ESP32 use NVRAM to persist last seen firmware version and a password-set marker
+    std::string lastSeen = nvRam->read("lastSeenFirmware", "");
+    int passwordSet = nvRam->read("passwordSet", 0);
+    if (lastSeen != std::string(AUTO_VERSION)) {
+        if (!passwordSet && storedCreds && (strncmp(storedCreds, factory_default_hash, 32) == 0))
+        {
+            // User hasn't set a non-default password yet; force change
+            forcePwChange = true;
+        }
+        else
+        {
+            // Either password already set or credentials not default; mark this version as seen
+            nvRam->write("lastSeenFirmware", std::string(AUTO_VERSION).c_str(), true);
+        }
+    }
+#endif
+
+    JSON_ADD_BOOL("forcePasswordChange", forcePwChange);
     JSON_ADD_INT(cfg_rebootSeconds, (uint32_t)userConfig->getRebootSeconds());
     JSON_ADD_INT("freeHeap", free_heap);
     JSON_ADD_INT("minHeap", min_heap);
@@ -1071,6 +1135,20 @@ bool helperCredentials(const std::string &key, const char *value, configSetting 
     *strchr(newUsername, '"') = (char)0;
     *strchr(newCredentials, '"') = (char)0;
     *strchr(newPassword, '"') = (char)0;
+#ifdef ESP8266
+    const char *factory_default_hash = "10d3c00fa1e09696601ef113b99f8a87";
+#else
+    const char *factory_default_hash = "10d3c00fa1e09696601ef113b99f8a87";
+#endif
+
+    // Prevent user from setting credentials back to the factory-default hash
+    if (strncmp(newCredentials, factory_default_hash, 32) == 0)
+    {
+        ESP_LOGW(TAG, "Rejected attempt to set credentials to factory default for user: %s", newUsername);
+        setgdo_error_message = "Rejected: cannot set password back to factory default";
+        return false;
+    }
+
     // save values...
     ESP_LOGI(TAG, "Set credentials for user: %s", newUsername);
     userConfig->set(cfg_wwwUsername, newUsername);
@@ -1078,8 +1156,18 @@ bool helperCredentials(const std::string &key, const char *value, configSetting 
 #ifndef ESP8266
     // We only need to save password (distinct from credentials) on ESP32
     write_door_str(nvram_ratgdo_pw, newPassword);
+    // Mark passwordSet and persist lastSeenFirmware so enforcement clears
+    nvRam->write("passwordSet", 1, true);
+    nvRam->write("lastSeenFirmware", std::string(AUTO_VERSION).c_str(), true);
+#else
+    // On ESP8266, create a small file to mark password has been set and persist lastSeenFirmware
+    File pf = LittleFS.open("/passwordSet", "w");
+    if (pf) { pf.print("1"); pf.close(); }
+    File f = LittleFS.open("/lastSeenFirmware", "w");
+    if (f) { f.print(AUTO_VERSION); f.close(); }
 #endif
     ESP8266_SAVE_CONFIG();
+    setgdo_error_message.clear();
     return true;
 }
 
@@ -1215,8 +1303,25 @@ void handle_setgdo()
             }
             else
             {
-                // No function to call, set value directly.
-                userConfig->set(key, value.c_str());
+                // No function to call, set value directly. If set() fails (policy), record error.
+                // Special-case: prevent direct setting of cfg_wwwCredentials back to factory default
+                if (key == cfg_wwwCredentials)
+                {
+                    const char *factory_default_hash = "10d3c00fa1e09696601ef113b99f8a87";
+                    if (strncmp(value.c_str(), factory_default_hash, 32) == 0)
+                    {
+                        ESP_LOGW(TAG, "Rejected direct set of cfg_wwwCredentials to factory default");
+                        setgdo_error_message = "Rejected: cannot set password back to factory default";
+                        error = true;
+                        goto setgdo_loop_end;
+                    }
+                }
+
+                if (!userConfig->set(key, value.c_str()))
+                {
+                    ESP_LOGW(TAG, "Rejected setting Key: %s due to policy or invalid value", key.c_str());
+                    error = true;
+                }
             }
             reboot = reboot || actions.reboot;
             wifiChanged = wifiChanged || actions.wifiChanged;
@@ -1231,12 +1336,21 @@ void handle_setgdo()
         if (error)
             break;
     }
+    setgdo_loop_end:
 
     ESP_LOGV(TAG, "SetGDO Complete");
 
     if (error)
     {
-        // Simple error handling...
+        // If a handler provided a specific error message, prefer that
+        if (!setgdo_error_message.empty())
+        {
+            ESP_LOGE(TAG, "Sending setgdo error: %s, for: %s", setgdo_error_message.c_str(), server.uri().c_str());
+            server.send(400, type_txt, setgdo_error_message.c_str());
+            setgdo_error_message.clear();
+            return;
+        }
+        // Fallback to generic error
         ESP_LOGE(TAG, "Sending %s, for: %s", response400invalid, server.uri().c_str());
         server.send_P(400, type_txt, response400invalid);
         return;

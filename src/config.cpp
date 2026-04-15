@@ -686,6 +686,24 @@ bool userSettings::set(const std::string &key, const bool value)
     TAKE_MUTEX();
     if (settings.count(key))
     {
+        // Prevent enabling password protection if credentials are still factory-default.
+        if ((key == cfg_passwordRequired) && value)
+        {
+            // Read current stored credentials
+            if (settings.count(cfg_wwwCredentials))
+            {
+                char *stored = std::get<configStr>(settings[cfg_wwwCredentials].value).str;
+                // Factory-default credentials hash (MD5 of default credentials)
+                const char *factory_default_hash = "10d3c00fa1e09696601ef113b99f8a87";
+                if (strncmp(stored, factory_default_hash, 32) == 0)
+                {
+                    ESP_LOGW(TAG, "Refusing to enable password protection: factory default credentials in use");
+                    GIVE_MUTEX();
+                    return false;
+                }
+            }
+        }
+
         if (std::holds_alternative<bool>(settings[key].value))
         {
             settings[key].value = value;

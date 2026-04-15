@@ -425,6 +425,31 @@ function setElementsFromStatus(status) {
             case "passwordRequired":
                 document.getElementById("pwreq").checked = value;
                 break;
+            case "forcePasswordChange":
+                if (value) {
+                    try {
+                        // Show settings for context and present a blocking password modal
+                        showSettings();
+                        // Populate modal username placeholder from server
+                        const mu = document.getElementById('modalUserName');
+                        if (mu) mu.placeholder = document.getElementById('newUserName').placeholder || '';
+                        // Clear modal password fields
+                        const mnp = document.getElementById('modalNewPassword');
+                        const mcp = document.getElementById('modalConfirmPassword');
+                        if (mnp) mnp.value = '';
+                        if (mcp) mcp.value = '';
+                        // Hide modal close button and show pwModal
+                        const pwClose = document.getElementById('pwModalClose');
+                        if (pwClose) pwClose.style.display = 'none';
+                        document.getElementById('pwModal').style.display = 'block';
+                    } catch (e) {
+                        console.warn('Failed to show force-password modal', e);
+                    }
+                } else {
+                    const pw = document.getElementById('pwModal');
+                    if (pw && pw.style.display == 'block') pw.style.display = 'none';
+                }
+                break;
             case "LEDidle":
                 document.getElementById("LEDidle0").checked = (value == 0) ? true : false;
                 document.getElementById("LEDidle1").checked = (value == 1) ? true : false;
@@ -1173,13 +1198,25 @@ async function setGDO(...args) {
                 signal: AbortSignal.timeout(2000),
             });
             if (response.status !== 200) {
-                console.warn("Error setting RATGDO state");
+                // Surface server-provided error message to the user so they know why the change failed
+                let errText = "Error setting RATGDO state";
+                try {
+                    errText = await response.text();
+                } catch (e) {
+                    console.warn("Failed to read error response text", e);
+                }
+                console.warn("Error setting RATGDO state:", errText);
+                alert(`Failed to save settings: ${errText}`);
                 return false;
             }
             else {
                 const result = await response.text();
                 if (result.includes('Reboot')) {
                     console.log('Server settings saved, reboot required');
+                    return true;
+                }
+                // Some successful setGDO calls return HTML "<p>Success.</p>"; treat non-reboot success as success
+                if (result.toLowerCase().includes('success')) {
                     return true;
                 }
                 return false;
@@ -1209,30 +1246,48 @@ async function setGDO(...args) {
 }
 
 async function changePassword() {
-    // newPW defined in index.html
-    if (newPW.value === "") {
+    // Prefer modal inputs if present (modal fields will exist during forced-change flow)
+    const modalNew = document.getElementById('modalNewPassword');
+    const modalConfirm = document.getElementById('modalConfirmPassword');
+    const modalUser = document.getElementById('modalUserName');
+    let newPasswordVal, confirmPasswordVal, www_username;
+    if (modalNew && modalConfirm) {
+        newPasswordVal = modalNew.value;
+        confirmPasswordVal = modalConfirm.value;
+        www_username = (modalUser && modalUser.value) ? modalUser.value.substring(0,30) : (document.getElementById("newUserName").value.substring(0,30));
+    } else {
+        // fallback to settings inputs
+        const newPWelem = document.getElementById("newPassword");
+        const confirmPWelem = document.getElementById("confirmPassword");
+        newPasswordVal = newPWelem ? newPWelem.value : "";
+        confirmPasswordVal = confirmPWelem ? confirmPWelem.value : "";
+        www_username = document.getElementById("newUserName").value.substring(0, 30);
+    }
+    if (newPasswordVal === "") {
         alert("New password cannot be blank");
         return;
     }
-    if (newPW.value !== confirmPW.value) {
+    if (newPasswordVal !== confirmPasswordVal) {
         alert("Passwords do not match");
         return;
     }
-    let www_username = document.getElementById("newUserName").value.substring(0, 30);
     if (www_username.length == 0) www_username = serverStatus.userName ?? "admin";
     const www_realm = "RATGDO Login Required";
     // MD5() function expects a Uint8Array typed ArrayBuffer...
-    const passwordHash = MD5((new TextEncoder).encode(www_username + ":" + www_realm + ":" + newPW.value));
+    const passwordHash = MD5((new TextEncoder).encode(www_username + ":" + www_realm + ":" + newPasswordVal));
     console.log("Set new credentials to: " + passwordHash);
-    await setGDO("credentials", JSON.stringify({
+    const ok = await setGDO("credentials", JSON.stringify({
         username: www_username,
         credentials: passwordHash,
-        password: newPW.value
+        password: newPasswordVal
     }));
     clearTimeout(checkHeartbeat);
-    // On success, go to home page.
-    // User will have to re-authenticate to get back to settings.
-    location.href = "/";
+    if (ok) {
+        // On success, go to home page. User will have to re-authenticate to get back to settings.
+        location.href = "/";
+    } else {
+        // setGDO already alerted the user to the error; keep them on the change-password page.
+    }
     return;
 }
 
