@@ -142,18 +142,10 @@ const int rtcSize = sizeof(rtcRebootLog) + sizeof(rtcCrashLog) + sizeof(rebootTi
 // reset window. Climbing values pre-freeze are the smoking gun for the
 // "subscriber wedged → SSE broadcast blocks → log mutex held → every
 // other ESP_LOGx blocks" deadlock pattern that hit on 5/4. The
-// homekit_health_log reads + zeros this every 180s.
+// homekit_health_log reads + zeros this every 180s. (Note: logMutex
+// is a private member of class LOG so the timing has to be inlined
+// at the take site rather than wrapped in a helper.)
 volatile uint32_t logMtxMaxWaitMs = 0;
-static inline void takeMutexInstrumented() {
-#ifndef ESP8266
-    uint32_t t0 = (uint32_t)(esp_timer_get_time() / 1000ULL);
-    xSemaphoreTakeRecursive(logMutex, portMAX_DELAY);
-    uint32_t dt = (uint32_t)(esp_timer_get_time() / 1000ULL) - t0;
-    if (dt > logMtxMaxWaitMs) logMtxMaxWaitMs = dt;
-#else
-    xSemaphoreTakeRecursive(logMutex, portMAX_DELAY);
-#endif
-}
 
 void panic_handler(arduino_panic_info_t *info, void *arg)
 {
@@ -227,7 +219,17 @@ LOG::LOG()
 
 void LOG::logToBuffer(const char *fmt, va_list args)
 {
-    takeMutexInstrumented();  // v24: was TAKE_MUTEX; same effect + records wait time
+    // v24 instrumented mutex take — record max wait time so a wedged
+    // SSE-subscriber-induced broadcast block becomes visible in the
+    // periodic health log instead of disappearing into the deadlock.
+#ifndef ESP8266
+    uint32_t mtxT0 = (uint32_t)(esp_timer_get_time() / 1000ULL);
+#endif
+    TAKE_MUTEX();
+#ifndef ESP8266
+    uint32_t mtxDt = (uint32_t)(esp_timer_get_time() / 1000ULL) - mtxT0;
+    if (mtxDt > logMtxMaxWaitMs) logMtxMaxWaitMs = mtxDt;
+#endif
     // parse the format string into lineBuffer
     vsnprintf(lineBuffer, LINE_BUFFER_SIZE, fmt, args);
     // If timestamp is wrapped in () and not [] then message is from one of the ESP_LOGx() functions.
