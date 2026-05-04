@@ -80,6 +80,7 @@ void handle_setgdo();
 void handle_logout();
 void handle_auth();
 void handle_subscribe();
+void handle_unsubscribe(); // v27: best-effort beacon cleanup, see handle_unsubscribe()
 void handle_showlog();
 void handle_showrebootlog();
 void handle_crashlog();
@@ -120,7 +121,9 @@ const std::unordered_map<std::string, std::pair<const HTTPMethod, void (*)()>> b
     {"/forcecrash", {HTTP_POST, handle_forcecrash}},
     {"/crashoom", {HTTP_POST, handle_crash_oom}},
 #endif
-    {"/rest/events/subscribe", {HTTP_GET, handle_subscribe}}};
+    {"/rest/events/subscribe", {HTTP_GET, handle_subscribe}},
+    // v27: paired endpoint for navigator.sendBeacon() on beforeunload
+    {"/rest/events/unsubscribe", {HTTP_POST, handle_unsubscribe}}};
 
 // Declare web server on HTTP port 80.
 #ifdef ESP8266
@@ -192,6 +195,18 @@ constexpr char gitTaggedURL[] = "https://raw.githubusercontent.com/" _GITUSER "/
 // Just reloading page causes register on new channel.  So we need a reasonable number
 // to accommodate "extra" until old one is detected as disconnected.
 #define SSE_MAX_CHANNELS 8
+// v27: orphan-slot sweep timeouts. Run from service_timer_loop, independent
+// of the per-slot heartbeat Ticker (which doesn't fire when heartbeat=0).
+//   PREHANDSHAKE: slot has been subscribed but the EventSource never came
+//                 back to /events/N. Browser was closed mid-flight or the
+//                 GET hung. 15s is well past any realistic round-trip.
+//   IDLE        : slot is fully connected but hasn't received any
+//                 broadcast/heartbeat traffic in 120s. Belt-and-suspenders
+//                 for a wedged TCP socket whose client.connected() still
+//                 returns true. 120s > 60s max heartbeat so a healthy
+//                 client never trips this.
+#define SSE_PREHANDSHAKE_TIMEOUT_MS  15000UL
+#define SSE_IDLE_TIMEOUT_MS         120000UL
 struct SSESubscription
 {
     IPAddress clientIP;
@@ -209,6 +224,17 @@ struct SSESubscription
     // panics in uxListRemove. Instead we set this flag and let
     // service_timer_loop() (main loop context) do the actual remove.
     volatile bool pendingRemove;
+    // v27: timestamps for the orphan-slot sweep that runs independent
+    // of the heartbeat Ticker. Pre-v27 the only liveness driver was
+    // SSEheartbeat which only ran if heartbeatInterval > 0 — clients
+    // that subscribed with heartbeat=0 (like logs.html does) leaked
+    // slots forever once the page navigated away. Now the orphan sweep
+    // in service_timer_loop catches three classes of leaks: (1)
+    // subscribed-but-never-connected to /events/N within 15s, (2)
+    // SSEconnected with client.connected()==false, (3) idle for over
+    // 120s with no broadcast traffic (heartbeat=0 belt+suspenders).
+    _millis_t subscribedAt;
+    _millis_t lastActivity;
 };
 SSESubscription subscription[SSE_MAX_CHANNELS];
 // During firmware update note which subscribed client is updating
@@ -269,6 +295,13 @@ static char writeBuffer[512];
 // exceeds CLIENT_SLOW_WRITE_MS. homekit_health_log reads + zeros this
 // every 180s. Climbing values pre-freeze identify a wedged subscriber.
 volatile uint32_t sseSlowWrites = 0;
+// v27: live count of allocated SSE slots (refreshed by sweep_sse_orphans
+// every service tick) and a windowed counter of slots reaped by the
+// sweep. homekit_health_log reads both every 180s and zeros sseOrphansReaped
+// (sseSlotsAlloc is a snapshot, not a counter). Lets us see at a glance
+// whether the slot leak that caused the v26 25s-post-boot wedge is back.
+volatile uint32_t sseSlotsAlloc = 0;
+volatile uint32_t sseOrphansReaped = 0;
 bool clientWrite(WiFiClient client, const char *data)
 {
     size_t len = strlen(data);
@@ -621,6 +654,14 @@ void setup_web()
         subscription[i].SSEconnected = false;
         subscription[i].clientIP = INADDR_NONE;
         subscription[i].clientUUID.clear();
+        // v27: explicit init for the orphan-sweep + deferred-remove fields.
+        // Without this the struct is left with whatever pattern BSS happened
+        // to land on (zero in practice, but the sweep is too sensitive to
+        // assume — a non-zero subscribedAt + zero clientIP would still get
+        // skipped by the FREE check, but leaving it implicit is brittle).
+        subscription[i].pendingRemove = false;
+        subscription[i].subscribedAt = 0;
+        subscription[i].lastActivity = 0;
     }
 
     // Initialize connection tracking
@@ -1546,6 +1587,11 @@ void removeSSEsubscription(SSESubscription *s)
     s->clientUUID.clear();
     s->SSEconnected = false;
     s->pendingRemove = false;
+    // v27: reset orphan-sweep timestamps so a freshly freed slot doesn't
+    // get reaped on its next allocation if the new client subscribes
+    // faster than _millis ticks. Both are cheap writes.
+    s->subscribedAt = 0;
+    s->lastActivity = 0;
 }
 
 // v22: drain SSESubscription entries flagged pendingRemove during a
@@ -1562,6 +1608,96 @@ void process_sse_pending_removes()
             removeSSEsubscription(&subscription[i]);
         }
     }
+}
+
+// v27: orphan-slot sweep. Runs from service_timer_loop BEFORE
+// process_sse_pending_removes so any slot we flag here is reaped
+// the same tick. Three classes of orphans:
+//   5a) Subscribed but EventSource never opened (pre-handshake leak).
+//       Pre-v27 this was the dominant leak — logs.html with heartbeat=0
+//       had no Ticker to fire SSEheartbeat, so the SSEfailCount
+//       fast-path never ran. After SSE_PREHANDSHAKE_TIMEOUT_MS the
+//       browser is presumed gone.
+//   5b) Connected but TCP socket has dropped without us noticing.
+//       client.connected() now returns false but no broadcast/heartbeat
+//       has noticed yet (e.g. client subscribed but never sees broadcast
+//       traffic during a quiet period).
+//   5c) Connected and TCP still up, but truly idle for SSE_IDLE_TIMEOUT_MS.
+//       Belt-and-suspenders for a wedged-but-not-yet-RST socket. A
+//       healthy heartbeat>=30s client never trips this; logs.html with
+//       v27 heartbeat=10 also won't trip (broadcast+heartbeat keep
+//       lastActivity fresh).
+// Also reconciles subscriptionCount: if it desyncs from the actual slot
+// count (which it has been doing because handle_subscribe used to
+// pre-increment before all rejection paths exhausted), log + correct.
+void sweep_sse_orphans()
+{
+    _millis_t now = _millis();
+    uint32_t currentlyAlloc = 0;
+    uint32_t reapedThisTick = 0;
+    for (uint32_t i = 0; i < SSE_MAX_CHANNELS; i++)
+    {
+        SSESubscription &s = subscription[i];
+        // FREE — nothing to do.
+        if (s.clientIP == IPAddress(INADDR_NONE))
+            continue;
+        // Already flagged — process_sse_pending_removes will pick it up.
+        if (s.pendingRemove)
+        {
+            currentlyAlloc++;
+            continue;
+        }
+        currentlyAlloc++;
+        // 5a) pre-handshake abandoned
+        if (!s.SSEconnected && s.subscribedAt != 0 &&
+            (now - s.subscribedAt) > SSE_PREHANDSHAKE_TIMEOUT_MS)
+        {
+            ESP_LOGW(TAG, "SSE orphan (pre-handshake) channel=%u uuid=%s ip=%s age=%ums — reaping",
+                     (unsigned)i, s.clientUUID.c_str(),
+                     s.clientIP.toString().c_str(),
+                     (unsigned)(now - s.subscribedAt));
+            s.pendingRemove = true;
+            sseOrphansReaped++;
+            reapedThisTick++;
+            continue;
+        }
+        // 5b) connected but TCP gone
+        if (s.SSEconnected && !s.client.connected())
+        {
+            ESP_LOGW(TAG, "SSE orphan (TCP dropped) channel=%u uuid=%s ip=%s — reaping",
+                     (unsigned)i, s.clientUUID.c_str(),
+                     s.clientIP.toString().c_str());
+            s.pendingRemove = true;
+            sseOrphansReaped++;
+            reapedThisTick++;
+            continue;
+        }
+        // 5c) idle past the watchdog
+        if (s.SSEconnected && s.lastActivity != 0 &&
+            (now - s.lastActivity) > SSE_IDLE_TIMEOUT_MS)
+        {
+            ESP_LOGI(TAG, "SSE orphan (idle) channel=%u uuid=%s ip=%s idle=%ums — reaping",
+                     (unsigned)i, s.clientUUID.c_str(),
+                     s.clientIP.toString().c_str(),
+                     (unsigned)(now - s.lastActivity));
+            s.pendingRemove = true;
+            sseOrphansReaped++;
+            reapedThisTick++;
+            continue;
+        }
+    }
+    sseSlotsAlloc = currentlyAlloc;
+    // F3 reconciliation: subscriptionCount used to drift on the rejection
+    // paths in handle_subscribe (counter incremented before all rejection
+    // checks ran). If we see a mismatch here, the counter is wrong, the
+    // slots are right — assign + warn.
+    if (currentlyAlloc != subscriptionCount)
+    {
+        ESP_LOGW(TAG, "SSE subscriptionCount desync: counter=%u actual=%u — reconciling",
+                 (unsigned)subscriptionCount, (unsigned)currentlyAlloc);
+        subscriptionCount = currentlyAlloc;
+    }
+    (void)reapedThisTick;
 }
 
 void SSEheartbeat(SSESubscription *s)
@@ -1631,7 +1767,16 @@ void SSEheartbeat(SSESubscription *s)
         char localBuf[sizeof(writeBuffer)];
         snprintf_P(localBuf, sizeof(localBuf), PSTR("event: message\ndata: %s\n\n"), json);
         GIVE_MUTEX();
-        clientWrite(s->client, localBuf);
+        // v27: capture clientWrite return so we can stamp lastActivity
+        // only on a successful write. Failed writes already mark the
+        // socket via clientWrite's internal stop()/skip path; bumping
+        // lastActivity on a failure would mask the orphan sweep's
+        // idle-detection (5c) for up to SSE_IDLE_TIMEOUT_MS.
+        bool wrote = clientWrite(s->client, localBuf);
+        if (wrote)
+        {
+            s->lastActivity = _millis();
+        }
         YIELD();
     }
     else
@@ -1682,6 +1827,12 @@ void SSEHandler(uint32_t channel)
     server.sendContent_P(PSTR("HTTP/1.1 200 OK\nContent-Type: text/event-stream;\nConnection: keep-alive\nCache-Control: no-cache\nAccess-Control-Allow-Origin: *\n\n"));
     s.SSEconnected = true;
     s.SSEfailCount = 0;
+    // v27: stamp lastActivity on successful EventSource handshake. Without
+    // this a slot that subscribes + connects but never receives a broadcast
+    // would have lastActivity=0 forever, causing the 5c idle check to
+    // skip it (the !=0 guard) but also masking real wedges. Every other
+    // success-path keeps it fresh; this seeds it.
+    s.lastActivity = _millis();
     if (s.heartbeatInterval)
     {
         s.heartbeatTimer.attach_ms(s.heartbeatInterval * 1000, [&s]
@@ -1702,6 +1853,25 @@ void SSEHandler(uint32_t channel)
     ESP_LOGD(TAG, "Client %s (%s) listening for SSE events on channel %d", s.client.remoteIP().toString().c_str(), s.clientUUID.c_str(), channel);
 }
 
+// v27: heartbeat-interval bounds. Pre-v27 the lower bound was 0 (with
+// 0 == "no heartbeat") which was the second half of the slot-leak bug —
+// no Ticker meant SSEheartbeat never ran, the only liveness driver was
+// gone, and the slot leaked. v27 keeps the request-param surface (clients
+// can still send heartbeat=0) but coerces 0 → SSE_HEARTBEAT_MIN_SEC server-side
+// so every slot has a Ticker driving SSEheartbeat as a backup to the
+// orphan sweep. MAX stays at 60s (one ESP32 Ticker tick).
+constexpr uint32_t SSE_HEARTBEAT_MIN_SEC = 30;
+constexpr uint32_t SSE_HEARTBEAT_MAX_SEC = 60;
+constexpr uint32_t SSE_HEARTBEAT_DEFAULT_SEC = 1;
+// v27: refuse new SSE subscriptions when free heap is below this
+// threshold. WebServer-side allocations (chunked response buffers,
+// SSL handshake buffers if HTTPS, lwIP TCP PCBs) total >8KB per
+// active connection on ESP32; under heap pressure we'd just OOM
+// later in clientWrite anyway. 16KB picked empirically — a healthy
+// idle device sits at ~140K, the watchdog trips at <50K, so 16K is
+// safely past any normal load.
+constexpr uint32_t SSE_MIN_HEAP_FREE = 16384;
+
 void handle_subscribe()
 {
     uint32_t channel;
@@ -1718,6 +1888,15 @@ void handle_subscribe()
         return handle_notfound(); // We ran out of channels
     }
 
+    // v27 ORDER NOTE: every validation now runs BEFORE we touch any slot
+    // state or subscriptionCount. Pre-v27 layout interleaved validations
+    // (heartbeat range, client.connected) with the allocate-and-increment
+    // path — when a validation rejected, the counter was already bumped
+    // and the slot half-committed, leaking until the next reboot. v27
+    // pulls everything up so we can `return` from any rejection without
+    // unwinding partial state.
+
+    // 1. clientIP
     if (clientIP == IPAddress(INADDR_NONE))  // v25: explicit cast — sys/socket.h now defines INADDR_NONE as u32_t, ambiguous with the IPAddress overload
     {
         ESP_LOGE(TAG, "Sending %s, for: %s as clientIP missing", response400invalid, server.uri().c_str());
@@ -1725,7 +1904,7 @@ void handle_subscribe()
         return;
     }
 
-    // check we were passed at least one argument
+    // 2. at least one argument
     if (server.args() < 1)
     {
         ESP_LOGE(TAG, "Sending %s, for: %s", response400missing, server.uri().c_str());
@@ -1733,7 +1912,7 @@ void handle_subscribe()
         return;
     }
 
-    // find the UUID and whether client wants to receive log messages and setting a heartbeat interval time
+    // 3. parse argument indices (no slot state mutated)
     int id = 0;
     bool logViewer = false;
     int heartbeatIntervalArgIdx = -1;
@@ -1747,7 +1926,54 @@ void handle_subscribe()
             heartbeatIntervalArgIdx = i;
     }
 
-    // check if we already have a subscription for this UUID
+    // 4. heartbeat interval (F5 coerce)
+    uint32_t heartbeatInterval = SSE_HEARTBEAT_DEFAULT_SEC;
+    if (heartbeatIntervalArgIdx >= 0)
+    {
+        int hbi = server.arg(heartbeatIntervalArgIdx).toInt();
+        if (hbi < 0 || hbi > (int)SSE_HEARTBEAT_MAX_SEC)
+        {
+            ESP_LOGE(TAG, "Invalid heartbeat interval (0 - %u) for SSE subscription", (unsigned)SSE_HEARTBEAT_MAX_SEC);
+            server.send(400, type_txt, "Invalid heartbeat interval");
+            return;
+        }
+        if (hbi == 0)
+        {
+            // v27: caller asked for "no heartbeat" but the orphan sweep needs a
+            // Ticker running on every slot to detect class-5b drops in real-time.
+            // Coerce to MIN. logs.html ships v27-and-later with heartbeat=10 so
+            // this branch only fires for older logs.html (cache) or third-party clients.
+            ESP_LOGI(TAG, "v27: heartbeat=0 coerced to %u for client %s — orphan sweep needs Ticker liveness driver",
+                     (unsigned)SSE_HEARTBEAT_MIN_SEC, clientIP.toString().c_str());
+            heartbeatInterval = SSE_HEARTBEAT_MIN_SEC;
+        }
+        else
+        {
+            heartbeatInterval = (uint32_t)hbi;
+        }
+    }
+
+    // 5. low-heap rejection (F6) — return 503 without touching slot state.
+    if (ESP.getFreeHeap() < SSE_MIN_HEAP_FREE)
+    {
+        ESP_LOGW(TAG, "SSE subscription rejected - low heap (%u < %u)",
+                 (unsigned)ESP.getFreeHeap(), (unsigned)SSE_MIN_HEAP_FREE);
+        server.send(503, type_txt, "Low memory, try again shortly\n");
+        return;
+    }
+
+    // 6. client validity — checked BEFORE we capture into the slot.
+    WiFiClient client = server.client();
+    if (!client || !client.connected())
+    {
+        ESP_LOGE(TAG, "Invalid client for SSE subscription");
+        server.send(400, type_txt, "Invalid client connection");
+        return;
+    }
+
+    // 7. find existing UUID. removeSSEsubscription decrements
+    //    subscriptionCount; we don't pre-increment here so re-subscribing
+    //    is a clean wash.
     bool foundExisting = false;
     for (channel = 0; channel < SSE_MAX_CHANNELS; channel++)
     {
@@ -1770,20 +1996,15 @@ void handle_subscribe()
         }
     }
 
+    // 8. allocate a new slot if needed
     if (!foundExisting)
     {
-        // Need to allocate a new slot
         for (channel = 0; channel < SSE_MAX_CHANNELS; channel++)
             if (!subscription[channel].clientIP)
                 break;
-
-        if (channel < SSE_MAX_CHANNELS)
-        {
-            subscriptionCount++;
-        }
     }
 
-    // Check if we found a free slot
+    // 9. no free slot — 503 (still no state mutated for this request)
     if (channel >= SSE_MAX_CHANNELS)
     {
         ESP_LOGE(TAG, "SSE subscription failed - no free slots available");
@@ -1791,35 +2012,7 @@ void handle_subscribe()
         return;
     }
 
-    // Validate client before assignment
-    WiFiClient client = server.client();
-    if (!client || !client.connected())
-    {
-        ESP_LOGE(TAG, "Invalid client for SSE subscription");
-        server.send(400, type_txt, "Invalid client connection");
-        return;
-    }
-
-    // validate optional heartbeat interval
-    uint32_t heartbeatInterval = 1; // default
-    if (heartbeatIntervalArgIdx >= 0)
-    {
-        int hbi = server.arg(heartbeatIntervalArgIdx).toInt();
-        // in range of 0 (no heartbeat) to 60 seconds
-        if (hbi < 0 || hbi > 60)
-        {
-            ESP_LOGE(TAG, "Invalid heartbeat interval (0 - 60) for SSE subscription");
-            server.send(400, type_txt, "Invalid heartbeat interval (0 - 60)");
-            return;
-        }
-        else
-        {
-            // set to validated interval
-            heartbeatInterval = (uint32_t)hbi;
-        }
-    }
-
-    // Safe assignment with validation
+    // 10. commit slot fields (F7: explicit reset of v27 lifecycle fields).
     subscription[channel].clientIP = clientIP;
     subscription[channel].client = client;
     subscription[channel].heartbeatTimer = Ticker();
@@ -1828,11 +2021,60 @@ void handle_subscribe()
     subscription[channel].clientUUID = server.arg(id);
     subscription[channel].logViewer = logViewer;
     subscription[channel].heartbeatInterval = heartbeatInterval;
+    subscription[channel].pendingRemove = false;
+    subscription[channel].subscribedAt = _millis();
+    subscription[channel].lastActivity = _millis();
+
+    // 11. counter bumped only AFTER all rejection paths exhausted.
+    if (!foundExisting)
+    {
+        subscriptionCount++;
+    }
 
     SSEurl += std::to_string(channel);
     ESP_LOGD(TAG, "Client %s (%s) SSE subscription: %s, Total: %d, Heartbeat: %d, Log: %d", clientIP.toString().c_str(), server.arg(id).c_str(), SSEurl.c_str(), subscriptionCount, heartbeatInterval, (int)logViewer);
     server.sendHeader(F("Cache-Control"), F("no-cache, no-store"));
     server.send_P(200, type_txt, SSEurl.c_str());
+}
+
+// v27: best-effort cleanup endpoint. Browser calls this via
+// navigator.sendBeacon() on beforeunload to release the SSE slot
+// without waiting for the orphan sweep timeout. Browsers don't
+// guarantee beacon delivery (especially on mobile background tabs),
+// so the orphan sweep is still the authoritative cleanup path —
+// this just cuts leak rate during normal navigation. NO AUTH:
+// worst case is knocking offline a session whose UUID an attacker
+// already has; cannot exfiltrate state. NO CSRF: sendBeacon
+// cannot set custom headers and clamping it would defeat the API.
+void handle_unsubscribe()
+{
+    String uuid;
+    for (int i = 0; i < server.args(); i++)
+    {
+        if (server.argName(i).equals("id"))
+        {
+            uuid = server.arg(i);
+            break;
+        }
+    }
+    if (uuid.isEmpty())
+    {
+        server.send_P(400, type_txt, response400missing);
+        return;
+    }
+    int matched = 0;
+    for (uint32_t i = 0; i < SSE_MAX_CHANNELS; i++)
+    {
+        if (subscription[i].clientUUID == uuid && subscription[i].clientIP)
+        {
+            ESP_LOGD(TAG, "v27: unsubscribe beacon for UUID %s on channel %u — flag pendingRemove",
+                     uuid.c_str(), (unsigned)i);
+            subscription[i].pendingRemove = true;
+            matched++;
+        }
+    }
+    server.send(204, type_txt, "");
+    (void)matched;
 }
 
 void handle_crashlog()
@@ -1919,10 +2161,19 @@ void SSEBroadcastState(const char *data, BroadcastType type)
                             subscription[i].client.flush(); // make sure previous data all sent.
 #endif
                             subscription[i].client.printf("event: logger\ndata: %s\n\n", data);
+                            // v27: printf path is best-effort; treat it as activity
+                            // so we don't reap a slot whose only traffic is oversized
+                            // log lines (rare, but possible during boot logs).
+                            subscription[i].lastActivity = _millis();
                         }
                         else
                         {
-                            clientWrite(subscription[i].client, writeBuffer);
+                            // v27: only stamp lastActivity on a successful write so
+                            // the orphan-sweep idle check (5c) actually sees idle slots.
+                            if (clientWrite(subscription[i].client, writeBuffer))
+                            {
+                                subscription[i].lastActivity = _millis();
+                            }
                         }
                     }
                 }
@@ -1938,10 +2189,14 @@ void SSEBroadcastState(const char *data, BroadcastType type)
                         subscription[i].client.flush(); // make sure previous data all sent.
 #endif
                         subscription[i].client.printf("event: message\ndata: %s\n\n", data);
+                        subscription[i].lastActivity = _millis(); // v27: see LOG_MESSAGE path above
                     }
                     else
                     {
-                        clientWrite(subscription[i].client, writeBuffer);
+                        if (clientWrite(subscription[i].client, writeBuffer))
+                        {
+                            subscription[i].lastActivity = _millis(); // v27
+                        }
                     }
                 }
             }

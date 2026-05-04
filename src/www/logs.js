@@ -8,7 +8,43 @@
 // Global vars...
 var evtSource = undefined;      // for Server Sent Events (SSE)
 var msgJson = undefined;        // for status
-const clientUUID = uuidv4();    // uniquely identify this session
+// v27: persist the SSE client UUID in localStorage so a page reload
+// reuses the same subscription slot instead of leaking the previous one.
+// Pre-v27, every reload allocated a fresh UUID + slot; with the firmware
+// orphan sweep on a 15s pre-handshake / 120s idle timeout, you could
+// fill all 8 SSE_MAX_CHANNELS by reloading logs.html ~6 times in 15s.
+// uuidv4 is hoisted (function declaration further down), so the IIFE
+// can call it from this earlier line.
+const clientUUID = (function () {
+    try {
+        const KEY = 'ratgdo-logs-uuid';
+        let id = localStorage.getItem(KEY);
+        if (!id) {
+            id = uuidv4();
+            localStorage.setItem(KEY, id);
+        }
+        return id;
+    } catch (e) {
+        // Storage blocked (private browsing on iOS Safari, restrictive
+        // tracking-prevention modes). Fall back to a per-session UUID —
+        // not ideal, but the firmware sweep still catches the leak.
+        return uuidv4();
+    }
+})();
+// v27: best-effort cleanup. Browser releases the SSE slot on page-unload
+// without waiting for the firmware orphan sweep timeout. sendBeacon does
+// not block navigation and survives backgrounding on most browsers; on
+// the ones it doesn't (mobile Safari background tabs), the firmware
+// sweep is the safety net. No CSRF token: sendBeacon can't set custom
+// headers, and the endpoint is intentionally unauthenticated (worst
+// case is closing your own session early).
+window.addEventListener('beforeunload', () => {
+    try {
+        navigator.sendBeacon('rest/events/unsubscribe?id=' + clientUUID);
+    } catch (e) {
+        // sendBeacon unsupported — orphan sweep will catch it
+    }
+});
 var sysLogLoaded = false;
 var tmpLogMsgs = [];
 
@@ -77,7 +113,12 @@ async function loadLogs() {
     // Load all the logs in parallel, showing progress indicator while we do...
     loaderElem.style.visibility = "visible";
     console.log("Subscribe to Server Sent Events");
-    fetch("rest/events/subscribe?id=" + clientUUID + "&log=1&heartbeat=0")
+    // v27: heartbeat=10 (was 0). The orphan sweep on the firmware needs
+    // a Ticker driving SSEheartbeat for class-5b cleanup (TCP-dropped
+    // sockets that haven't seen a broadcast yet). Firmware coerces
+    // heartbeat=0 → 30 anyway so this is mostly cache-safety; the
+    // request also keeps lastActivity fresh, preventing class-5c idle reaps.
+    fetch("rest/events/subscribe?id=" + clientUUID + "&log=1&heartbeat=10")
         .then((response) => {
             if (!response.ok || response.status !== 200) {
                 reject(`Error registering for Server Sent Events, RC: ${response.status}`);
