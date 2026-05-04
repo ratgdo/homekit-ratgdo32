@@ -32,6 +32,13 @@
 #else
 #include "esp_core_dump.h"
 #include <ESPmDNS.h>
+#ifndef ESP8266
+// v24: setsockopt(SO_SNDTIMEO) on SSE TCP sockets to bound write times.
+// esp_timer_get_time for clientWrite slow-write instrumentation.
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <esp_timer.h>
+#endif
 #endif
 
 // RATGDO project includes
@@ -250,7 +257,18 @@ ActiveRequest activeRequests[MAX_CONCURRENT_REQUESTS];
 int activeRequestCount = 0;
 
 #define CLIENT_WRITE_TIMEOUT 500
+// v24: maximum time a single SSE clientWrite is allowed to spend in
+// client.write before we give up + report the slow channel. Was
+// effectively unbounded — Arduino-ESP32 WiFiClient::setTimeout only
+// affects READS, not writes, so a wedged subscriber would block the
+// caller indefinitely. Combined with the lwIP SO_SNDTIMEO set in
+// SSEHandler this caps the write to ~200ms.
+#define CLIENT_SLOW_WRITE_MS 200
 static char writeBuffer[512];
+// v24: bump per-broadcast slow-write counter when a single channel
+// exceeds CLIENT_SLOW_WRITE_MS. homekit_health_log reads + zeros this
+// every 180s. Climbing values pre-freeze identify a wedged subscriber.
+volatile uint32_t sseSlowWrites = 0;
 bool clientWrite(WiFiClient client, const char *data)
 {
     size_t len = strlen(data);
@@ -258,7 +276,33 @@ bool clientWrite(WiFiClient client, const char *data)
 #ifdef ESP8266
     client.flush(); // make sure previous data all sent.
 #endif
+    // v24 fast-path: if the TCP send buffer can't accept the full
+    // payload right now, the subscriber isn't draining and we'd block
+    // in client.write below. Skip + report; caller marks pendingRemove
+    // so the subscription is cleaned up next main-loop tick.
+    int avail = client.availableForWrite();
+    if (avail >= 0 && (size_t)avail < len)
+    {
+        sseSlowWrites++;
+        ESP_LOGD(TAG, "SSE clientWrite skipped — buffer full (need %u, have %d)", (unsigned)len, avail);
+        return false;
+    }
+#ifndef ESP8266
+    uint32_t t0 = (uint32_t)(esp_timer_get_time() / 1000ULL);
+#else
+    uint32_t t0 = millis();
+#endif
     written = client.write(data, len);
+#ifndef ESP8266
+    uint32_t dt = (uint32_t)(esp_timer_get_time() / 1000ULL) - t0;
+#else
+    uint32_t dt = millis() - t0;
+#endif
+    if (dt > CLIENT_SLOW_WRITE_MS)
+    {
+        sseSlowWrites++;
+        ESP_LOGW(TAG, "SSE clientWrite slow: %ums for %u bytes (subscriber may be wedged)", dt, (unsigned)len);
+    }
     if (written == 0)
     {
         YIELD();
@@ -473,12 +517,28 @@ void web_loop()
             ESP_LOGW(TAG, "WARNING web_loop JSON length: %d is over 80%% of available buffer", strlen(json));
         }
         JSON_REMOVE_NL(json);
-        if (!firmwareUpdateSub) // Only send if we are not in middle of firmware upgrade.
-            SSEBroadcastState(json);
-
+        // v24: copy + release-mutex before the broadcast. Same audit
+        // pattern as log.cpp / handle_status / SSEheartbeat — the
+        // broadcast walks every SSE subscriber writing TCP, which can
+        // block on a wedged client. The mutex isn't needed for the
+        // write itself, only the buffer construction.
+        bool doFanout = !firmwareUpdateSub;
+        char localJson[STATUS_JSON_BUFFER_SIZE];
+        if (doFanout)
+        {
+            strncpy(localJson, json, sizeof(localJson) - 1);
+            localJson[sizeof(localJson) - 1] = '\0';
+        }
         mdnsUpdatePending = true;
+        GIVE_MUTEX();
+
+        if (doFanout)
+            SSEBroadcastState(localJson);
     }
-    GIVE_MUTEX();
+    else
+    {
+        GIVE_MUTEX();
+    }
     static time_t mdnsDoorUpdateAt = 0;
     if (lastDoorUpdateAt && !mdnsDoorUpdateAt)
     {
@@ -708,16 +768,6 @@ void handle_reboot()
 // the user gets feedback in the UI before HTTP becomes briefly
 // unreachable. Logged via ESP_LOGW with "via web UI" tag for syslog
 // visibility.
-// v23: deferred WiFi cycle. Used by handle_reconnect_homekit. Fires
-// from a one-shot Ticker so the request thread returns immediately
-// instead of blocking other web requests / SSE clients / Tickers for
-// the ~750ms it takes to disconnect+reconnect WiFi.
-static Ticker reconnectHKTicker;
-static void run_deferred_reconnect_homekit()
-{
-    homekit_force_reconnect("via web UI /reconnectHomeKit");
-}
-
 void handle_reconnect_homekit()
 {
     AUTHENTICATE();
@@ -725,12 +775,11 @@ void handle_reconnect_homekit()
     const char *resp = "HomeKit reconnect triggered. WiFi will cycle in ~1s; expect a brief HTTP outage.\n";
     server.client().setNoDelay(true);
     server.send(200, type_txt, resp);
-    // v23: schedule the WiFi cycle off the request thread. Was a bare
-    // delay(500) + sync WiFi.disconnect/reconnect inline, which blocked
-    // every concurrent SSE client + Ticker for ~750ms while the request
-    // thread stalled.
-    reconnectHKTicker.detach();
-    reconnectHKTicker.once_ms(500, run_deferred_reconnect_homekit);
+    // v24: route through the deferred-flag drain in main loop instead
+    // of a one-shot Ticker. v23's deferred Ticker still ran in
+    // esp_timer task context where the ~750ms WiFi cycle would stall
+    // every other Ticker callback (SSE heartbeats, health log).
+    homekit_request_reconnect("via web UI /reconnectHomeKit");
     return;
 }
 
@@ -1145,8 +1194,15 @@ void handle_status()
     request_count++;
     build_status_json(json);
     build_time = (uint32_t)(_millis() - startTime);
-
     last_reported_garage_door = garage_door;
+    // v24: release the JSON mutex BEFORE the synchronous server.send_P
+    // TCP write. Same audit-flagged pattern as log.cpp — holding the
+    // mutex across a blocking write means a slow Homebridge poll could
+    // stall every other JSON consumer (web_loop SSE broadcasts,
+    // SSEheartbeat). The status JSON is a static buffer; once the
+    // build completes the mutex's job is done.
+    GIVE_MUTEX();
+
     server.sendHeader(F("Cache-Control"), F("no-cache, no-store"));
     server.send_P(200, type_json, json);
     response_time = _millis() - startTime;
@@ -1165,7 +1221,6 @@ void handle_status()
         // signal. To see these again, set log level to DEBUG in settings.
         ESP_LOGD(TAG, "JSON status: %d (%d%%), build time %lums, response time: %lums", strlen(json), strlen(json) * 100 / STATUS_JSON_BUFFER_SIZE, build_time, response_time);
     }
-    GIVE_MUTEX();
     return;
 }
 
@@ -1567,10 +1622,16 @@ void SSEheartbeat(SSESubscription *s)
 #endif
         JSON_END();
         JSON_REMOVE_NL(json);
-        // retry needed to before event:
-        snprintf_P(writeBuffer, sizeof(writeBuffer), PSTR("event: message\ndata: %s\n\n"), json);
-        clientWrite(s->client, writeBuffer);
+        // v24: copy the formatted SSE event to a local stack buffer
+        // BEFORE releasing the mutex (because writeBuffer is shared
+        // between heartbeat callers and could be overwritten by another
+        // SSE channel firing simultaneously). Then release the mutex
+        // and write — clientWrite is now bounded by SO_SNDTIMEO and
+        // skips full TCP buffers via availableForWrite.
+        char localBuf[sizeof(writeBuffer)];
+        snprintf_P(localBuf, sizeof(localBuf), PSTR("event: message\ndata: %s\n\n"), json);
         GIVE_MUTEX();
+        clientWrite(s->client, localBuf);
         YIELD();
     }
     else
@@ -1600,6 +1661,23 @@ void SSEHandler(uint32_t channel)
     }
     s.client.setNoDelay(true);
     s.client.setTimeout(CLIENT_WRITE_TIMEOUT);       // default is 5000ms which is way too long (Watchdog will fire)
+    // v24: setTimeout() in Arduino-ESP32 only bounds READS, not WRITES
+    // — a wedged subscriber would block client.write() indefinitely
+    // even with the timeout above. Set SO_SNDTIMEO directly via lwIP
+    // setsockopt so writes return after CLIENT_SLOW_WRITE_MS even on
+    // a stuck socket. Combined with the availableForWrite fast-path
+    // and pendingRemove cleanup, a single dead client can no longer
+    // wedge the broadcast loop.
+#ifndef ESP8266
+    int fd = s.client.fd();
+    if (fd >= 0)
+    {
+        struct timeval sndto;
+        sndto.tv_sec = 0;
+        sndto.tv_usec = CLIENT_SLOW_WRITE_MS * 1000;
+        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &sndto, sizeof(sndto));
+    }
+#endif
     server.setContentLength(CONTENT_LENGTH_UNKNOWN); // the payload can go on forever
     server.sendContent_P(PSTR("HTTP/1.1 200 OK\nContent-Type: text/event-stream;\nConnection: keep-alive\nCache-Control: no-cache\nAccess-Control-Allow-Origin: *\n\n"));
     s.SSEconnected = true;

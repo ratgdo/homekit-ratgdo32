@@ -428,6 +428,11 @@ void service_timer_loop()
     // threaded context, so concurrent /setgdo handler + Ticker callback
     // can't both manipulate autoCloseTicker's internal state at once.
     auto_close_drain_pending_reschedule();
+    // v24: drain pending HomeKit reconnect requests in main-loop context.
+    // homekit_force_reconnect blocks ~750ms — running it here instead
+    // of the esp_timer Ticker task avoids stalling every other Ticker
+    // callback (SSE heartbeats, health log, auto-close tick).
+    homekit_drain_pending_reconnect();
 
     // Check heap
     static _millis_t last_heap_check = 0;
