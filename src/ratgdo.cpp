@@ -423,6 +423,11 @@ void service_timer_loop()
     // 8-slot array scan. Fixes the v21-and-earlier crash where SSEheartbeat
     // would call Ticker.detach() on its own running Ticker → vTaskDelete →
     // uxListRemove panic.
+    // v27: ALSO sweep orphan slots first — flags slots whose Ticker
+    // can't drive cleanup (subscribed-but-never-connected, heartbeat=0
+    // without the v27 coerce, or idle for >120s with no broadcast traffic).
+    // Sweep runs first so flagged slots are reaped same tick.
+    sweep_sse_orphans();
     process_sse_pending_removes();
     // v23: drain pending auto-close reschedule requests in single-
     // threaded context, so concurrent /setgdo handler + Ticker callback

@@ -589,14 +589,25 @@ static void homekit_health_log()
     lastTickMs = _millis();
     extern volatile uint32_t logMtxMaxWaitMs;
     extern volatile uint32_t sseSlowWrites;
+    // v27: SSE leak instrumentation. sseSlotsAlloc is a live snapshot
+    // (refreshed every service tick by sweep_sse_orphans); sseOrphansReaped
+    // is a counter we zero each window — same pattern as logMtxMaxWaitMs.
+    // sseSlotsAlloc trending up + sseOrphansReaped > 0 means the
+    // sweep is doing its job. sseSlotsAlloc=8 + sseOrphansReaped=0 +
+    // any new clients getting "no free slots" = sweep is broken.
+    extern volatile uint32_t sseSlotsAlloc;
+    extern volatile uint32_t sseOrphansReaped;
     uint32_t mtxWait = logMtxMaxWaitMs;
     logMtxMaxWaitMs = 0; // reset for next window
+    uint32_t sseAlloc = sseSlotsAlloc;
+    uint32_t sseReaped = sseOrphansReaped;
+    sseOrphansReaped = 0; // windowed reset
 #ifndef ESP8266
     size_t maxAllocBlock = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
 #else
     size_t maxAllocBlock = 0; // ESP8266: heap_caps API not available
 #endif
-    ESP_LOGI(TAG, "HomeKit health: wifi=%s rssi=%ddBm heap=%lu maxBlock=%lu uptime=%us paired=%s controllers=%u last_hap_read_ago=%ds logMtxMaxWait=%ums sseSlowWrites=%u tickDrift=%dms",
+    ESP_LOGI(TAG, "HomeKit health: wifi=%s rssi=%ddBm heap=%lu maxBlock=%lu uptime=%us paired=%s controllers=%u last_hap_read_ago=%ds logMtxMaxWait=%ums sseSlowWrites=%u sseSlotsAlloc=%u sseOrphansReaped=%u tickDrift=%dms",
              wifiState,
              rssi,
              (unsigned long)esp_get_free_heap_size(),
@@ -607,6 +618,8 @@ static void homekit_health_log()
              lastReadAgo,
              (unsigned)mtxWait,
              (unsigned)sseSlowWrites,
+             (unsigned)sseAlloc,
+             (unsigned)sseReaped,
              (int)tickDriftMs);
 
     // Self-healing watchdog. Trigger only when:
@@ -1331,6 +1344,12 @@ void setup_homekit()
     // above. v22 bumped to 180s.
     homekitHealthTicker.detach();
     homekitHealthTicker.attach_ms(HOMEKIT_HEALTH_INTERVAL_MS, homekit_health_log);
+
+    // v27: HomeSpan does not invoke the controller-change callback for
+    // pairings loaded from NVS at boot, only for live add/remove events.
+    // Seed the cache here so homekit_health_log doesn't report
+    // controllers=0 between boot and the next live pairing change.
+    hap_controller_change_cb();
 
     homekit_setup_done = true;
 }

@@ -36,6 +36,10 @@ extern void web_loop();
 // inside Ticker callbacks to avoid the in-callback Ticker.detach() →
 // vTaskDelete → uxListRemove crash). Call from main-loop context.
 extern void process_sse_pending_removes();
+// v27: orphan-slot sweep — see web.cpp. Flags slots that have leaked
+// past the heartbeat-Ticker safety net (heartbeat=0, pre-handshake
+// abandons, idle wedged sockets). Called from service_timer_loop.
+extern void sweep_sse_orphans();
 
 extern void handle_notfound();
 extern void handle_reboot();

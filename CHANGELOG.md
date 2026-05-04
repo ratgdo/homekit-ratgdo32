@@ -10,6 +10,27 @@ All notable changes to `homekit-ratgdo32` will be documented in this file. This 
 
 This section documents changes specific to the `Haglerd/homekit-ratgdo32` fork. Upstream changes are listed in the `v3.x.x` section below; the fork tracks upstream and adds these on top.
 
+### v3.4.4-forceclose.27 (2026-05-02)
+
+**Fixed**
+- **SSE slot leak — device wedges 25s after every boot, `logs.html` unreachable.** Four interacting bugs:
+  1. **`subscriptionCount` desync.** `handle_subscribe()` incremented the counter mid-validation. Subsequent rejection paths (heartbeat range, low heap, dead client) returned without decrementing, so the counter drifted up over time and falsely tripped the "no free slots" capacity check while real slots sat free. Fix: all validations moved before the slot/counter mutations; counter only bumps after every rejection path is exhausted.
+  2. **No liveness driver for `heartbeat=0` clients.** `logs.html` subscribed with `heartbeat=0`, which produced a slot with no `Ticker` running. The only cleanup path (`SSEheartbeat()` failing 5x → `pendingRemove`) never fired, so `logs.html` slots leaked forever once the page navigated away. Fix: server-side coerce `heartbeat=0 → 30` and add an orphan sweep that runs from `service_timer_loop` independent of the Ticker.
+  3. **No pre-handshake timeout.** A slot allocated by `handle_subscribe()` but whose `EventSource` never came back to `/events/N` (browser closed mid-flight, GET hung) had no timeout — it sat as `clientIP=set, SSEconnected=false` until the next reboot. Fix: orphan sweep reaps any pre-handshake slot older than 15s.
+  4. **No idle timeout for connected slots.** A slot whose TCP socket dropped without an RST or whose subscriber stopped reading (`client.connected()` still true, no broadcast ever fails) was never cleaned up. Fix: orphan sweep reaps connected slots idle for >120s.
+- **`controllers=0` cosmetic in health log.** HomeSpan does not invoke `setControllerCallback` for pairings loaded from NVS at boot — only for live add/remove events. The health log reported `controllers=0` from boot until the next live pairing change (often forever). Fix: explicitly call `hap_controller_change_cb()` once at the end of `setup_homekit` to seed the cached count.
+
+**Added**
+- `POST /rest/events/unsubscribe?id=UUID` — best-effort beacon endpoint. `logs.js` calls this via `navigator.sendBeacon()` on `beforeunload`, releasing the SSE slot immediately on page navigation instead of waiting for the orphan sweep timeout. No auth, no CSRF (sendBeacon can't set custom headers; worst case is closing your own session). Browsers don't guarantee delivery — the orphan sweep is still the authoritative cleanup path.
+- Low-heap rejection at the top of `handle_subscribe()`. New SSE subscriptions are refused with 503 when free heap is below 16KB. Stops the cascade where heap pressure → write failures → leaked slots → more heap pressure.
+- New SSE health-log fields: `sseSlotsAlloc` (live snapshot of allocated slots, refreshed every service tick) and `sseOrphansReaped` (count of slots reaped by the sweep this 180s window). `sseSlotsAlloc=8 + sseOrphansReaped=0 + new clients getting "no free slots"` = sweep is broken.
+
+**Changed**
+- `logs.js` now persists its SSE client UUID in `localStorage` (`ratgdo-logs-uuid`). Pre-v27 every page reload generated a fresh UUID, which combined with the orphan sweep's 15s pre-handshake timeout meant ~6 fast reloads could fill all 8 channels. Falls back to a per-session UUID if storage is blocked (iOS private browsing).
+- `logs.js` heartbeat changed from `0` → `10`. Keeps `lastActivity` fresh so the connected client never trips the 120s idle reap, and gives `SSEheartbeat()` a Ticker for class-5b cleanup.
+
+**Note: missing v23-v26 CHANGELOG entries.** Versions 23 through 26 shipped without a CHANGELOG entry at the time. Quick recap — v23 added the same-origin/CSRF guard for state-changing endpoints + the auto-close reschedule deferral + watchdog config defensive clamps; v24 added SSE write-side `SO_SNDTIMEO`, the `clientWrite` slow-write counter + `availableForWrite` fast-path, the `pairedControllersCount` cache, and the `homekit_drain_pending_reconnect` deferral; v25 fixed an `INADDR_NONE` overload ambiguity that surfaced after a header-include shuffle; v26 was a release-pipeline-only change. Source-of-truth is the git log on `main` for those tags.
+
 ### v3.4.4-forceclose.22 (2026-05-02)
 
 **Fixed**
