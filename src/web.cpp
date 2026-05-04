@@ -1718,7 +1718,7 @@ void handle_subscribe()
         return handle_notfound(); // We ran out of channels
     }
 
-    if (clientIP == INADDR_NONE)
+    if (clientIP == IPAddress(INADDR_NONE))  // v25: explicit cast — sys/socket.h now defines INADDR_NONE as u32_t, ambiguous with the IPAddress overload
     {
         ESP_LOGE(TAG, "Sending %s, for: %s as clientIP missing", response400invalid, server.uri().c_str());
         server.send_P(400, type_txt, response400invalid);
