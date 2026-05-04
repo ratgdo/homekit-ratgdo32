@@ -66,7 +66,10 @@ void light_state_set(const homekit_value_t value);
 #else // not ESP8266
 
 static bool rebooting = false;
-static bool isPaired = false;
+// v28: volatile for cross-context consistency (HomeSpan callbacks
+// write, homekit_health_log Ticker reads). Single-byte ⇒ atomic on
+// ESP32; volatile prevents the compiler from hoisting reads.
+static volatile bool isPaired = false;
 
 #endif // ESP8266
 

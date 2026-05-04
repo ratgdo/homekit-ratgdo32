@@ -11,7 +11,27 @@ var serverStatus = {};          // object into which all server status is held.
 var checkHeartbeat = undefined; // setTimeout for heartbeat timeout
 var evtSource = undefined;      // for Server Sent Events (SSE)
 var delayStatusFn = [];         // to keep track of possible checkStatus timeouts
-const clientUUID = uuidv4();    // uniquely identify this session
+// v28: persist UUID across page reloads — see logs.js for full
+// rationale (foundExisting branch reuses slot instead of leaking).
+// Fallback to a fresh per-load UUID if localStorage is blocked
+// (private/incognito mode).
+const clientUUID = (function() {
+    try {
+        const KEY = 'ratgdo-home-uuid';
+        let id = localStorage.getItem(KEY);
+        if (!id) {
+            id = uuidv4();
+            localStorage.setItem(KEY, id);
+        }
+        return id;
+    } catch (e) {
+        return uuidv4();
+    }
+})();
+// v28: best-effort slot release on page unload — see logs.js for rationale.
+window.addEventListener('beforeunload', () => {
+    try { navigator.sendBeacon('rest/events/unsubscribe?id=' + clientUUID); } catch (e) {}
+});
 var rebootSeconds = 10;         // How long to wait before reloading page after reboot
 var setGDOcmds = {              // setGDO commands that are not sent from server nor exist in HTML
     credentials: "",
@@ -863,7 +883,11 @@ async function checkStatus() {
 
         checkCondition((!evtSource || evtSource.readyState == 2))
             .then((text) => {
-                fetch("rest/events/subscribe?id=" + clientUUID)
+                // v28: explicit heartbeat=10 — was sending no heartbeat
+                // arg, defaulting to 1s server-side. Matches logs.js for
+                // consistency; cuts server-side broadcast load for the
+                // home page (which doesn't need 1s liveness).
+                fetch("rest/events/subscribe?id=" + clientUUID + "&heartbeat=10")
                     .then((response) => {
                         if (!response.ok || response.status !== 200) {
                             throw new Error(`HTTP error: ${response.status}`);
