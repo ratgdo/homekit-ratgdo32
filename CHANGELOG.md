@@ -10,6 +10,27 @@ All notable changes to `homekit-ratgdo32` will be documented in this file. This 
 
 This section documents changes specific to the `Haglerd/homekit-ratgdo32` fork. Upstream changes are listed in the `v3.x.x` section below; the fork tracks upstream and adds these on top.
 
+### v3.4.4-forceclose.28 (2026-05-04)
+
+**Fixed (critical)**
+- **The actual root cause of "no free slots available" wedge.** The SSE-subscribe free-slot scan at `web.cpp:2003` was `if (!subscription[channel].clientIP)`, which (via `IPAddress::operator bool()`) is true ONLY when the address is 0.0.0.0 — NOT when it's `INADDR_NONE` (0xFFFFFFFF). But `setup_web` and `removeSSEsubscription` mark slots free by setting `clientIP = INADDR_NONE`. The orphan sweep at line 1642 correctly compares `clientIP == IPAddress(INADDR_NONE)`; the subscribe scan disagreed. Net effect: the very first 8 subscribes worked (initial slots have dword=0 from struct init), but every slot subsequently freed via `removeSSEsubscription` was permanently invisible to the scan. After all 8 slots had been used and freed once, every new subscribe returned 503 "no free slots" — even though the sweep correctly reported `sseSlotsAlloc=0`. Pre-existing bug all the way back to v22; v22-v26 hit it identically but the v22 SSE deadlock crashed the device before slot 9 was attempted, masking the symptom. v27's deadlock fix exposed it. Scan now compares `== IPAddress(INADDR_NONE)` to match the canonical "free" marker; same fix applied to `handle_unsubscribe`'s slot-lookup.
+
+**Fixed (audit findings on v27)**
+- **`SSESubscription.subscribedAt` and `lastActivity` were `int64_t` tearing risk.** Changed to `volatile uint32_t` (truncated `_millis()` cast) — eliminates race between sweep (main loop) and writers in Ticker / SSEBroadcastState. Wrap-safe subtraction handles ~49.7-day rollover; intervals (15s/120s) fit comfortably in 32 bits.
+- **`handle_unsubscribe` missing `enforce_same_origin`.** v27 comment claimed sendBeacon can't set custom headers — true for X-* headers, but browsers DO populate Origin/Referer/Host on sendBeacon POSTs (which is what `enforce_same_origin` actually checks). Added the guard; blocks drive-by cross-origin closes without breaking legitimate beacons.
+- **`/reset` and `/reboot` missing same-origin guards.** v23 added `enforce_same_origin` to `/setgdo`, `/reconnectHomeKit`, `/refreshHomeKitMDNS`, `/dumpHomeKitState`. `/reset` (un-pair + reboot) and `/reboot` (full reboot) were missed — a cross-origin LAN page could trigger either with a single sendBeacon. Both now consistent. `/reboot` additionally gained `AUTHENTICATE()` (no-op when no www password set, enforces password otherwise — matches `/reset`).
+- **Printf-path `lastActivity` stamps now gated on success.** `SSEBroadcastState`'s oversized-message printf fallback was stamping `lastActivity` regardless of write success, masking the orphan-sweep idle check (5c) by ~3min on a wedged subscriber. Captures `printf` return; only stamps when bytes were actually written.
+- **Firmware-update SSE write now stamps `lastActivity` on success.** Was the one v27 SSE write site that didn't refresh the timestamp. Negligible in practice (updates run <30s) but matches the rest of the SSE write paths.
+
+**Changed (storm robustness)**
+- **`SSE_PREHANDSHAKE_TIMEOUT_MS` reduced from 15000 → 5000.** Real-world reconnect storm observed where browser EventSource auto-retry filled all 8 slots faster than the 15s sweep could drain them. 5s is well above the typical EventSource handshake (<500ms even on cellular) — slow legitimate clients just hit a fresh subscribe retry, but storms can't outpace the sweep.
+- **`functions.js` (home page) gets the same UUID-localStorage + sendBeacon-on-unload + `heartbeat=10` treatment v27 applied to logs.js.** Home page reload no longer leaks a fresh slot per load.
+
+**Changed (consistency)**
+- **`isPaired` annotated `volatile`** for cross-context consistency with `hapLastReadSec` / `pairedControllersCount`. No behavior change — single-byte writes already atomic on ESP32; volatile just prevents compiler hoisting.
+
+
+
 ### v3.4.4-forceclose.27 (2026-05-02)
 
 **Fixed**

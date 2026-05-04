@@ -205,7 +205,13 @@ constexpr char gitTaggedURL[] = "https://raw.githubusercontent.com/" _GITUSER "/
 //                 for a wedged TCP socket whose client.connected() still
 //                 returns true. 120s > 60s max heartbeat so a healthy
 //                 client never trips this.
-#define SSE_PREHANDSHAKE_TIMEOUT_MS  15000UL
+// v28: was 15000UL — tightened to 5000UL after observing real-world
+// reconnect-storm where 8 slots filled (e.g. browser EventSource auto-
+// retrying after a 503 storm) faster than the sweep could drain them.
+// 5s is well above the typical EventSource handshake (<500ms even on
+// cellular), so a slow legitimate client just hits a fresh subscribe
+// retry — same recovery as 15s, but storms can't outpace the sweep.
+#define SSE_PREHANDSHAKE_TIMEOUT_MS  5000UL
 #define SSE_IDLE_TIMEOUT_MS         120000UL
 struct SSESubscription
 {
@@ -233,8 +239,15 @@ struct SSESubscription
     // subscribed-but-never-connected to /events/N within 15s, (2)
     // SSEconnected with client.connected()==false, (3) idle for over
     // 120s with no broadcast traffic (heartbeat=0 belt+suspenders).
-    _millis_t subscribedAt;
-    _millis_t lastActivity;
+    // v28: int64_t was an int64_t-tearing risk — read by sweep
+    // (main loop) racing writers in Ticker / SSEBroadcastState.
+    // Truncated uint32_t millis is safe: 32-bit aligned writes are
+    // atomic on ESP32, subtraction is wrap-safe modulo 2^32, and
+    // the intervals we compare against (15000/120000 ms) fit
+    // comfortably. Even the ~49.7-day rollover causes at most one
+    // bad delta on the wrap tick — recoverable next tick.
+    volatile uint32_t subscribedAt;
+    volatile uint32_t lastActivity;
 };
 SSESubscription subscription[SSE_MAX_CHANNELS];
 // During firmware update note which subscribed client is updating
@@ -772,6 +785,10 @@ void handle_auth()
 void handle_reset()
 {
     AUTHENTICATE();
+    // v28: same-origin guard added — consistent with /setgdo and the
+    // other state-changing v23+ POSTs. Pre-v28 a cross-origin page on
+    // the same LAN could un-pair the device with a single beacon.
+    if (!enforce_same_origin("/reset")) return;
     ESP_LOGI(TAG, "... reset requested");
 #ifdef ESP8266
     homekit_storage_reset();
@@ -789,6 +806,14 @@ void handle_reset()
 
 void handle_reboot()
 {
+    // v28: AUTHENTICATE + same-origin guard added. Pre-v28 /reboot was
+    // entirely unguarded — a cross-origin page on the same LAN could
+    // reboot the device. AUTHENTICATE is a no-op when the user hasn't
+    // set a www password, preserving the legacy default-no-password UX;
+    // for password-protected installs it now enforces the password,
+    // matching /reset and /setgdo behaviour.
+    AUTHENTICATE();
+    if (!enforce_same_origin("/reboot")) return;
     const char *resp = "Rebooting...\n";
     server.client().setNoDelay(true);
     server.send(200, type_txt, resp);
@@ -1632,7 +1657,10 @@ void process_sse_pending_removes()
 // pre-increment before all rejection paths exhausted), log + correct.
 void sweep_sse_orphans()
 {
-    _millis_t now = _millis();
+    // v28: truncate now to uint32_t to match the timestamp field width
+    // (changed from _millis_t int64_t in v28 to avoid tearing risk).
+    // Subtraction is wrap-safe modulo 2^32.
+    uint32_t now = (uint32_t)_millis();
     uint32_t currentlyAlloc = 0;
     uint32_t reapedThisTick = 0;
     for (uint32_t i = 0; i < SSE_MAX_CHANNELS; i++)
@@ -1705,7 +1733,11 @@ void SSEheartbeat(SSESubscription *s)
     if (!s)
         return;
 
-    if (!(s->clientIP))
+    // v28: was `if (!(s->clientIP))` — same INADDR_NONE-vs-zero
+    // mismatch as the subscribe scan. Compare to the canonical free
+    // marker so a heartbeat scheduled before removeSSEsubscription
+    // ran doesn't accidentally fire on a slot that's logically free.
+    if (s->clientIP == IPAddress(INADDR_NONE))
         return;
 
     if (!(s->SSEconnected))
@@ -1775,7 +1807,7 @@ void SSEheartbeat(SSESubscription *s)
         bool wrote = clientWrite(s->client, localBuf);
         if (wrote)
         {
-            s->lastActivity = _millis();
+            s->lastActivity = (uint32_t)_millis();
         }
         YIELD();
     }
@@ -1832,7 +1864,7 @@ void SSEHandler(uint32_t channel)
     // would have lastActivity=0 forever, causing the 5c idle check to
     // skip it (the !=0 guard) but also masking real wedges. Every other
     // success-path keeps it fresh; this seeds it.
-    s.lastActivity = _millis();
+    s.lastActivity = (uint32_t)_millis();
     if (s.heartbeatInterval)
     {
         s.heartbeatTimer.attach_ms(s.heartbeatInterval * 1000, [&s]
@@ -1853,13 +1885,26 @@ void SSEHandler(uint32_t channel)
     ESP_LOGD(TAG, "Client %s (%s) listening for SSE events on channel %d", s.client.remoteIP().toString().c_str(), s.clientUUID.c_str(), channel);
 }
 
-// v27: heartbeat-interval bounds. Pre-v27 the lower bound was 0 (with
-// 0 == "no heartbeat") which was the second half of the slot-leak bug —
-// no Ticker meant SSEheartbeat never ran, the only liveness driver was
-// gone, and the slot leaked. v27 keeps the request-param surface (clients
-// can still send heartbeat=0) but coerces 0 → SSE_HEARTBEAT_MIN_SEC server-side
-// so every slot has a Ticker driving SSEheartbeat as a backup to the
-// orphan sweep. MAX stays at 60s (one ESP32 Ticker tick).
+// v27/v28: heartbeat-interval bounds.
+//
+//   MIN = 30s  — coerce-target when client EXPLICITLY sends heartbeat=0.
+//                Pre-v27 the lower bound was 0 (with 0 == "no heartbeat"),
+//                which combined with the slot-leak bug to leave heartbeat=0
+//                slots without any Ticker-driven liveness. We now coerce
+//                explicit 0 → MIN so every server-acknowledged "I'd rather
+//                have no heartbeat" client still gets a Ticker as backup
+//                to the orphan sweep.
+//
+//   MAX = 60s  — one ESP32 Ticker tick cap.
+//
+//   DEFAULT = 1s — applies ONLY when the client sends NO heartbeat= arg
+//                  at all. 1s is more liveness than MIN, not less, so
+//                  this is functionally correct — the constant is
+//                  named DEFAULT, not MIN, and the F5 coerce
+//                  intentionally only fires when the arg is explicitly
+//                  provided. Any client that wants the cheaper 30s
+//                  cadence should send heartbeat=30 (or heartbeat=0
+//                  which gets coerced to 30).
 constexpr uint32_t SSE_HEARTBEAT_MIN_SEC = 30;
 constexpr uint32_t SSE_HEARTBEAT_MAX_SEC = 60;
 constexpr uint32_t SSE_HEARTBEAT_DEFAULT_SEC = 1;
@@ -1999,8 +2044,29 @@ void handle_subscribe()
     // 8. allocate a new slot if needed
     if (!foundExisting)
     {
+        // v28 BUG FIX: match the canonical "free" marker used by the orphan
+        // sweep at line 1642 — `clientIP == IPAddress(INADDR_NONE)`.
+        //
+        // Pre-v28 this scan was `if (!subscription[channel].clientIP)`,
+        // which calls IPAddress::operator bool(). That returns false ONLY
+        // when the address is 0.0.0.0 (the default-constructed state) —
+        // NOT when it's INADDR_NONE (0xFFFFFFFF, the marker that
+        // setup_web + removeSSEsubscription assign to "free" the slot).
+        //
+        // Effect: the very first 8 subscribes worked (initial slots have
+        // dword=0 from struct init, so !clientIP was true). Every slot
+        // subsequently freed via removeSSEsubscription was set to
+        // INADDR_NONE — at which point the scan never saw it as free
+        // again. After all 8 slots had been used + freed once, the device
+        // permanently rejected new subscribes with 503 "no free slots
+        // available," even though the sweep correctly reported
+        // sseSlotsAlloc=0. The sweep and the scan disagreed about what
+        // "free" meant, and the scan had it wrong. v22-v26 hit this
+        // identically; the v22 SSE deadlock crashed the device before
+        // slot 9 was attempted, masking the bug. v27's deadlock fix
+        // exposed it.
         for (channel = 0; channel < SSE_MAX_CHANNELS; channel++)
-            if (!subscription[channel].clientIP)
+            if (subscription[channel].clientIP == IPAddress(INADDR_NONE))
                 break;
     }
 
@@ -2022,8 +2088,8 @@ void handle_subscribe()
     subscription[channel].logViewer = logViewer;
     subscription[channel].heartbeatInterval = heartbeatInterval;
     subscription[channel].pendingRemove = false;
-    subscription[channel].subscribedAt = _millis();
-    subscription[channel].lastActivity = _millis();
+    subscription[channel].subscribedAt = (uint32_t)_millis();
+    subscription[channel].lastActivity = (uint32_t)_millis();
 
     // 11. counter bumped only AFTER all rejection paths exhausted.
     if (!foundExisting)
@@ -2037,17 +2103,25 @@ void handle_subscribe()
     server.send_P(200, type_txt, SSEurl.c_str());
 }
 
-// v27: best-effort cleanup endpoint. Browser calls this via
+// v27/v28: best-effort cleanup endpoint. Browser calls this via
 // navigator.sendBeacon() on beforeunload to release the SSE slot
 // without waiting for the orphan sweep timeout. Browsers don't
 // guarantee beacon delivery (especially on mobile background tabs),
 // so the orphan sweep is still the authoritative cleanup path —
-// this just cuts leak rate during normal navigation. NO AUTH:
-// worst case is knocking offline a session whose UUID an attacker
-// already has; cannot exfiltrate state. NO CSRF: sendBeacon
-// cannot set custom headers and clamping it would defeat the API.
+// this just cuts leak rate during normal navigation.
+//
+// v28: Same-origin guard added. v27's comment claimed "sendBeacon
+// cannot set custom headers" — true for X-* headers, but BROWSERS
+// DO populate Origin / Referer / Host on sendBeacon POSTs, which is
+// exactly what enforce_same_origin checks. Adding the guard blocks
+// drive-by cross-origin closes (e.g. malicious LAN page knocking
+// the user offline) without breaking the legitimate beacon flow.
+// No AUTH because the UUID is the only authority required and it's
+// already 128-bit random; an attacker without the UUID can't target
+// a specific session.
 void handle_unsubscribe()
 {
+    if (!enforce_same_origin("/rest/events/unsubscribe")) return;
     String uuid;
     for (int i = 0; i < server.args(); i++)
     {
@@ -2065,7 +2139,16 @@ void handle_unsubscribe()
     int matched = 0;
     for (uint32_t i = 0; i < SSE_MAX_CHANNELS; i++)
     {
-        if (subscription[i].clientUUID == uuid && subscription[i].clientIP)
+        // v28: same INADDR_NONE-vs-zero distinction as line 2003 — must
+        // explicitly compare to IPAddress(INADDR_NONE) to recognize the
+        // "freed" marker. The previous `&& subscription[i].clientIP`
+        // gating was technically the inverse problem (an IPAddress that
+        // is INADDR_NONE evaluates as truthy, so this branch fired even
+        // for freed slots) — harmless because we additionally checked
+        // UUID equality, but tightening for consistency with the rest
+        // of the v28 fix.
+        if (subscription[i].clientUUID == uuid &&
+            subscription[i].clientIP != IPAddress(INADDR_NONE))
         {
             ESP_LOGD(TAG, "v27: unsubscribe beacon for UUID %s on channel %u — flag pendingRemove",
                      uuid.c_str(), (unsigned)i);
@@ -2160,11 +2243,14 @@ void SSEBroadcastState(const char *data, BroadcastType type)
 #ifdef ESP8266
                             subscription[i].client.flush(); // make sure previous data all sent.
 #endif
-                            subscription[i].client.printf("event: logger\ndata: %s\n\n", data);
-                            // v27: printf path is best-effort; treat it as activity
-                            // so we don't reap a slot whose only traffic is oversized
-                            // log lines (rare, but possible during boot logs).
-                            subscription[i].lastActivity = _millis();
+                            // v28: capture printf return — only stamp on success.
+                            // Pre-v28 we stamped unconditionally, which could mask
+                            // a wedged subscriber whose oversized log writes were
+                            // failing silently (delayed orphan-sweep detection by
+                            // one cycle). Print returns size_t bytes written.
+                            size_t pwrote = subscription[i].client.printf("event: logger\ndata: %s\n\n", data);
+                            if (pwrote > 0)
+                                subscription[i].lastActivity = (uint32_t)_millis();
                         }
                         else
                         {
@@ -2172,7 +2258,7 @@ void SSEBroadcastState(const char *data, BroadcastType type)
                             // the orphan-sweep idle check (5c) actually sees idle slots.
                             if (clientWrite(subscription[i].client, writeBuffer))
                             {
-                                subscription[i].lastActivity = _millis();
+                                subscription[i].lastActivity = (uint32_t)_millis();
                             }
                         }
                     }
@@ -2188,14 +2274,16 @@ void SSEBroadcastState(const char *data, BroadcastType type)
 #ifdef ESP8266
                         subscription[i].client.flush(); // make sure previous data all sent.
 #endif
-                        subscription[i].client.printf("event: message\ndata: %s\n\n", data);
-                        subscription[i].lastActivity = _millis(); // v27: see LOG_MESSAGE path above
+                        // v28: gate on printf return — see LOG_MESSAGE path above.
+                        size_t pwrote = subscription[i].client.printf("event: message\ndata: %s\n\n", data);
+                        if (pwrote > 0)
+                            subscription[i].lastActivity = (uint32_t)_millis();
                     }
                     else
                     {
                         if (clientWrite(subscription[i].client, writeBuffer))
                         {
-                            subscription[i].lastActivity = _millis(); // v27
+                            subscription[i].lastActivity = (uint32_t)_millis(); // v27
                         }
                     }
                 }
@@ -2375,7 +2463,12 @@ void handle_firmware_upload()
                     JSON_END();
                     JSON_REMOVE_NL(json);
                     snprintf_P(writeBuffer, sizeof(writeBuffer), PSTR("event: uploadStatus\ndata: %s\n\n"), json);
-                    clientWrite(firmwareUpdateSub->client, writeBuffer);
+                    // v28: stamp lastActivity on success — matches the
+                    // SSEBroadcastState pattern. Prevents the orphan
+                    // sweep from reaping the slot mid-update if a slow
+                    // upload spans >120s (large firmware on slow link).
+                    if (clientWrite(firmwareUpdateSub->client, writeBuffer))
+                        firmwareUpdateSub->lastActivity = (uint32_t)_millis();
                     GIVE_MUTEX();
                 }
             }
