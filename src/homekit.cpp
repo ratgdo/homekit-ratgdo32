@@ -21,6 +21,11 @@
 
 // Ticker for periodic HomeKit health log
 #include <Ticker.h>
+#ifndef ESP8266
+// v24: heap_caps_get_largest_free_block for fragmentation visibility
+#include "esp_heap_caps.h"
+#include "esp_timer.h"
+#endif
 
 // RATGDO project includes
 #include "ratgdo.h"
@@ -463,6 +468,15 @@ static void hap_pair_cb(boolean isPaired)
     ESP_LOGW(TAG, "HomeKit pair state changed: now %s", isPaired ? "paired" : "UNPAIRED");
 }
 
+// v24: cached paired controller count, refreshed by hap_controller_change_cb.
+// homekit_health_log used to iterate homeSpan.controllerListBegin/End from
+// the esp_timer Ticker context every 180s, which acquires HomeSpan's
+// internal mutex — second deadlock surface besides the log mutex one.
+// Cache here is updated only from the HomeSpan callback (HAP task
+// context) and read from the Ticker without iteration. Also reset to 0
+// on disconnect callbacks if any are added.
+static volatile size_t pairedControllersCount = 0;
+
 // Controller list change — fires when a pairing is added/removed or
 // admin status changes. Logs the new count + admin count so timeline
 // shows exactly when paired devices appear/disappear.
@@ -474,6 +488,7 @@ static void hap_controller_change_cb()
         ++count;
         if (it->isAdmin()) ++admins;
     }
+    pairedControllersCount = count; // v24 cache
     ESP_LOGI(TAG, "HomeKit controller list changed: %u paired (%u admin)", (unsigned)count, (unsigned)admins);
 }
 
@@ -546,27 +561,53 @@ static void homekit_health_log()
     if (rebooting) return;
     int rssi = WiFi.isConnected() ? WiFi.RSSI() : 0;
     const char *wifiState = WiFi.isConnected() ? "connected" : "disconnected";
-    // Count paired controllers — tells us when iOS has dropped the
-    // pairing without actually unpairing on our side, or shows the
-    // expected number for a healthy household.
-    size_t paired_controllers = 0;
-    for (auto it = homeSpan.controllerListBegin(); it != homeSpan.controllerListEnd(); ++it) {
-        ++paired_controllers;
-    }
+    // v24: read the cached count instead of iterating HomeSpan's list
+    // from Ticker context (avoids second mutex surface).
+    size_t paired_controllers = pairedControllersCount;
     uint32_t nowSec = (uint32_t)(_millis() / 1000);
     // If hapLastReadSec is 0 we've never seen a read since boot.
     // Otherwise log seconds since last read — the smoking gun for
     // "No Response" diagnosis. If this number keeps growing while WiFi
     // is connected and paired_controllers > 0, the hub stopped talking.
     int32_t lastReadAgo = hapLastReadSec ? (int32_t)(nowSec - hapLastReadSec) : -1;
-    ESP_LOGI(TAG, "HomeKit health: wifi=%s rssi=%ddBm heap=%lu uptime=%us paired=%s controllers=%u last_hap_read_ago=%ds",
+    // v24 instrumentation — three new metrics for diagnosing the
+    // mutex-held-across-IO deadlock pattern:
+    //   logMtxMaxWaitMs : max wait on log.cpp logMutex this 180s window.
+    //                     Climbing values pre-freeze = wedged SSE
+    //                     subscriber blocking the broadcast.
+    //   sseSlowWrites   : count of SSE writes that exceeded
+    //                     CLIENT_SLOW_WRITE_MS (200ms) since boot.
+    //                     Identifies whether ANY subscriber wedged.
+    //   tickDriftMs     : measured cadence drift vs expected 180s. A
+    //                     positive growing value = esp_timer task is
+    //                     starved (Ticker callback overload).
+    //   maxAllocBlock   : largest contiguous heap block. Diverging from
+    //                     freeHeap = fragmentation buildup.
+    static _millis_t lastTickMs = 0;
+    int32_t tickDriftMs = 0;
+    if (lastTickMs) tickDriftMs = (int32_t)(((uint32_t)_millis() - (uint32_t)lastTickMs) - HOMEKIT_HEALTH_INTERVAL_MS);
+    lastTickMs = _millis();
+    extern volatile uint32_t logMtxMaxWaitMs;
+    extern volatile uint32_t sseSlowWrites;
+    uint32_t mtxWait = logMtxMaxWaitMs;
+    logMtxMaxWaitMs = 0; // reset for next window
+#ifndef ESP8266
+    size_t maxAllocBlock = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+#else
+    size_t maxAllocBlock = 0; // ESP8266: heap_caps API not available
+#endif
+    ESP_LOGI(TAG, "HomeKit health: wifi=%s rssi=%ddBm heap=%lu maxBlock=%lu uptime=%us paired=%s controllers=%u last_hap_read_ago=%ds logMtxMaxWait=%ums sseSlowWrites=%u tickDrift=%dms",
              wifiState,
              rssi,
              (unsigned long)esp_get_free_heap_size(),
+             (unsigned long)maxAllocBlock,
              nowSec,
              isPaired ? "yes" : "no",
              (unsigned)paired_controllers,
-             lastReadAgo);
+             lastReadAgo,
+             (unsigned)mtxWait,
+             (unsigned)sseSlowWrites,
+             (int)tickDriftMs);
 
     // Self-healing watchdog. Trigger only when:
     //   * we've seen a HAP read at least once (lastReadAgo > 0) — so
@@ -637,7 +678,9 @@ static void homekit_health_log()
         else if (hkRecoverAttempts == 1)
         {
             ESP_LOGW(TAG, "HomeKit auto-recover (2/2): mDNS refresh didn't help, cycling WiFi (last_hap_read_ago=%ds)", lastReadAgo);
-            homekit_force_reconnect("auto-recover: mDNS refresh insufficient");
+            // v24: defer the cycle — homekit_force_reconnect blocks
+            // ~750ms which would stall every other Ticker callback.
+            homekit_request_reconnect("auto-recover: mDNS refresh insufficient");
             hkRecoverAttempts = 2;
         }
         else
@@ -719,12 +762,54 @@ void homekit_dump_state(const char *reason)
     ESP_LOGI(TAG, "HomeSpan state dump complete");
 }
 
+// v24: deferred-reconnect flag. The web endpoint, the watchdog Ticker,
+// and (in the past) the inline /reconnectHomeKit handler all called
+// homekit_force_reconnect, which does WiFi.disconnect + delay(250) +
+// WiFi.reconnect — totalling ~750ms+ of synchronous blocking. Done
+// from the esp_timer task (Ticker context) this stalls every other
+// Ticker callback, including the SSE heartbeats and the health log,
+// and can starve the timer-task queue. v23 deferred this with a
+// one-shot Ticker, which moved the work but left it in esp_timer
+// context. v24 routes the request to a flag drained by main loop.
+static volatile bool reconnectHKRequested = false;
+static char reconnectHKReason[64] = {0};
+
+void homekit_request_reconnect(const char *reason)
+{
+    if (reason) {
+        strncpy(reconnectHKReason, reason, sizeof(reconnectHKReason) - 1);
+        reconnectHKReason[sizeof(reconnectHKReason) - 1] = '\0';
+    } else {
+        reconnectHKReason[0] = '\0';
+    }
+    reconnectHKRequested = true;
+}
+
+// Called from main-loop service_timer_loop. Performs the actual
+// WiFi.disconnect/reconnect outside Ticker context where it's safe to
+// take ~750ms.
+void homekit_drain_pending_reconnect()
+{
+    if (!reconnectHKRequested) return;
+    reconnectHKRequested = false;
+    char reason[sizeof(reconnectHKReason)];
+    strncpy(reason, reconnectHKReason, sizeof(reason) - 1);
+    reason[sizeof(reason) - 1] = '\0';
+    homekit_force_reconnect(reason[0] ? reason : "unspecified (deferred)");
+}
+
 // User-triggered "Reconnect HomeKit" recovery — invoked from the
-// /reconnectHomeKit web endpoint. Cycles the WiFi association without
-// rebooting; HomeSpan reattaches automatically when WiFi returns and
-// re-advertises mDNS. Less disruptive than /reboot for cases where the
-// device is otherwise healthy but the HomeKit hub thinks it's
-// unresponsive (stale HAP TCP, mDNS gone stale, controller cache).
+// /reconnectHomeKit web endpoint or from the watchdog auto-recover
+// path. Cycles the WiFi association without rebooting; HomeSpan
+// reattaches automatically when WiFi returns and re-advertises mDNS.
+// Less disruptive than /reboot for cases where the device is otherwise
+// healthy but the HomeKit hub thinks it's unresponsive (stale HAP TCP,
+// mDNS gone stale, controller cache).
+//
+// MUST run from main-loop context (the disconnect+delay+reconnect
+// blocks for ~750ms). Web request handler used a deferred Ticker in
+// v23; v24 routes via the homekit_request_reconnect flag drained by
+// main loop instead.
 void homekit_force_reconnect(const char *reason)
 {
     ESP_LOGW(TAG, "HomeKit reconnect requested (%s) — cycling WiFi", reason ? reason : "unspecified");

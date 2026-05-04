@@ -68,7 +68,15 @@ extern bool enable_service_homekit_motion_sensor(bool enable);
 extern void homekit_unpair();
 extern bool homekit_is_paired();
 // Cycle WiFi to recover from "No Response" — HomeSpan auto-reattaches.
+// MUST run in main-loop context (blocks ~750ms). For Ticker / web
+// request callers, use homekit_request_reconnect instead, which is
+// drained by homekit_drain_pending_reconnect() in service_timer_loop.
 extern void homekit_force_reconnect(const char *reason);
+// v24: deferred-reconnect entry. Safe to call from any thread / any
+// context (Ticker, web request, ISR-safe). The actual reconnect runs
+// in main loop via homekit_drain_pending_reconnect().
+extern void homekit_request_reconnect(const char *reason);
+extern void homekit_drain_pending_reconnect();
 // Re-advertise mDNS without cycling WiFi (lighter-touch recovery).
 extern void homekit_refresh_mdns(const char *reason);
 // Dump HomeSpan's CLI diagnostic output (status + accessory DB + diag) to log.

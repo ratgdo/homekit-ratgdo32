@@ -21,6 +21,7 @@
 #ifndef ESP8266
 #include <esp32-hal.h>
 #include <esp_core_dump.h>
+#include <esp_timer.h>  // v24: esp_timer_get_time for log mutex wait instrumentation
 #endif
 
 // RATGDO project includes
@@ -137,6 +138,22 @@ const int rtcSize = sizeof(rtcRebootLog) + sizeof(rtcCrashLog) + sizeof(rebootTi
 
 #define TAKE_MUTEX() xSemaphoreTakeRecursive(logMutex, portMAX_DELAY)
 #define GIVE_MUTEX() xSemaphoreGiveRecursive(logMutex)
+// v24: instrumentation — track maximum wait time on the log mutex per
+// reset window. Climbing values pre-freeze are the smoking gun for the
+// "subscriber wedged → SSE broadcast blocks → log mutex held → every
+// other ESP_LOGx blocks" deadlock pattern that hit on 5/4. The
+// homekit_health_log reads + zeros this every 180s.
+volatile uint32_t logMtxMaxWaitMs = 0;
+static inline void takeMutexInstrumented() {
+#ifndef ESP8266
+    uint32_t t0 = (uint32_t)(esp_timer_get_time() / 1000ULL);
+    xSemaphoreTakeRecursive(logMutex, portMAX_DELAY);
+    uint32_t dt = (uint32_t)(esp_timer_get_time() / 1000ULL) - t0;
+    if (dt > logMtxMaxWaitMs) logMtxMaxWaitMs = dt;
+#else
+    xSemaphoreTakeRecursive(logMutex, portMAX_DELAY);
+#endif
+}
 
 void panic_handler(arduino_panic_info_t *info, void *arg)
 {
@@ -210,7 +227,7 @@ LOG::LOG()
 
 void LOG::logToBuffer(const char *fmt, va_list args)
 {
-    TAKE_MUTEX();
+    takeMutexInstrumented();  // v24: was TAKE_MUTEX; same effect + records wait time
     // parse the format string into lineBuffer
     vsnprintf(lineBuffer, LINE_BUFFER_SIZE, fmt, args);
     // If timestamp is wrapped in () and not [] then message is from one of the ESP_LOGx() functions.
@@ -251,20 +268,39 @@ void LOG::logToBuffer(const char *fmt, va_list args)
     }
     msgBuffer->buffer[msgBuffer->head] = 0; // null terminate
 
-    static bool inFn = false;
-    if (!inFn)
-    {
-        // Control recursion... make sure we don't get into a loop if any
-        // of the functions we use here log a message.  This is known to happen
-        // in NetworkUDP code in error condition... used for SysLog.
-        inFn = true;
-        // send it to subscribed browsers
-        SSEBroadcastState(lineBuffer, LOG_MESSAGE);
-        // send it to syslog server
-        logToSyslog(lineBuffer);
-        inFn = false;
-    }
+    // v24 root-cause fix for the silent-deadlock pattern observed on 5/4:
+    // SSEBroadcastState writes synchronously to every SSE TCP subscriber.
+    // If any subscriber's socket is wedged (laptop sleep, NAT timeout,
+    // switch port flap), client.write blocks for unbounded time. While
+    // the log mutex is held, EVERY other task that calls ESP_LOGx blocks
+    // behind it — HTTP server, HomeSpan HAP task, comms, the works.
+    // Result: silent freeze, no panic dump (deadlock not crash), HTTP
+    // unreachable but lwIP still answers ICMP. Documented in audit
+    // 2026-05-04 as the HIGH-likelihood cause.
+    //
+    // Fix: copy the formatted line out from under the mutex before
+    // calling any blocking I/O. The recursion guard remains, gated on
+    // task-handle so a different task entering during the broadcast
+    // window doesn't get its own log silently dropped (the original
+    // single bool guard would have done that once we released the mutex).
+    char outLine[LINE_BUFFER_SIZE];
+    strncpy(outLine, lineBuffer, sizeof(outLine) - 1);
+    outLine[sizeof(outLine) - 1] = '\0';
     GIVE_MUTEX();
+
+    static volatile TaskHandle_t inFnTask = NULL;
+    TaskHandle_t curTask = xTaskGetCurrentTaskHandle();
+    if (inFnTask != curTask)
+    {
+        // Control recursion within this task — prevents an infinite
+        // loop if SSEBroadcastState or logToSyslog itself ever emits an
+        // ESP_LOGx (known to happen in NetworkUDP errors). Cross-task
+        // entries proceed normally because their handle differs.
+        inFnTask = curTask;
+        SSEBroadcastState(outLine, LOG_MESSAGE);
+        logToSyslog(outLine);
+        inFnTask = NULL;
+    }
     return;
 }
 
