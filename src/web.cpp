@@ -201,9 +201,9 @@ constexpr char gitTaggedURL[] = "https://raw.githubusercontent.com/" _GITUSER "/
 //                 back to /events/N. Browser was closed mid-flight or the
 //                 GET hung. 15s is well past any realistic round-trip.
 //   IDLE        : slot is fully connected but hasn't received any
-//                 broadcast/heartbeat traffic in 120s. Belt-and-suspenders
+//                 broadcast/heartbeat traffic in 5min. Belt-and-suspenders
 //                 for a wedged TCP socket whose client.connected() still
-//                 returns true. 120s > 60s max heartbeat so a healthy
+//                 returns true. 5min > 60s max heartbeat so a healthy
 //                 client never trips this.
 // v28: was 15000UL — tightened to 5000UL after observing real-world
 // reconnect-storm where 8 slots filled (e.g. browser EventSource auto-
@@ -211,8 +211,17 @@ constexpr char gitTaggedURL[] = "https://raw.githubusercontent.com/" _GITUSER "/
 // 5s is well above the typical EventSource handshake (<500ms even on
 // cellular), so a slow legitimate client just hits a fresh subscribe
 // retry — same recovery as 15s, but storms can't outpace the sweep.
+// v29: SSE_IDLE_TIMEOUT_MS raised 120000 → 300000 (2min → 5min) as
+// defense-in-depth on top of the BUFFER_FULL stamping fix in clientWriteEx.
+// The primary fix is in clientWriteEx — callers now stamp lastActivity
+// on OK or BUFFER_FULL (both = "broadcast loop reached this slot and
+// tried"). 5min idle is past most NAT-binding refresh intervals; a
+// genuinely-wedged slot still gets caught well before users notice
+// stale data, and class 5b (client.connected() == false once lwIP
+// KeepAlive fires, typically <60s) remains the actual safety net for
+// dead sockets with stale lwIP cached state.
 #define SSE_PREHANDSHAKE_TIMEOUT_MS  5000UL
-#define SSE_IDLE_TIMEOUT_MS         120000UL
+#define SSE_IDLE_TIMEOUT_MS         300000UL
 struct SSESubscription
 {
     IPAddress clientIP;
@@ -276,6 +285,13 @@ static SemaphoreHandle_t jsonMutex = NULL;
     xSemaphoreGive(jsonMutex)
 #endif
 
+// v29: tri-state return from clientWrite. Pre-v29 was bool, which
+// conflated "TCP buffer full this instant" (flow control) with "write
+// failed" (real wedge). The 120s idle reap (sweep class 5c) treated
+// both as "no activity" → reaped healthy slots on chronically-slow
+// tunnels (Tailscale, mobile data with marginal signal).
+enum class SseWriteResult : uint8_t { OK, BUFFER_FULL, FAILED };
+
 // mDNS update management... re-announcing every 2 minutes.
 #define MDNS_ANNOUNCE_TIMEOUT (2 * 60 * 1000)
 // But not more often than every 10 seconds if pending updates.
@@ -308,6 +324,12 @@ static char writeBuffer[512];
 // exceeds CLIENT_SLOW_WRITE_MS. homekit_health_log reads + zeros this
 // every 180s. Climbing values pre-freeze identify a wedged subscriber.
 volatile uint32_t sseSlowWrites = 0;
+// v29: count of clientWrite calls skipped because the lwIP send buffer
+// couldn't accept the full payload (flow control). Distinguishes
+// chronically-slow connections (Tailscale, congested links) from
+// genuinely-wedged sockets — drives whether v30 needs per-slot
+// adaptive idle timeouts.
+volatile uint32_t sseBufferFullSkips = 0;
 // v27: live count of allocated SSE slots (refreshed by sweep_sse_orphans
 // every service tick) and a windowed counter of slots reaped by the
 // sweep. homekit_health_log reads both every 180s and zeros sseOrphansReaped
@@ -315,7 +337,14 @@ volatile uint32_t sseSlowWrites = 0;
 // whether the slot leak that caused the v26 25s-post-boot wedge is back.
 volatile uint32_t sseSlotsAlloc = 0;
 volatile uint32_t sseOrphansReaped = 0;
-bool clientWrite(WiFiClient client, const char *data)
+// v29: tri-state version of clientWrite. Distinguishes "lwIP send buffer
+// can't accept the full payload right now" (BUFFER_FULL — peer is alive
+// but slow / link is congested, e.g. Tailscale tunnel) from "client.write
+// returned 0 after lwIP accepted bytes for delivery" (FAILED — real wedge,
+// socket already stopped). Callers stamp lastActivity on OK or BUFFER_FULL
+// so the orphan-sweep idle check (5c) doesn't misclassify a chronically-
+// flow-controlled slot as idle. Only FAILED skips the stamp.
+SseWriteResult clientWriteEx(WiFiClient client, const char *data)
 {
     size_t len = strlen(data);
     size_t written = 0;
@@ -324,14 +353,14 @@ bool clientWrite(WiFiClient client, const char *data)
 #endif
     // v24 fast-path: if the TCP send buffer can't accept the full
     // payload right now, the subscriber isn't draining and we'd block
-    // in client.write below. Skip + report; caller marks pendingRemove
-    // so the subscription is cleaned up next main-loop tick.
+    // in client.write below. Skip + report; v29: this is BUFFER_FULL
+    // (flow control), NOT a wedge — caller still stamps lastActivity.
     int avail = client.availableForWrite();
     if (avail >= 0 && (size_t)avail < len)
     {
-        sseSlowWrites++;
+        sseBufferFullSkips++;
         ESP_LOGD(TAG, "SSE clientWrite skipped — buffer full (need %u, have %d)", (unsigned)len, avail);
-        return false;
+        return SseWriteResult::BUFFER_FULL;
     }
 #ifndef ESP8266
     uint32_t t0 = (uint32_t)(esp_timer_get_time() / 1000ULL);
@@ -354,9 +383,17 @@ bool clientWrite(WiFiClient client, const char *data)
         YIELD();
         client.stop();
         ESP_LOGW(TAG, "Failed writing to WiFi Client (%d of %d), connection closed.", written, len);
-        return false;
+        return SseWriteResult::FAILED;
     }
-    return true;
+    return SseWriteResult::OK;
+}
+
+// v29: thin bool wrapper for any callers we don't migrate to the tri-state.
+// Returns true on OK or BUFFER_FULL (both = "broadcast loop reached this
+// slot and tried"; peer is alive enough to keep), false only on FAILED.
+bool clientWrite(WiFiClient client, const char *data)
+{
+    return clientWriteEx(client, data) != SseWriteResult::FAILED;
 }
 
 // Helper functions for connection throttling
@@ -1804,8 +1841,12 @@ void SSEheartbeat(SSESubscription *s)
         // socket via clientWrite's internal stop()/skip path; bumping
         // lastActivity on a failure would mask the orphan sweep's
         // idle-detection (5c) for up to SSE_IDLE_TIMEOUT_MS.
-        bool wrote = clientWrite(s->client, localBuf);
-        if (wrote)
+        // v29: use clientWriteEx tri-state. Stamp on OK or BUFFER_FULL
+        // (both = "broadcast loop reached this slot and tried"; peer is
+        // alive enough to keep). Only FAILED skips the stamp — that's
+        // the real wedge signal where lwIP rejected bytes for delivery.
+        SseWriteResult r = clientWriteEx(s->client, localBuf);
+        if (r != SseWriteResult::FAILED)
         {
             s->lastActivity = (uint32_t)_millis();
         }
@@ -2256,7 +2297,11 @@ void SSEBroadcastState(const char *data, BroadcastType type)
                         {
                             // v27: only stamp lastActivity on a successful write so
                             // the orphan-sweep idle check (5c) actually sees idle slots.
-                            if (clientWrite(subscription[i].client, writeBuffer))
+                            // v29: tri-state — stamp on OK or BUFFER_FULL, only skip
+                            // on FAILED (real wedge). Tailscale / congested-link
+                            // subscribers no longer get reaped every 120s.
+                            SseWriteResult r = clientWriteEx(subscription[i].client, writeBuffer);
+                            if (r != SseWriteResult::FAILED)
                             {
                                 subscription[i].lastActivity = (uint32_t)_millis();
                             }
@@ -2281,7 +2326,10 @@ void SSEBroadcastState(const char *data, BroadcastType type)
                     }
                     else
                     {
-                        if (clientWrite(subscription[i].client, writeBuffer))
+                        // v29: tri-state — stamp on OK or BUFFER_FULL, only skip
+                        // on FAILED (real wedge). Same rationale as LOG_MESSAGE.
+                        SseWriteResult r = clientWriteEx(subscription[i].client, writeBuffer);
+                        if (r != SseWriteResult::FAILED)
                         {
                             subscription[i].lastActivity = (uint32_t)_millis(); // v27
                         }
@@ -2466,8 +2514,11 @@ void handle_firmware_upload()
                     // v28: stamp lastActivity on success — matches the
                     // SSEBroadcastState pattern. Prevents the orphan
                     // sweep from reaping the slot mid-update if a slow
-                    // upload spans >120s (large firmware on slow link).
-                    if (clientWrite(firmwareUpdateSub->client, writeBuffer))
+                    // upload spans >300s (large firmware on slow link).
+                    // v29: tri-state — stamp on OK or BUFFER_FULL, only
+                    // skip on FAILED (real wedge).
+                    SseWriteResult r = clientWriteEx(firmwareUpdateSub->client, writeBuffer);
+                    if (r != SseWriteResult::FAILED)
                         firmwareUpdateSub->lastActivity = (uint32_t)_millis();
                     GIVE_MUTEX();
                 }

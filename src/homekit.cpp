@@ -592,6 +592,14 @@ static void homekit_health_log()
     lastTickMs = _millis();
     extern volatile uint32_t logMtxMaxWaitMs;
     extern volatile uint32_t sseSlowWrites;
+    // v29: cumulative count of clientWrite calls skipped because the lwIP
+    // send buffer couldn't accept the full payload (flow control). Same
+    // cumulative-since-boot semantic as sseSlowWrites — both are flow-
+    // control diagnostics where the trend matters more than per-window
+    // count. Climbing values on a single subscriber = chronically-slow
+    // link (Tailscale, weak cellular). v29 stops these from being
+    // misclassified as idle and reaped.
+    extern volatile uint32_t sseBufferFullSkips;
     // v27: SSE leak instrumentation. sseSlotsAlloc is a live snapshot
     // (refreshed every service tick by sweep_sse_orphans); sseOrphansReaped
     // is a counter we zero each window — same pattern as logMtxMaxWaitMs.
@@ -610,7 +618,7 @@ static void homekit_health_log()
 #else
     size_t maxAllocBlock = 0; // ESP8266: heap_caps API not available
 #endif
-    ESP_LOGI(TAG, "HomeKit health: wifi=%s rssi=%ddBm heap=%lu maxBlock=%lu uptime=%us paired=%s controllers=%u last_hap_read_ago=%ds logMtxMaxWait=%ums sseSlowWrites=%u sseSlotsAlloc=%u sseOrphansReaped=%u tickDrift=%dms",
+    ESP_LOGI(TAG, "HomeKit health: wifi=%s rssi=%ddBm heap=%lu maxBlock=%lu uptime=%us paired=%s controllers=%u last_hap_read_ago=%ds logMtxMaxWait=%ums sseSlowWrites=%u sseBufferFullSkips=%u sseSlotsAlloc=%u sseOrphansReaped=%u tickDrift=%dms",
              wifiState,
              rssi,
              (unsigned long)esp_get_free_heap_size(),
@@ -621,6 +629,7 @@ static void homekit_health_log()
              lastReadAgo,
              (unsigned)mtxWait,
              (unsigned)sseSlowWrites,
+             (unsigned)sseBufferFullSkips,
              (unsigned)sseAlloc,
              (unsigned)sseReaped,
              (int)tickDriftMs);

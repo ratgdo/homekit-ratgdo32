@@ -10,6 +10,18 @@ All notable changes to `homekit-ratgdo32` will be documented in this file. This 
 
 This section documents changes specific to the `Haglerd/homekit-ratgdo32` fork. Upstream changes are listed in the `v3.x.x` section below; the fork tracks upstream and adds these on top.
 
+### v3.4.4-forceclose.29 (2026-05-04)
+
+**Fixed**
+- **SSE idle-reap was misclassifying TCP-flow-controlled slots as idle.** Real-world: a `logs.html` viewer over a Tailscale (WireGuard) tunnel had its slot reaped every 120 s in a continuous loop. The v28 Nit-5 fix correctly only stamped `lastActivity` on successful writes — but the `availableForWrite() < len` fast-path at `clientWrite` returned `false` without distinguishing "lwIP send buffer full" (flow control, peer is alive but slow) from "write actually failed." Both paths skipped the stamp; on a chronically-congested tunnel the slot's `lastActivity` never advanced and class-5c reaped a healthy slot. Fix: `clientWrite` returns `SseWriteResult` (OK / BUFFER_FULL / FAILED). Callers stamp `lastActivity` on OK or BUFFER_FULL — both mean "broadcast loop reached this slot and tried." Only FAILED (`client.write` returned 0 after lwIP accepted bytes for delivery) skips the stamp. The `printf` fallback paths in `SSEBroadcastState` keep their `pwrote > 0` gate — different layer, that IS the wedge signal we want exposed.
+- 5b protection (`client.connected() == false`) is unchanged and is the actual safety net for "TCP socket dead, lwIP cached state stale." 5c was always belt-and-suspenders for that case. A truly wedged slot still gets reaped by 5b once lwIP KeepAlive fires (typically <60s).
+
+**Changed**
+- `SSE_IDLE_TIMEOUT_MS` raised 120000 → 300000 (2 min → 5 min). Defense in depth on top of the BUFFER_FULL stamping fix above. 5 min is past most NAT-binding refresh intervals; a genuinely-wedged slot still gets caught well before users notice stale data.
+
+**Added**
+- `sseBufferFullSkips` health-log counter. Counts `availableForWrite() < len` skips since boot. Lets us see at a glance whether a subscriber is chronically flow-controlled vs. occasionally — drives whether v30 needs per-slot adaptive timeouts.
+
 ### v3.4.4-forceclose.28 (2026-05-04)
 
 **Fixed (critical)**
