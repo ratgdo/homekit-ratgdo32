@@ -358,6 +358,15 @@
                     href="https://www.law.cornell.edu/cfr/text/16/1211.14" target="_blank">WARNING</a></span>
                 </td>
               </tr>
+              <tr id="TTCsoundRow" style="display:none;">
+                <td></td>
+                <td>
+                  <input type="checkbox" id="TTCsound" name="TTCsound" checked>
+                  <label for="TTCsound">Beep during time-to-close</label>&nbsp;<a id="TTCwarning3"
+                    style="display: none; color: red; font-size: 0.8em"
+                    href="https://www.law.cornell.edu/cfr/text/16/1211.14" target="_blank">WARNING</a></span>
+                </td>
+              </tr>
               <tr id="builtInTTCrow">
                 <td class="label">Automatic Close:</td>
                 <td>
@@ -892,6 +901,9 @@
     };
     document.getElementById("TTClight").onclick = function () {
       document.getElementById("TTCwarning2").style.display = (this.checked) ? "none" : "inline";
+    };
+    document.getElementById("TTCsound").onclick = function () {
+      document.getElementById("TTCwarning3").style.display = (this.checked) ? "none" : "inline";
     };
 
     // Automatic close slider

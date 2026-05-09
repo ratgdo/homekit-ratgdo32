@@ -462,6 +462,7 @@ userSettings::userSettings()
         {cfg_laserEnabled, {false, false, false, helperLaser}},
         {cfg_laserHomeKit, {false, false, true, helperLaser}}, // call fn to enable/disable HomeKit accessories
         {cfg_assistDuration, {false, false, 60, NULL}},
+        {cfg_TTCsound, {false, false, true, NULL}},
 #endif
 #ifdef USE_GDOLIB
         {cfg_useSWserial, {true, false, true, helperUseSWserial}}, // call fn to shut down GDO before switch
