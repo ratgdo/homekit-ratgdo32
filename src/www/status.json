@@ -70,6 +70,7 @@
   "useToggle": true,
   "useSWserial": true,
   "TTClight": true,
+  "TTCsound": true,
   "obstFromStatus": true,
   "occupancyDuration": 300,
   "lightHomeKit": true,
