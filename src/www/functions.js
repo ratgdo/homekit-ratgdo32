@@ -530,6 +530,11 @@ function setElementsFromStatus(status) {
                 document.getElementById(key).checked = value;
                 document.getElementById("TTCwarning2").style.display = (value) ? "none" : "inline";
                 break;
+            case "TTCsound":
+                document.getElementById("TTCsoundRow").style.display = "table-row";
+                document.getElementById(key).checked = value;
+                document.getElementById("TTCwarning3").style.display = (value) ? "none" : "inline";
+                break;
             case "assistDuration":
                 document.getElementById(key).value = value;
                 if (value > 0) {
@@ -1311,6 +1316,18 @@ async function saveSettings() {
             msg = "WARNING: You have disabled light flashing during time-to-close.\n\n" + msg;
         }
     }
+    let TTCsound = '1';
+    if (!document.getElementById("TTCsound").checked) {
+        TTCsound = '0';
+        if (msg == "") {
+            msg = "WARNING: You have disabled sound during time-to-close.\n\n" +
+                "This violates US Consumer Product Safety Act Regulations, section 1211.14, unattended operation requirements. " +
+                "By disabling sound you accept all responsibility and liability for injury or any other loss.\n\n";
+        }
+        else {
+            msg = "WARNING: You have disabled sound during time-to-close.\n\n" + msg;
+        }
+    }
     let builtInTTC = Math.max(parseInt(document.getElementById("builtInTTC").value), 0);
     if (isNaN(builtInTTC)) builtInTTC = 0;
     builtInTTC = (builtInTTC <= 10) ? builtInTTC * 60 :
@@ -1409,6 +1426,7 @@ async function saveSettings() {
         "TTCseconds", TTCseconds,
         "builtInTTC", builtInTTC,
         "TTClight", TTClight,
+        "TTCsound", TTCsound,
         "vehicleThreshold", vehicleThreshold,
         "vehicleHomeKit", vehicleHomeKit,
         "vehicleOccupancyHomeKit", vehicleOccupancyHomeKit,

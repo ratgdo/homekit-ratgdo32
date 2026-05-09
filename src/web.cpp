@@ -909,6 +909,7 @@ void build_status_json(char *json)
     JSON_ADD_BOOL(cfg_laserEnabled, userConfig->getLaserEnabled());
     JSON_ADD_BOOL(cfg_laserHomeKit, userConfig->getLaserHomeKit());
     JSON_ADD_INT(cfg_assistDuration, userConfig->getAssistDuration());
+    JSON_ADD_BOOL(cfg_TTCsound, userConfig->getTTCsound());
 #endif
     JSON_ADD_BOOL(cfg_homespanCLI, userConfig->getEnableHomeSpanCLI());
     JSON_ADD_BOOL(cfg_lightHomeKit, userConfig->getLightHomeKit());
