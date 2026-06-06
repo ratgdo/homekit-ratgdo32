@@ -67,6 +67,7 @@
   "closeDuration": 20,
   "dcOpenClose": false,
   "dcBypassTTC": false,
+  "reverseOnStop": true,
   "useToggle": true,
   "useSWserial": true,
   "TTClight": true,
