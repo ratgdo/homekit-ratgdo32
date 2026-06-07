@@ -76,5 +76,6 @@
   "occupancyDuration": 300,
   "lightHomeKit": true,
   "motionHomeKit": true,
+  "stopDoorHomeKit": false,
   "garageSec1Emulated": false
 }
