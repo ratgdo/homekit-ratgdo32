@@ -194,6 +194,17 @@ Setting the slider to zero, and saving the settings, will cancel the garage door
 > [!WARNING]
 > Automatic close will not work if on battery power or if the obstruction sensors are misaligned. This feature is NOT intended to be the primary method of closing the door. **A keyless entry should be installed in the event of an accidental lock out while using this feature.**
 
+### Reverse on stop
+
+HomeKit does not have an action to stop a door that is actively operating (_opening_ or _closing_)... there is no _stop_ command.  If you try and stop the door midway from a HomeKit app then it will send either a _close_ or an _open_ command to reverse the direction of the door.  By default we obey that command... stopping the door and then immediately reversing it.  If you would prefer that the door stop and not automatically reverse then uncheck this option.  When you next use HomeKit to activate the door, it will move in the opposite direction of travel.
+
+### Stop button _(not supported on ratgdo v2.5 boards)_
+
+On ratgdo32 boards you can add an additional HomeKit control to stop a door while it is operating, even if the reverse on stop option is selected.  If the door is not actively _opening_ or _closing_ then activating this switch in HomeKit has no effect.  When you next use HomeKit to activate the door, it will move in the opposite direction of travel.
+
+> [!NOTE]
+> All Sec+1.0 doors, and some Sec+2.0 doors do not have specific commands to _open_ or _close_ a door... they will only act like a single button _toggle_ command.  Therefore if you stop a door while it is opening, and then try and send it a command to continue opening (request target state of _open_), there is no assurance that this will work... it is just as likely to reverse to close.
+
 ### Light
 
 On ratgdo32 devices you can select whether to create a HomeKit light switch accessory to control the garage door opener lights.  This is enabled by default.
