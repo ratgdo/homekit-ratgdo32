@@ -4,6 +4,19 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## v3.4.6 (2026-06-20)
+
+### What's Changed
+
+* Bugfix: Debounce door open/close commands https://github.com/ratgdo/homekit-ratgdo32/issues/177
+
+### Known Issues
+
+* ESP32 (ratgdo32) only... Some users may get an error during OTA upload that firmware is too large for the OTA partition. See [README.md](https://github.com/ratgdo/homekit-ratgdo32/blob/main/README.md#upgrade-failures) for work-around.
+* Sec+ 1.0 doors with digital wall panel (e.g. 889LM) sometimes do not close after a time-to-close delay. Please watch your door to make sure it closes after TTC delay.
+* Sec+ 1.0 doors with "0x37" digital wall panel (e.g. 398LM) not working.  We now detect but will not support them. Recommend replacing with 889LM panel.
+* When creating automations in Apple Home the garage door may show only lock/unlock and not open/close as triggers. This is a bug in Apple Home. Workaround is to use the Eve App to create the automation, it will show both options.
+
 ## v3.4.5 (2026-06-06)
 
 ### What's Changed
@@ -18,13 +31,6 @@ All notable changes to `homekit-ratgdo32` will be documented in this file. This 
 * Feature: RATGDO32-DISCO only, add option to disable beeping on time-to-close, https://github.com/ratgdo/homekit-ratgdo32/issues/165
 * Feature: RATGDO32 only, add support for Paul's ratgdo encoder, https://github.com/ratgdo/homekit-ratgdo32/pull/175
 * Other: ESP32 only, update HomeSpan library to version 2.1.8
-
-### Known Issues
-
-* ESP32 (ratgdo32) only... Some users may get an error during OTA upload that firmware is too large for the OTA partition. See [README.md](https://github.com/ratgdo/homekit-ratgdo32/blob/main/README.md#upgrade-failures) for work-around.
-* Sec+ 1.0 doors with digital wall panel (e.g. 889LM) sometimes do not close after a time-to-close delay. Please watch your door to make sure it closes after TTC delay.
-* Sec+ 1.0 doors with "0x37" digital wall panel (e.g. 398LM) not working.  We now detect but will not support them. Recommend replacing with 889LM panel.
-* When creating automations in Apple Home the garage door may show only lock/unlock and not open/close as triggers. This is a bug in Apple Home. Workaround is to use the Eve App to create the automation, it will show both options.
 
 ## v3.4.4 (2026-02-19)
 
