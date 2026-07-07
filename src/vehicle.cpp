@@ -327,6 +327,12 @@ void doorOpening()
         return;
 
     presence_timer = _millis();
+
+    // Fire the parking assist laser immediately on door open rather than waiting for
+    // vehicle presence to be confirmed... by the time presence debounces, the door may
+    // already be closed and the vehicle parked, which is too late to assist parking.
+    if (userConfig->getAssistDuration() > 0)
+        laser.flash(userConfig->getAssistDuration() * 1000);
 }
 
 // if notified of door closing, check for arrived/departed vehicle within time window (looking back)
