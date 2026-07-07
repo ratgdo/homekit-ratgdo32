@@ -1266,7 +1266,6 @@ bool helperAssistLaser(const std::string &key, const char *value, configSetting 
         laser.on();
     else
         laser.off();
-    notify_homekit_laser(atoi(value) == 1);
     return true;
 }
 #endif
