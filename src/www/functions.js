@@ -180,6 +180,7 @@ function toggleEncoderOptions() {
 // enable laser
 function enableLaser(value) {
     document.getElementById('laserHomeKit').disabled = !value;
+    document.getElementById('laserOnDoorOpen').disabled = !value;
     document.getElementById("laserButton").style.display = (value) ? "inline-block" : "none";
     document.getElementById("assistDuration").disabled = !value;
     document.getElementById("parkAssist").style.opacity = value ? "1" : "0.5";
@@ -494,6 +495,7 @@ function setElementsFromStatus(status) {
                 document.getElementById("vehicleSettingsSpacer").style.display = (value) ? "table-row" : "none";
                 setVehicleConfigVisibility(value);
                 document.getElementById("laserSetting").style.display = (value) ? "table-row" : "none";
+                document.getElementById("laserOnDoorOpenRow").style.display = (value) ? "table-row" : "none";
                 break;
             case "vehicleThreshold":
                 document.getElementById(key).value = value;
@@ -508,6 +510,7 @@ function setElementsFromStatus(status) {
                 document.getElementById(key).checked = value;
                 document.getElementById("laserButton").style.display = (value) ? "inline-block" : "none";
                 document.getElementById("laserHomeKit").disabled = !value;
+                document.getElementById("laserOnDoorOpen").disabled = !value;
                 document.getElementById("parkAssist").style.display = (value) ? "table-row" : "none";
                 break;
             case "homespanCLI":
@@ -531,6 +534,7 @@ function setElementsFromStatus(status) {
                 setVehicleSensorOptionState(value);
                 break;
             case "laserHomeKit":
+            case "laserOnDoorOpen":
             case "useToggle":
             case "useSWserial":
             case "obstFromStatus":
@@ -1435,6 +1439,7 @@ async function saveSettings() {
     const vehicleDepartingHomeKit = (document.getElementById("vehicleDepartingHomeKit").checked) ? '1' : '0';
     const laserEnabled = (document.getElementById("laserEnabled").checked) ? '1' : '0';
     const laserHomeKit = (document.getElementById("laserHomeKit").checked) ? '1' : '0';
+    const laserOnDoorOpen = (document.getElementById("laserOnDoorOpen").checked) ? '1' : '0';
     const dcOpenClose = (document.getElementById("dcOpenClose").checked) ? '1' : '0';
     const dcBypassTTC = (document.getElementById("dcBypassTTC").checked) ? '1' : '0';
     const useToggle = (document.getElementById("useToggle").checked) ? '1' : '0';
@@ -1511,6 +1516,7 @@ async function saveSettings() {
         "vehicleDepartingHomeKit", vehicleDepartingHomeKit,
         "laserEnabled", laserEnabled,
         "laserHomeKit", laserHomeKit,
+        "laserOnDoorOpen", laserOnDoorOpen,
         "dcOpenClose", dcOpenClose,
         "dcBypassTTC", dcBypassTTC,
         "useToggle", useToggle,

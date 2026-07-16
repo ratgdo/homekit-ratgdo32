@@ -980,6 +980,7 @@ void build_status_json(char *json)
     JSON_ADD_INT(cfg_vehicleThreshold, userConfig->getVehicleThreshold());
     JSON_ADD_BOOL(cfg_laserEnabled, userConfig->getLaserEnabled());
     JSON_ADD_BOOL(cfg_laserHomeKit, userConfig->getLaserHomeKit());
+    JSON_ADD_BOOL(cfg_laserOnDoorOpen, userConfig->getLaserOnDoorOpen());
     JSON_ADD_INT(cfg_assistDuration, userConfig->getAssistDuration());
     JSON_ADD_BOOL(cfg_TTCsound, userConfig->getTTCsound());
 #endif

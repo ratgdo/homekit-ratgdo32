@@ -331,7 +331,8 @@ void doorOpening()
     // Fire the parking assist laser immediately on door open rather than waiting for
     // vehicle presence to be confirmed... by the time presence debounces, the door may
     // already be closed and the vehicle parked, which is too late to assist parking.
-    if (userConfig->getAssistDuration() > 0)
+    // Opt-in: off by default so existing distance-triggered behavior is unaffected.
+    if (userConfig->getLaserOnDoorOpen() && userConfig->getAssistDuration() > 0)
         laser.flash(userConfig->getAssistDuration() * 1000);
 }
 
