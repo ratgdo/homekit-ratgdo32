@@ -77,5 +77,7 @@
   "lightHomeKit": true,
   "motionHomeKit": true,
   "stopDoorHomeKit": false,
-  "garageSec1Emulated": false
+  "garageSec1Emulated": false,
+  "encoderEnabled": false,
+  "encoderReversed": false
 }
