@@ -4,13 +4,19 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
-## v3.5.1 (2026-07-22)
+## v3.5.2 (2026-08-??)
 
 ### What's Changed
 
-* Bugfix: Fix false encoder-stopped watchdog trigger from stale timestamp in encoder.cpp, https://github.com/ratgdo/homekit-ratgdo32/pull/184 
-* Bugfix: Fix regression that accidentally removed option to remove light switch from HomeKit, https://github.com/ratgdo/homekit-ratgdo/pull/350
-* Other: Move more Info-level log messages to Debug-level so that once in stable run mode, Info-level only logs actual activity.
+* Feature: Add support for rotary encoder for Sec+ doors, https://github.com/ratgdo/homekit-ratgdo32/pull/189
+* Other: Add additional conditions to when we send a request for status to Sec+2.0 doors on receipt of an unknown (packet decode errors)
+* Other: Disable ratgdo encoder on ESP8266-based boards, will only support on ESP32-based boards
+* Other: Changed vehicle distance log messages from Debug to Verbose level
+* Other: Updates to json.h to check that we do not overwrite buffer, suggested by @abud86 in https://github.com/ratgdo/homekit-ratgdo32/pull/190
+* Other: Only update target lock state if HomeKit requested an update, as suggested by @adub86 in https://github.com/ratgdo/homekit-ratgdo32/pull/190
+* Other: Update authentication as suggested by @adub86 in https://github.com/ratgdo/homekit-ratgdo32/pull/190
+* Other: Replace special chars with HTML for SSID softAP.cpp, suggested by @abud86 in https://github.com/ratgdo/homekit-ratgdo32/pull/190
+* Other: Don't parse HTML when setting device name in web page, suggested by @abud86 in https://github.com/ratgdo/homekit-ratgdo32/pull/190
 
 ### Known Issues
 
@@ -18,6 +24,14 @@ All notable changes to `homekit-ratgdo32` will be documented in this file. This 
 * Sec+ 1.0 doors with digital wall panel (e.g. 889LM) sometimes do not close after a time-to-close delay. Please watch your door to make sure it closes after TTC delay.
 * Sec+ 1.0 doors with "0x37" digital wall panel (e.g. 398LM) not working.  We now detect but will not support them. Recommend replacing with 889LM panel.
 * When creating automations in Apple Home, the garage door may show only lock/unlock and not open/close as triggers. This is a bug in Apple Home. Workaround is to use the Eve App to create the automation, it will show both options.
+
+## v3.5.1 (2026-07-22)
+
+### What's Changed
+
+* Bugfix: Fix false encoder-stopped watchdog trigger from stale timestamp in encoder.cpp, https://github.com/ratgdo/homekit-ratgdo32/pull/184 
+* Bugfix: Fix regression that accidentally removed option to remove light switch from HomeKit, https://github.com/ratgdo/homekit-ratgdo/pull/350
+* Other: Move more Info-level log messages to Debug-level so that once in stable run mode, Info-level only logs actual activity.
 
 ## v3.5.0 (2026-07-12)
 
