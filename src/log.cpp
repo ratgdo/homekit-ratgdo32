@@ -215,7 +215,8 @@ void LOG::logToBuffer(const char *fmt, va_list args)
     vsnprintf(lineBuffer, LINE_BUFFER_SIZE, fmt, args);
     // If timestamp is wrapped in () and not [] then message is from one of the ESP_LOGx() functions.
     // Convert the milliseconds into HH:MM:SS.mmm so it is easier to read.
-    if (strchr(lineBuffer, '(') - lineBuffer == 2)
+    char *open_paren = strchr(lineBuffer, '(');
+    if (open_paren && open_paren - lineBuffer == 2)
     {
         char *numptr = &lineBuffer[3];
         char *endptr;

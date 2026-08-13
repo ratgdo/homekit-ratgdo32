@@ -109,12 +109,16 @@ void drycontact_loop()
 
     if (doorControlType == 3)
     {
-        if (dryContactDoorOpen)
+        if (dryContactDoorOpen && dryContactDoorClose)
+        {
+            ESP_LOGW(TAG, "Both open and close limit switches active; reporting stopped");
+            doorState = GarageDoorCurrentState::CURR_STOPPED;
+        }
+        else if (dryContactDoorOpen)
         {
             doorState = GarageDoorCurrentState::CURR_OPEN;
         }
-
-        if (dryContactDoorClose)
+        else if (dryContactDoorClose)
         {
             doorState = GarageDoorCurrentState::CURR_CLOSED;
         }

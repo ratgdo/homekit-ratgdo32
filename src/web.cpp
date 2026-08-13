@@ -610,6 +610,26 @@ String *ratgdoAuthenticate(HTTPAuthMethod mode, String enteredUsernameOrReq, Str
         return server.requestAuthentication(DIGEST_AUTH, www_realm);
 #endif
 
+// Returns false if a 401 challenge was sent. Unlike AUTHENTICATE(), this does not return
+// from the caller, so dispatchers can still unregister the request.
+static bool requestAuthenticated()
+{
+#ifdef ESP8266
+    if (userConfig->getPasswordRequired() && !server.authenticateDigest(userConfig->getwwwUsername(), userConfig->getwwwCredentials()))
+    {
+        server.requestAuthentication(DIGEST_AUTH, www_realm);
+        return false;
+    }
+#else
+    if (userConfig->getPasswordRequired() && !server.authenticate(ratgdoAuthenticate))
+    {
+        server.requestAuthentication(DIGEST_AUTH, www_realm);
+        return false;
+    }
+#endif
+    return true;
+}
+
 void handle_auth()
 {
     AUTHENTICATE();
@@ -743,6 +763,18 @@ void handle_everything()
         ESP_LOGD(TAG, "Client %s requesting: %s (method: %s)", server.client().remoteIP().toString().c_str(), uri, http_methods[method]);
         if (method == builtInUri.at(uri).first)
         {
+            // WiFi provisioning is unauthenticated in Soft AP mode, but must
+            // require credentials once the device is on the LAN.
+            if (!softAPmode &&
+                (!strcmp(uri, "/setssid") || !strcmp(uri, "/wifinets") ||
+                 !strcmp(uri, "/rescan") || !strcmp(uri, "/wifiap")))
+            {
+                if (!requestAuthenticated())
+                {
+                    unregisterRequest();
+                    return;
+                }
+            }
             builtInUri.at(uri).second();
         }
         else
@@ -771,6 +803,14 @@ void handle_everything()
     else if (method == HTTP_GET || method == HTTP_HEAD)
     {
         // HTTP_GET that does not match a built-in handler
+        if (!softAPmode && page.equals("/wifiap.html"))
+        {
+            if (!requestAuthenticated())
+            {
+                unregisterRequest();
+                return;
+            }
+        }
         if (page.equals("/"))
         {
             load_page("/index.html");
@@ -1065,29 +1105,71 @@ bool helperGarageLockState(const std::string &key, const char *value, configSett
     return true;
 }
 
-bool helperCredentials(const std::string &key, const char *value, configSetting *action)
+// Extract a JSON string value for "key" without mutating the source.
+static bool jsonExtractString(const char *json, const char *key, char *out, size_t outLen)
 {
-    const char *newUsername = strstr(value, "username");
-    const char *newCredentials = strstr(value, "credentials");
-    const char *newPassword = strstr(value, "password");
-    if (!(newUsername && newCredentials && newPassword))
+    if (!json || !key || !out || outLen == 0)
         return false;
 
-    // JSON string passed in.
-    // Very basic parsing, not using library functions to save memory
-    // find the colon after the key string
-    newUsername = strchr(newUsername, ':') + 1;
-    newCredentials = strchr(newCredentials, ':') + 1;
-    newPassword = strchr(newPassword, ':') + 1;
-    // for strings find the double quote
-    newUsername = strchr(newUsername, '"') + 1;
-    newCredentials = strchr(newCredentials, '"') + 1;
-    newPassword = strchr(newPassword, '"') + 1;
-    // null terminate the strings (at closing quote).
-    *strchr(newUsername, '"') = (char)0;
-    *strchr(newCredentials, '"') = (char)0;
-    *strchr(newPassword, '"') = (char)0;
-    // save values...
+    char pattern[40];
+    snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+    const char *p = strstr(json, pattern);
+    if (!p)
+        return false;
+    p = strchr(p + strlen(pattern), ':');
+    if (!p)
+        return false;
+    p++;
+    while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')
+        p++;
+    if (*p != '"')
+        return false;
+    p++;
+    size_t i = 0;
+    while (*p && *p != '"' && i + 1 < outLen)
+    {
+        if (*p == '\\' && p[1])
+            p++;
+        out[i++] = *p++;
+    }
+    if (*p != '"')
+        return false;
+    out[i] = 0;
+    return true;
+}
+
+static bool jsonExtractInt(const char *json, const char *key, int *out)
+{
+    if (!json || !key || !out)
+        return false;
+
+    char pattern[40];
+    snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+    const char *p = strstr(json, pattern);
+    if (!p)
+        return false;
+    p = strchr(p + strlen(pattern), ':');
+    if (!p)
+        return false;
+    p++;
+    while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')
+        p++;
+    if (*p == '\0' || *p == ',')
+        return false;
+    *out = atoi(p);
+    return true;
+}
+
+bool helperCredentials(const std::string &key, const char *value, configSetting *action)
+{
+    char newUsername[32];
+    char newCredentials[36];
+    char newPassword[64];
+    if (!jsonExtractString(value, "username", newUsername, sizeof(newUsername)) ||
+        !jsonExtractString(value, "credentials", newCredentials, sizeof(newCredentials)) ||
+        !jsonExtractString(value, "password", newPassword, sizeof(newPassword)))
+        return false;
+
     ESP_LOGI(TAG, "Set credentials for user: %s", newUsername);
     userConfig->set(cfg_wwwUsername, newUsername);
     userConfig->set(cfg_wwwCredentials, newCredentials);
@@ -1103,29 +1185,17 @@ bool helperUpdateUnderway(const std::string &key, const char *value, configSetti
 {
     firmwareSize = 0;
     firmwareUpdateSub = NULL;
-    const char *md5 = strstr(value, "md5");
-    const char *size = strstr(value, "size");
-    const char *uuid = strstr(value, "uuid");
+    char md5[36];
+    char uuid[64];
+    int size = 0;
 
-    if (!(md5 && size && uuid))
+    if (!jsonExtractString(value, "md5", md5, sizeof(md5)) ||
+        !jsonExtractInt(value, "size", &size) ||
+        !jsonExtractString(value, "uuid", uuid, sizeof(uuid)))
         return false;
 
-    // JSON string of passed in.
-    // Very basic parsing, not using library functions to save memory
-    // find the colon after the key string
-    md5 = strchr(md5, ':') + 1;
-    size = strchr(size, ':') + 1;
-    uuid = strchr(uuid, ':') + 1;
-    // for strings find the double quote
-    md5 = strchr(md5, '"') + 1;
-    uuid = strchr(uuid, '"') + 1;
-    // null terminate the strings (at closing quote).
-    *strchr(md5, '"') = (char)0;
-    *strchr(uuid, '"') = (char)0;
-    // ESP_LOGI(TAG,"MD5: %s, UUID: %s, Size: %d", md5, uuid, atoi(size));
-    // save values...
     strlcpy(firmwareMD5, md5, sizeof(firmwareMD5));
-    firmwareSize = atoi(size);
+    firmwareSize = (size_t)size;
     for (uint32_t channel = 0; channel < SSE_MAX_CHANNELS; channel++)
     {
         if (subscription[channel].SSEconnected && subscription[channel].clientUUID == uuid && subscription[channel].client.connected())
@@ -1503,11 +1573,6 @@ void handle_subscribe()
         for (channel = 0; channel < SSE_MAX_CHANNELS; channel++)
             if (subscription[channel].clientIP == IPAddress(INADDR_NONE))
                 break;
-
-        if (channel < SSE_MAX_CHANNELS)
-        {
-            subscriptionCount++;
-        }
     }
 
     // Check if we found a free slot
@@ -1545,6 +1610,10 @@ void handle_subscribe()
             heartbeatInterval = (uint32_t)hbi;
         }
     }
+
+    // Count only after the slot is validated and about to be assigned
+    if (!foundExisting)
+        subscriptionCount++;
 
     // Safe assignment with validation
     subscription[channel].clientIP = clientIP;

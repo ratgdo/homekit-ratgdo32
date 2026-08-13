@@ -102,7 +102,7 @@ static char syslogIPBuf[IP4ADDR_STRLEN_MAX] PROGMEM = "0.0.0.0";
 static char timezoneBuf[64] PROGMEM = "";
 static char ntpServerBuf[64] PROGMEM = "pool.ntp.org";
 static char usernameBuf[32] PROGMEM = "admin";
-static char credentialsBuf[36] PROGMEM = "10d3c00fa1e09696601ef113b99f8a87"; // MD5 hash of "admin:ratgdo:password"
+static char credentialsBuf[36] PROGMEM = "10d3c00fa1e09696601ef113b99f8a87"; // MD5 hash of "admin:RATGDO Login Required:password"
 
 //  key, reboot, wifiChanged, value, fn_to_call
 static configSetting settings_defaults[] PROGMEM = {

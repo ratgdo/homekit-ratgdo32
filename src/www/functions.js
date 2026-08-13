@@ -24,6 +24,11 @@ var setGDOcmds = {              // setGDO commands that are not sent from server
 var gitUser = "ratgdo";         // default git user.
 var gitRepo = "homekit-ratgdo"; // default git repository.
 
+function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = (value == null) ? "" : String(value);
+}
+
 // See... https://github.com/nayarsystems/posix_tz_db
 // This is CSV form of the data, available at this web page.
 const timeZonesURL = "https://raw.githubusercontent.com/nayarsystems/posix_tz_db/refs/heads/master/zones.csv";
@@ -426,11 +431,11 @@ function setElementsFromStatus(status) {
                 document.getElementById("sec1emulation").style.display = (value == true) ? "" : "none";
                 break;
             case "deviceName":
-                document.getElementById(key).innerHTML = value;
+                setText(key, value);
                 document.title = value;
                 document.getElementById("newDeviceName").placeholder = value;
                 let mdnsName = makeRfc952(value) + ".local";
-                document.getElementById("mdnsName").innerHTML = mdnsName;
+                setText("mdnsName", mdnsName);
                 break;
             case "userName":
                 document.getElementById("newUserName").placeholder = value;
@@ -582,8 +587,8 @@ function setElementsFromStatus(status) {
                 document.getElementById("dcDebounceValue").innerHTML = value;
                 break;
             case "firmwareVersion":
-                document.getElementById(key).innerHTML = value;
-                document.getElementById("firmwareVersion2").innerHTML = value;
+                setText(key, value);
+                setText("firmwareVersion2", value);
                 break;
             case "wifiPhyMode":
                 document.getElementById("trWifiPhyMode").style.display = "table-row";
@@ -605,25 +610,25 @@ function setElementsFromStatus(status) {
                 break;
             case "accessoryID":
                 document.getElementById("trAccessoryID").style.display = "table-row";
-                document.getElementById(key).innerHTML = value;
+                setText(key, value);
                 break;
             case "clients":
                 document.getElementById(key).innerHTML = (value > 0) ? `Yes (${value})` : 'No';
                 break;
             case "localIP":
-                document.getElementById(key).innerHTML = value;
+                setText(key, value);
                 document.getElementById("IPaddress").placeholder = value;
                 break;
             case "ipv6Addresses":
                 document.getElementById("trEnableIPv6").style.display = "table-row";
-                document.getElementById(key).innerHTML = value.split(',').join('\n');
+                setText(key, value.split(',').join('\n'));
                 break;
             case "subnetMask":
-                document.getElementById(key).innerHTML = value;
+                setText(key, value);
                 document.getElementById("IPnetmask").placeholder = value;
                 break;
             case "gatewayIP":
-                document.getElementById(key).innerHTML = value;
+                setText(key, value);
                 document.getElementById("IPgateway").placeholder = value;
                 break;
             case "nameserverIP":
@@ -634,7 +639,7 @@ function setElementsFromStatus(status) {
                 document.getElementById("staticIPtable").style.display = (value) ? "table" : "none";
                 break;
             case "syslogIP":
-                document.getElementById(key).innerHTML = value;
+                setText(key, value);
                 document.getElementById("syslogIP").placeholder = value;
                 break;
             case "syslogPort":
@@ -761,7 +766,7 @@ function setElementsFromStatus(status) {
                 try {
                     if (setGDOcmds[key] == undefined) {
                         // Only try and set if the key is not a setGDO command
-                        document.getElementById(key).innerHTML = value;
+                        setText(key, value);
                     }
                 } catch (error) {
                     console.warn(`Server sent unrecognized status: ${key} : ${value}`);

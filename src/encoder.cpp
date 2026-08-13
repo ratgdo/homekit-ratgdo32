@@ -311,7 +311,7 @@ static void check_encoder_stopped() {
     if (intended > 0)
       open_door();
     else
-      close_door(false);
+      close_door(true);
   }
 }
 

@@ -4,6 +4,20 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
+## Unreleased
+
+### What's Changed
+
+* Bugfix: Require web authentication for WiFi provisioning endpoints (`/setssid`, `/wifinets`, `/rescan`, `/wifiap`) when not in Soft AP mode
+* Bugfix: Bound status JSON writer so long SSIDs/names cannot overflow the status JSON heap buffer
+* Bugfix: Encoder direction-correction close now bypasses time-to-close delay
+* Bugfix: Null-check log timestamp parsing and stop mutating credential/OTA JSON in place
+* Bugfix: Count SSE subscriptions only after the client slot is validated
+* Bugfix: Compare previous SSID (not BSSID) when deciding whether to reset WiFi settings
+* Bugfix: HTML-escape SSIDs in the Soft AP table and use `textContent` for device/network names in the web UI
+* Bugfix: Dry-contact both-limits-active reports stopped instead of closed
+* Bugfix: HomeSpan garage-door `update()` only opens/closes or locks when that characteristic actually changed
+
 ## v3.5.1 (2026-07-22)
 
 ### What's Changed
@@ -454,4 +468,3 @@ Note: The built-in TTC feature operates slightly differently than ratgdo's timer
 ### Known Issues
 
 * THIS IS PRE-RELEASE FIRMWARE for testing purposes. Future updates MAY include breaking changes requiring a flash erase and re-upload.
-
