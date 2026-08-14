@@ -295,7 +295,7 @@ void calculatePresence(int32_t distance)
     if (vehicleDistance != lastDistance)
     {
 
-        ESP_LOGD(TAG, "Vehicle distance: %dcm (average over %d samples, last changed %d samples ago), current measured: %dcm", vehicleDistance, count, lastChange, distance / 10);
+        ESP_LOGV(TAG, "Vehicle distance: %dcm (average over %d samples, last changed %d samples ago), current measured: %dcm", vehicleDistance, count, lastChange, distance / 10);
         lastDistance = vehicleDistance;
         lastChange = 0;
     }
