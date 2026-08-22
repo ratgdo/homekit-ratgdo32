@@ -166,6 +166,12 @@ static void encoder_received(GarageDoorCurrentState door_state)
 {
   garage_door.encoder_door_state = door_state;
 
+  if (doorControlType == 3)
+  {
+      update_door_state(door_state);
+      return;
+  }
+
   GarageDoorCurrentState proto_state = garage_door.protocol_door_state;
 
   if (proto_state == (GarageDoorCurrentState)0xFF)
