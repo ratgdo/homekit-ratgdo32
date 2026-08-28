@@ -79,5 +79,6 @@
   "stopDoorHomeKit": false,
   "garageSec1Emulated": false,
   "encoderEnabled": false,
-  "encoderReversed": false
+  "encoderReversed": false,
+  "gdoFirmware": "0.00"
 }
