@@ -53,6 +53,7 @@
   "vehicleDist": 300,
   "laserEnabled": true,
   "laserHomeKit": true,
+  "laserOnDoorOpen": false,
   "vehicleHomeKit": true,
   "vehicleOccupancyHomeKit": true,
   "vehicleArrivingHomeKit": true,
