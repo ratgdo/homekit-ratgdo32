@@ -4,12 +4,18 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
-## v3.5.5 (2026-09-21)
+## v3.5.6 (2026-10-xx)
+
+**NOTE** If updating from version 3.5.5 you must disable password required setting (if set).  You can re-enable it after update completes.
 
 ### What's Changed
 
-* Feature: Implement our own authentication as workaround for Safari not handling Digest Authentication properly. See https://github.com/ratgdo/homekit-ratgdo32/issues/200
-* Feature: Add option to illuminate parking assist laser on door open, suggested by @bmusat, see https://github.com/ratgdo/homekit-ratgdo32/pull/201
+* Bugfix: Add the autocomplete tags to html that are required for password managers to trigger autofill. https://github.com/ratgdo/homekit-ratgdo32/issues/200
+* Bugfix: Firmware OTA update failing when password required, fixed by add X-API-Key HTML header. https://github.com/ratgdo/homekit-ratgdo32/issues/200
+* Bugfix: Discrete Open/Close status pins not implemented correctly. https://github.com/ratgdo/homekit-ratgdo32/issues/206
+* Bugfix: Parking assist laser not triggered if door has been open longer than 5 minutes. https://github.com/ratgdo/homekit-ratgdo32/issues/203
+* Bugfix: Automatic reversal on stop not working as intended. https://github.com/ratgdo/homekit-ratgdo32/pull/213
+* Feature: Added a /healthcheck URL so that monitoring tools can easily check if device is alive. https://github.com/ratgdo/homekit-ratgdo32/pull/233
 
 ### Known Issues
 
@@ -17,6 +23,13 @@ All notable changes to `homekit-ratgdo32` will be documented in this file. This 
 * Sec+ 1.0 doors with digital wall panel (e.g. 889LM) sometimes do not close after a time-to-close delay. Please watch your door to make sure it closes after TTC delay.
 * Sec+ 1.0 doors with "0x37" digital wall panel (e.g. 398LM) not working.  We now detect but will not support them. Recommend replacing with 889LM panel.
 * When creating automations in Apple Home, the garage door may show only lock/unlock and not open/close as triggers. This is a bug in Apple Home. Workaround is to use the Eve App to create the automation, it will show both options.
+
+## v3.5.5 (2026-09-21)
+
+### What's Changed
+
+* Feature: Implement our own authentication as workaround for Safari not handling Digest Authentication properly. See https://github.com/ratgdo/homekit-ratgdo32/issues/200
+* Feature: Add option to illuminate parking assist laser on door open, suggested by @bmusat, see https://github.com/ratgdo/homekit-ratgdo32/pull/201
 
 ## v3.5.4 (2026-09-08)
 
