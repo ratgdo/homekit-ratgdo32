@@ -4,7 +4,7 @@
 
 All notable changes to `homekit-ratgdo32` will be documented in this file. This project tries to adhere to [Semantic Versioning](http://semver.org/).
 
-## v3.5.6 (2026-10-xx)
+## v3.5.6 (2026-11-07)
 
 **NOTE** If updating from version 3.5.5 you must disable password required setting (if set).  You can re-enable it after update completes.
 
