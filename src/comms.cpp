@@ -598,8 +598,8 @@ void setup_comms()
     // need to make more space available for initialization.
     txQueueCreate();
 
-    digitalWrite(STATUS_DOOR_PIN, LOW); // initial state, LOW == door closed or wall panel connected
     pinMode(STATUS_DOOR_PIN, OUTPUT);
+    digitalWrite(STATUS_DOOR_PIN, LOW); // initial state, LOW == door closed or wall panel connected
 
     if (doorControlType == DOOR_CONTROL_SEC_PLUS_V1)
     {
@@ -645,12 +645,12 @@ void setup_comms()
     else
     {
         ESP_LOGI(TAG, "=== Setting up comms for dry contact protocol");
-        digitalWrite(UART_TX_PIN, LOW);
         pinMode(UART_TX_PIN, OUTPUT);
-        digitalWrite(DISCRETE_OPEN_PIN, LOW);
+        digitalWrite(UART_TX_PIN, LOW);
         pinMode(DISCRETE_OPEN_PIN, OUTPUT);
-        digitalWrite(DISCRETE_CLOSE_PIN, LOW);
+        digitalWrite(DISCRETE_OPEN_PIN, LOW);
         pinMode(DISCRETE_CLOSE_PIN, OUTPUT);
+        digitalWrite(DISCRETE_CLOSE_PIN, LOW);
     }
     force_recover.push_count = 0;
     force_recover.enable = true;
@@ -784,8 +784,8 @@ void setup_comms()
         ESP_LOGI(TAG, "Use status messages for obstruction detection");
     }
     // set the status pin for output
-    digitalWrite(STATUS_OBST_PIN, LOW);
     pinMode(STATUS_OBST_PIN, OUTPUT);
+    digitalWrite(STATUS_OBST_PIN, LOW);
 #endif
 
     // Restore previously saved door open/close duration history
