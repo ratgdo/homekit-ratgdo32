@@ -598,8 +598,8 @@ void setup_comms()
     // need to make more space available for initialization.
     txQueueCreate();
 
-    pinMode(STATUS_DOOR_PIN, OUTPUT);
     digitalWrite(STATUS_DOOR_PIN, LOW); // initial state, LOW == door closed or wall panel connected
+    pinMode(STATUS_DOOR_PIN, OUTPUT);
 
     if (doorControlType == DOOR_CONTROL_SEC_PLUS_V1)
     {
@@ -645,12 +645,12 @@ void setup_comms()
     else
     {
         ESP_LOGI(TAG, "=== Setting up comms for dry contact protocol");
-        pinMode(UART_TX_PIN, OUTPUT);
         digitalWrite(UART_TX_PIN, LOW);
-        pinMode(DISCRETE_OPEN_PIN, OUTPUT);
+        pinMode(UART_TX_PIN, OUTPUT);
         digitalWrite(DISCRETE_OPEN_PIN, LOW);
-        pinMode(DISCRETE_CLOSE_PIN, OUTPUT);
+        pinMode(DISCRETE_OPEN_PIN, OUTPUT);
         digitalWrite(DISCRETE_CLOSE_PIN, LOW);
+        pinMode(DISCRETE_CLOSE_PIN, OUTPUT);
     }
     force_recover.push_count = 0;
     force_recover.enable = true;
@@ -784,8 +784,8 @@ void setup_comms()
         ESP_LOGI(TAG, "Use status messages for obstruction detection");
     }
     // set the status pin for output
-    pinMode(STATUS_OBST_PIN, OUTPUT);
     digitalWrite(STATUS_OBST_PIN, LOW);
+    pinMode(STATUS_OBST_PIN, OUTPUT);
 #endif
 
     // Restore previously saved door open/close duration history
@@ -829,15 +829,29 @@ void shutdown_comms()
     if (doorControlType == DOOR_CONTROL_SEC_PLUS_V1)
     {
         Sec1Serial.end();
+#ifdef ESP32
+        gpio_reset_pin(UART_TX_PIN);
+        gpio_pullup_dis(UART_TX_PIN);
+        gpio_pulldown_en(UART_TX_PIN);
+        gpio_reset_pin(UART_RX_PIN);
+#endif
+    }
+    else if (doorControlType == DOOR_CONTROL_SEC_PLUS_V2)
+    {
+        sw_serial.end();
+#ifdef ESP32
+        gpio_reset_pin(UART_TX_PIN);
+        gpio_pullup_dis(UART_TX_PIN);
+        gpio_pulldown_en(UART_TX_PIN);
+        gpio_reset_pin(UART_RX_PIN);
+#endif
     }
     else
     {
-        sw_serial.end();
+        digitalWrite(UART_TX_PIN, LOW);
+        digitalWrite(DISCRETE_OPEN_PIN, LOW);
+        digitalWrite(DISCRETE_CLOSE_PIN, LOW);
     }
-#ifdef ESP32
-    gpio_reset_pin(UART_TX_PIN);
-    gpio_reset_pin(UART_RX_PIN);
-#endif
 #endif
 }
 
