@@ -456,7 +456,8 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
 #else
             notify_homekit_current_door_state_change(gdo_to_homekit_door_current_state[status->door]);
             garage_door.current_state = gdo_to_homekit_door_current_state[status->door];
-            digitalWrite(STATUS_DOOR_PIN, garage_door.current_state == GarageDoorCurrentState::CURR_CLOSED ? LOW : HIGH);
+            if (doorControlType != DOOR_CONTROL_DRY_CONTACT)
+                digitalWrite(STATUS_DOOR_PIN, garage_door.current_state == GarageDoorCurrentState::CURR_CLOSED ? LOW : HIGH);
 #endif
             notify_homekit_target_door_state_change(gdo_to_homekit_door_target_state[status->door]);
 
@@ -645,6 +646,11 @@ void setup_comms()
     {
         ESP_LOGI(TAG, "=== Setting up comms for dry contact protocol");
         pinMode(UART_TX_PIN, OUTPUT);
+        digitalWrite(UART_TX_PIN, LOW);
+        pinMode(DISCRETE_OPEN_PIN, OUTPUT);
+        digitalWrite(DISCRETE_OPEN_PIN, LOW);
+        pinMode(DISCRETE_CLOSE_PIN, OUTPUT);
+        digitalWrite(DISCRETE_CLOSE_PIN, LOW);
     }
     force_recover.push_count = 0;
     force_recover.enable = true;
@@ -779,6 +785,7 @@ void setup_comms()
     }
     // set the status pin for output
     pinMode(STATUS_OBST_PIN, OUTPUT);
+    digitalWrite(STATUS_OBST_PIN, LOW);
 #endif
 
     // Restore previously saved door open/close duration history
@@ -822,15 +829,29 @@ void shutdown_comms()
     if (doorControlType == DOOR_CONTROL_SEC_PLUS_V1)
     {
         Sec1Serial.end();
+#ifdef ESP32
+        gpio_reset_pin(UART_TX_PIN);
+        gpio_pullup_dis(UART_TX_PIN);
+        gpio_pulldown_en(UART_TX_PIN);
+        gpio_reset_pin(UART_RX_PIN);
+#endif
+    }
+    else if (doorControlType == DOOR_CONTROL_SEC_PLUS_V2)
+    {
+        sw_serial.end();
+#ifdef ESP32
+        gpio_reset_pin(UART_TX_PIN);
+        gpio_pullup_dis(UART_TX_PIN);
+        gpio_pulldown_en(UART_TX_PIN);
+        gpio_reset_pin(UART_RX_PIN);
+#endif
     }
     else
     {
-        sw_serial.end();
+        digitalWrite(UART_TX_PIN, LOW);
+        digitalWrite(DISCRETE_OPEN_PIN, LOW);
+        digitalWrite(DISCRETE_CLOSE_PIN, LOW);
     }
-#ifdef ESP32
-    gpio_reset_pin(UART_TX_PIN);
-    gpio_reset_pin(UART_RX_PIN);
-#endif
 #endif
 }
 
@@ -1157,7 +1178,7 @@ void update_door_state(GarageDoorCurrentState current_state)
     {
         ESP_LOGI(TAG, "Door state changing from %s to %s (target %s) (%s)", DOOR_STATE(garage_door.current_state), DOOR_STATE(current_state), DOOR_STATE(target_state), timeString());
         notify_homekit_current_door_state_change(current_state);
-        if (!wpDisconnectOnTx)
+        if (!wpDisconnectOnTx && (doorControlType != DOOR_CONTROL_DRY_CONTACT))
             digitalWrite(STATUS_DOOR_PIN, current_state == GarageDoorCurrentState::CURR_CLOSED ? LOW : HIGH);
         notify_homekit_target_door_state_change(target_state);
     }
@@ -2598,11 +2619,41 @@ void door_command(DoorAction action)
     }
     else
     {
-        // Dry contact commands (only toggle functionality, open/close/toggle/stop -> toggle)
-        // Toggle signal
+        // Dry contact commands
+        static Ticker discreteOpenTimer = Ticker();
+        static Ticker discreteCloseTimer = Ticker();
+        static Ticker toggleTimer = Ticker();
+
+        if (action == DoorAction::Open && garage_door.current_state == GarageDoorCurrentState::CURR_OPEN)
+        {
+            ESP_LOGW(TAG, "The door is already open. Ignoring request to open.");
+            return;
+        }
+        if (action == DoorAction::Close && garage_door.current_state == GarageDoorCurrentState::CURR_CLOSED)
+        {
+            ESP_LOGW(TAG, "The door is already closed. Ignoring request to close.");
+            return;
+        }
+
+        if (action == DoorAction::Open)
+        {
+            // Discrete open control
+            digitalWrite(DISCRETE_OPEN_PIN, HIGH);
+            discreteOpenTimer.once_ms(500, []()
+                                      { digitalWrite(DISCRETE_OPEN_PIN, LOW); });
+        }
+        else if (action == DoorAction::Close)
+        {
+            // Discrete close control
+            digitalWrite(DISCRETE_CLOSE_PIN, HIGH);
+            discreteCloseTimer.once_ms(500, []()
+                                       { digitalWrite(DISCRETE_CLOSE_PIN, LOW); });
+        }
+
+        // Single button control (toggle)
         digitalWrite(UART_TX_PIN, HIGH);
-        delay(500);
-        digitalWrite(UART_TX_PIN, LOW);
+        toggleTimer.once_ms(500, []()
+                            { digitalWrite(UART_TX_PIN, LOW); });
     }
 }
 
@@ -2616,7 +2667,7 @@ void door_command_close()
 #ifdef USE_GDOLIB
     gdo_door_close();
 #else
-    if (garage_door.pinModeObstructionSensor && !userConfig->getUseToggle())
+    if ((doorControlType == DOOR_CONTROL_DRY_CONTACT) || (garage_door.pinModeObstructionSensor && !userConfig->getUseToggle()))
     {
         ESP_LOGD(TAG, "Closing door");
         door_command(DoorAction::Close);
@@ -2667,7 +2718,7 @@ void door_command_close()
                                 pendingDoorCommand = false;
                                 ESP_LOGE(TAG, "Door is supposed to be closing but is not.  Current state: %s", DOOR_STATE(garage_door.current_state));
                                 notify_homekit_current_door_state_change(garage_door.current_state);
-                                if (!wpDisconnectOnTx)
+                                if (!wpDisconnectOnTx && (doorControlType != DOOR_CONTROL_DRY_CONTACT))
                                     digitalWrite(STATUS_DOOR_PIN, garage_door.current_state == GarageDoorCurrentState::CURR_CLOSED ? LOW : HIGH); });
 #endif
     return;
@@ -2716,7 +2767,7 @@ void door_command_open()
                                 pendingDoorCommand = false;
                                 ESP_LOGE(TAG, "Door is supposed to be opening but is not.  Current state: %s", DOOR_STATE(garage_door.current_state));
                                 notify_homekit_current_door_state_change(garage_door.current_state);
-                                if (!wpDisconnectOnTx)
+                                if (!wpDisconnectOnTx && (doorControlType != DOOR_CONTROL_DRY_CONTACT))
                                     digitalWrite(STATUS_DOOR_PIN, garage_door.current_state == GarageDoorCurrentState::CURR_CLOSED ? LOW : HIGH); });
 #endif
     return;
@@ -3496,7 +3547,8 @@ void obstruction_timer()
             {
                 ESP_LOGD(TAG, "Obstruction: Clear (ISR) (%s)", timeString());
                 notify_homekit_obstruction(false);
-                digitalWrite(STATUS_OBST_PIN, LOW);
+                if (doorControlType != DOOR_CONTROL_DRY_CONTACT)
+                    digitalWrite(STATUS_OBST_PIN, LOW);
             }
         }
         else if (pulse_count == 0)
@@ -3530,7 +3582,8 @@ void obstruction_timer()
                     {
                         ESP_LOGD(TAG, "Obstruction: Detected (ISR) (%s)", timeString());
                         notify_homekit_obstruction(true);
-                        digitalWrite(STATUS_OBST_PIN, HIGH);
+                        if (doorControlType != DOOR_CONTROL_DRY_CONTACT)
+                            digitalWrite(STATUS_OBST_PIN, HIGH);
                         if (motionTriggers.bit.obstruction)
                         {
                             notify_homekit_motion(true);
