@@ -1,0 +1,31 @@
+name: SSE lifecycle
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run lifecycle tests with sanitizers
+        run: |
+          for test in sse_lifecycle_test sse_lock_test; do
+            g++ -std=c++11 -pthread -fsanitize=address,undefined -fno-omit-frame-pointer tests/$test.cpp -o /tmp/$test
+            /tmp/$test
+          done
+  firmware:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [ratgdo_esp32dev, MJS_dev32]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install platformio
+      - run: pio run -e ${{ matrix.environment }}

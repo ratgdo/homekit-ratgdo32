@@ -17,3 +17,7 @@ bool retireSSESubscription(std::atomic<bool> &active,
     notify(remaining);
     return true;
 }
+
+// Ticker callbacks never touch clients or wait for the lifecycle lock.
+inline void requestSSEHeartbeat(std::atomic<bool> &pending) { pending.store(true); }
+inline bool takeSSEHeartbeat(std::atomic<bool> &pending) { return pending.exchange(false); }
