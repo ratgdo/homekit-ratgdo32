@@ -21,3 +21,14 @@ bool retireSSESubscription(std::atomic<bool> &active,
 // Ticker callbacks never touch clients or wait for the lifecycle lock.
 inline void requestSSEHeartbeat(std::atomic<bool> &pending) { pending.store(true); }
 inline bool takeSSEHeartbeat(std::atomic<bool> &pending) { return pending.exchange(false); }
+
+// The caller holds the lifecycle lock while checking and assigning the client.
+template <typename UUID, typename Client>
+bool bindSSEClient(bool active, const UUID &registeredUUID,
+                   const UUID &requestedUUID, Client &current, const Client &incoming)
+{
+    if (!active || registeredUUID != requestedUUID)
+        return false;
+    current = incoming;
+    return true;
+}

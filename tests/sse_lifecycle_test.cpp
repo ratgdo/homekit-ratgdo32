@@ -2,11 +2,21 @@
 
 #include <cassert>
 #include <functional>
+#include <string>
 #include <thread>
 #include <vector>
 
 int main()
 {
+    // A stale EventSource request must not replace a reused slot's client.
+    std::string uuid = "new-uuid", current = "live-client";
+    assert(!bindSSEClient(true, uuid, std::string("old-uuid"), current, std::string("stale-client")));
+    assert(current == "live-client");
+    assert(!bindSSEClient(false, uuid, uuid, current, std::string("inactive-client")));
+    assert(current == "live-client");
+    assert(bindSSEClient(true, uuid, uuid, current, std::string("replacement-client")));
+    assert(current == "replacement-client");
+
     // A heartbeat disconnect logs; the logger broadcasts synchronously and
     // discovers the same disconnected slot. Another client must remain counted.
     std::atomic<bool> disconnected(true), survivor(true);

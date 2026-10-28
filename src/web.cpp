@@ -1522,10 +1522,9 @@ void SSEHandler(uint32_t channel)
     }
 
     SSESubscription &s = subscription[channel];
-    s.client = server.client(); // capture SSE server client connection
-    if (s.clientUUID != server.arg(0))
+    if (!bindSSEClient(s.active, s.clientUUID, server.arg(0), s.client, server.client()))
     {
-        ESP_LOGE(TAG, "Client %s (%s) tries to listen for SSE but not subscribed", s.client.remoteIP().toString().c_str(), server.arg(0).c_str());
+        ESP_LOGE(TAG, "Client %s (%s) tries to listen for SSE but not subscribed", server.client().remoteIP().toString().c_str(), server.arg(0).c_str());
         return handle_notfound();
     }
     s.client.setNoDelay(true);
