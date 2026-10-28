@@ -24,6 +24,7 @@
 #include "config.h"
 #include "comms.h"
 #include "homekit.h"
+#include "../lib/ratgdo/ipv4_config.h"
 #include "web.h"
 #include "softAP.h"
 #include "led.h"
@@ -422,6 +423,15 @@ void wifiBegin(const char *ssid, const char *pw)
     ESP_LOGI(TAG, "WiFi TX power: %d", (int)WiFi.getTxPower());
 }
 
+static void refresh_ipv4_config()
+{
+    if (rebooting || softAPmode)
+        return;
+    if (update_ipv4_config(*userConfig, WiFi.localIP(), WiFi.subnetMask(),
+                           WiFi.gatewayIP(), WiFi.dnsIP(), WiFi.dnsIP().type() == IPv4))
+        notify_new_ipv4_address();
+}
+
 void connectionCallback(int count)
 {
     if (rebooting)
@@ -438,15 +448,7 @@ void connectionCallback(int count)
     if (softAPmode)
         return;
 
-    // IPv4 Config
-    userConfig->set(cfg_localIP, WiFi.localIP().toString().c_str());
-    userConfig->set(cfg_gatewayIP, WiFi.gatewayIP().toString().c_str());
-    userConfig->set(cfg_subnetMask, WiFi.subnetMask().toString().c_str());
-
-    // Only update cfg_nameserverIP if it is an IPv4 address. .dnsIP() can return an IPv6 address if we have one from SLAAC
-    // but our user interface only allows for IPv4 DNS server configuration.
-    if (WiFi.dnsIP().type() == IPv4)
-        userConfig->set(cfg_nameserverIP, WiFi.dnsIP().toString().c_str());
+    refresh_ipv4_config();
 
     // With WiFi connected, we can now initialize the rest of our app.
 #ifdef USE_GDOLIB
@@ -456,7 +458,6 @@ void connectionCallback(int count)
     setup_comms();
 #endif
     wifi_got_ip = true;
-    notify_new_ipv4_address();
 }
 
 void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info)
@@ -492,6 +493,9 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info)
     {
         // Got IPv4 address
         ESP_LOGI(TAG, "Received IPv4 Address: %s", IPAddress(info.got_ip.ip_info.ip.addr).toString().c_str());
+        // The first connection callback may already have run for IPv6. Also
+        // refresh on DHCP renewals, which do not establish a new connection.
+        refresh_ipv4_config();
     }
     else
     {
