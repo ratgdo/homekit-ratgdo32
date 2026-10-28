@@ -19,6 +19,7 @@
 #include <tuple>
 #include <unordered_map>
 #include <time.h>
+#include "sse_lifecycle.h"
 
 // ESP system includes
 #include <Ticker.h>
@@ -186,6 +187,7 @@ struct SSESubscription
     WiFiClient client;
     Ticker heartbeatTimer;
     uint32_t heartbeatInterval;
+    std::atomic<bool> active{false};
     bool SSEconnected;
     int SSEfailCount;
     String clientUUID;
@@ -194,7 +196,7 @@ struct SSESubscription
 SSESubscription subscription[SSE_MAX_CHANNELS];
 // During firmware update note which subscribed client is updating
 SSESubscription *firmwareUpdateSub = NULL;
-uint32_t subscriptionCount = 0;
+std::atomic<uint32_t> subscriptionCount{0};
 
 // Performance management - removed redundant connection tracking
 #define MIN_REQUEST_INTERVAL_MS 100
@@ -1400,14 +1402,16 @@ void handle_setgdo()
 
 void removeSSEsubscription(SSESubscription *s)
 {
-    if (subscriptionCount > 0)
-        subscriptionCount--; // Prevent negative count
-    s->heartbeatTimer.detach();
-    ESP_LOGD(TAG, "Remove SSE subscription. Total subscribed: %d", subscriptionCount);
-    s->client.stop();
-    s->clientIP = INADDR_NONE;
-    s->clientUUID.clear();
-    s->SSEconnected = false;
+    retireSSESubscription(s->active, subscriptionCount, [&]() {
+        // Retire before any call that can log and reenter SSEBroadcastState.
+        s->SSEconnected = false;
+        s->heartbeatTimer.detach();
+        s->client.stop();
+        s->clientIP = INADDR_NONE;
+        s->clientUUID.clear();
+    }, [&](uint32_t remaining) {
+        ESP_LOGD(TAG, "Remove SSE subscription. Total subscribed: %d", remaining);
+    });
 }
 
 void SSEheartbeat(SSESubscription *s)
@@ -1531,7 +1535,7 @@ void handle_subscribe()
 
     if (subscriptionCount == SSE_MAX_CHANNELS)
     {
-        ESP_LOGE(TAG, "Client %s SSE Subscription declined, subscription count: %d", clientIP.toString().c_str(), subscriptionCount);
+        ESP_LOGE(TAG, "Client %s SSE Subscription declined, subscription count: %d", clientIP.toString().c_str(), subscriptionCount.load());
         for (channel = 0; channel < SSE_MAX_CHANNELS; channel++)
         {
             ESP_LOGD(TAG, "Client %d: %s at %s", channel, subscription[channel].clientUUID.c_str(), subscription[channel].clientIP.toString().c_str());
@@ -1655,9 +1659,10 @@ void handle_subscribe()
     subscription[channel].clientUUID = server.arg(id);
     subscription[channel].logViewer = logViewer;
     subscription[channel].heartbeatInterval = heartbeatInterval;
+    subscription[channel].active = true;
 
     SSEurl += std::to_string(channel);
-    ESP_LOGD(TAG, "Client %s (%s) SSE subscription: %s, Total: %d, Heartbeat: %d, Log: %d", clientIP.toString().c_str(), server.arg(id).c_str(), SSEurl.c_str(), subscriptionCount, heartbeatInterval, (int)logViewer);
+    ESP_LOGD(TAG, "Client %s (%s) SSE subscription: %s, Total: %d, Heartbeat: %d, Log: %d", clientIP.toString().c_str(), server.arg(id).c_str(), SSEurl.c_str(), subscriptionCount.load(), heartbeatInterval, (int)logViewer);
     server.sendHeader(F("Cache-Control"), F("no-cache, no-store"));
     server.send_P(200, type_txt, SSEurl.c_str());
 }
