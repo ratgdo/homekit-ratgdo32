@@ -19,7 +19,8 @@
 #include <tuple>
 #include <unordered_map>
 #include <time.h>
-#include "sse_lifecycle.h"
+#include <atomic>
+#include <cstdint>
 
 // ESP system includes
 #include <Ticker.h>
@@ -181,6 +182,37 @@ constexpr char gitTaggedURL[] = "https://raw.githubusercontent.com/" _GITUSER "/
 // Just reloading page causes register on new channel.  So we need a reasonable number
 // to accommodate "extra" until old one is detected as disconnected.
 #define SSE_MAX_CHANNELS 8
+// SSE lifecycle helpers are local to the HTTP implementation.
+// Claim removal before cleanup or diagnostics, either of which may log and
+// synchronously reenter the broadcaster. Only the winning caller owns cleanup.
+template <typename Cleanup, typename Notify>
+bool retireSSESubscription(std::atomic<bool> &active,
+                           std::atomic<uint32_t> &count,
+                           Cleanup cleanup, Notify notify)
+{
+    if (!active.exchange(false))
+        return false;
+    const uint32_t remaining = count.fetch_sub(1) - 1;
+    cleanup();
+    notify(remaining);
+    return true;
+}
+
+// Ticker callbacks never touch clients or wait for the lifecycle lock.
+inline void requestSSEHeartbeat(std::atomic<bool> &pending) { pending.store(true); }
+inline bool takeSSEHeartbeat(std::atomic<bool> &pending) { return pending.exchange(false); }
+
+// The caller holds the lifecycle lock while checking and assigning the client.
+template <typename UUID, typename Client>
+bool bindSSEClient(bool active, const UUID &registeredUUID,
+                   const UUID &requestedUUID, Client &current, const Client &incoming)
+{
+    if (!active || registeredUUID != requestedUUID)
+        return false;
+    current = incoming;
+    return true;
+}
+
 struct SSESubscription
 {
     IPAddress clientIP;
@@ -203,7 +235,40 @@ std::atomic<uint32_t> subscriptionCount{0};
 // Performance management - removed redundant connection tracking
 #define MIN_REQUEST_INTERVAL_MS 100
 
-#include "sse_lock.h"
+// All subscription fields and clients are protected by this lock. Logger
+// broadcasts must never wait: callers can hold the logger's own mutex.
+#ifdef ESP8266
+static bool sseLocked = false;
+#else
+static SemaphoreHandle_t sseMutex = NULL;
+#endif
+class SSELock
+{
+public:
+    explicit SSELock(bool tryOnly = false)
+    {
+#ifdef ESP8266
+        (void)tryOnly;
+        acquired = !sseLocked;
+        if (acquired) sseLocked = true;
+#else
+        acquired = sseMutex && xSemaphoreTake(sseMutex, tryOnly ? 0 : portMAX_DELAY) == pdTRUE;
+#endif
+    }
+    ~SSELock()
+    {
+        if (!acquired) return;
+#ifdef ESP8266
+        sseLocked = false;
+#else
+        xSemaphoreGive(sseMutex);
+#endif
+    }
+    explicit operator bool() const { return acquired; }
+private:
+    bool acquired;
+};
+
 
 // Performance monitoring
 static uint32_t request_count = 0;
