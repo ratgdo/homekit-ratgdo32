@@ -18,6 +18,7 @@ extern void vehicle_loop();
 
 extern void doorOpening();
 extern void doorClosing();
+extern void doorObstructed();
 
 extern int16_t vehicleDistance;
 extern int16_t vehicleThresholdDistance;
