@@ -349,4 +349,13 @@ void doorClosing()
         setArriveDepart(vehicleDetected);
     }
 }
+
+// if notified of door obstructed, set timeout during which we check for arriving/departing vehicle (looking forward)
+void doorObstructed()
+{
+    if (!vehicle_setup_done)
+        return;
+
+    presence_timer = _millis();
+}
 #endif // RATGDO32_DISCO
