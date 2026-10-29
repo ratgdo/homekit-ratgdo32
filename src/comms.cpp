@@ -2638,12 +2638,12 @@ bool door_command(DoorAction action)
         if (action == DoorAction::Open && garage_door.current_state == GarageDoorCurrentState::CURR_OPEN)
         {
             ESP_LOGW(TAG, "The door is already open. Ignoring request to open.");
-            return;
+            return false;
         }
         if (action == DoorAction::Close && garage_door.current_state == GarageDoorCurrentState::CURR_CLOSED)
         {
             ESP_LOGW(TAG, "The door is already closed. Ignoring request to close.");
-            return;
+            return false;
         }
 
         if (action == DoorAction::Open)

@@ -33,7 +33,7 @@ class ReverseAfterStop(unittest.TestCase):
         followup_code = block(update, followup)
         close_start = text.index("void door_command_close()\n{")
         close = block(text, close_start)
-        decision_start = close.index("    if (garage_door.pinModeObstructionSensor")
+        decision_start = close.index("    if (", close.index("#else"))
         decision_end = close.index("    if (doorControlType == DOOR_CONTROL_SEC_PLUS_V2", decision_start)
         decision = close[decision_start:decision_end]
         harness = r"""
@@ -44,6 +44,8 @@ enum GarageDoorCurrentState { CURR_OPEN, CURR_OPENING, CURR_STOPPED };
 enum DoorAction { Close, Toggle };
 struct Door { bool pinModeObstructionSensor=false; GarageDoorCurrentState current_state=CURR_OPENING; int target_state=0; } garage_door;
 struct Config { bool getUseToggle() { return false; } } config, *userConfig=&config;
+constexpr int DOOR_CONTROL_DRY_CONTACT=0;
+int doorControlType=2;
 #define ESP_LOGD(...) ((void)0)
 #define ESP_LOGI(...) ((void)0)
 #define DOOR_STATE(...) "state"
