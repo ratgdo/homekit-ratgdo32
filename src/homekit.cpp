@@ -24,7 +24,6 @@
 #include "config.h"
 #include "comms.h"
 #include "homekit.h"
-#include "../lib/ratgdo/ipv4_config.h"
 #include "web.h"
 #include "softAP.h"
 #include "led.h"
@@ -427,9 +426,22 @@ static void refresh_ipv4_config()
 {
     if (rebooting || softAPmode)
         return;
-    if (update_ipv4_config(*userConfig, WiFi.localIP(), WiFi.subnetMask(),
-                           WiFi.gatewayIP(), WiFi.dnsIP(), WiFi.dnsIP().type() == IPv4))
-        notify_new_ipv4_address();
+
+    IPAddress localIP = WiFi.localIP();
+    if (localIP == IPAddress(0, 0, 0, 0))
+        return;
+
+    userConfig->set(cfg_localIP, localIP.toString().c_str());
+    userConfig->set(cfg_gatewayIP, WiFi.gatewayIP().toString().c_str());
+    userConfig->set(cfg_subnetMask, WiFi.subnetMask().toString().c_str());
+
+    // dnsIP() can return an IPv6 address from SLAAC. The UI stores IPv4 DNS;
+    // leave its saved value alone until a nonzero IPv4 DNS address is present.
+    IPAddress dnsIP = WiFi.dnsIP();
+    if (dnsIP.type() == IPv4 && dnsIP != IPAddress(0, 0, 0, 0))
+        userConfig->set(cfg_nameserverIP, dnsIP.toString().c_str());
+
+    notify_new_ipv4_address();
 }
 
 void connectionCallback(int count)
