@@ -12,6 +12,8 @@ All notable changes to `homekit-ratgdo32` will be documented in this file. This 
 
 * Bugfix: Add the autocomplete tags to html that are required for password managers to trigger autofill. https://github.com/ratgdo/homekit-ratgdo32/issues/200
 * Bugfix: Firmware OTA update failing when password required, fixed by add X-API-Key HTML header. https://github.com/ratgdo/homekit-ratgdo32/issues/200
+* Bugfix: Discrete Open/Close status pins not implemented correctly. https://github.com/ratgdo/homekit-ratgdo32/issues/206
+* Bugfix: Parking assist laser not triggered if door has been open longer than 5 minutes. https://github.com/ratgdo/homekit-ratgdo32/issues/203
 
 ### Known Issues
 
