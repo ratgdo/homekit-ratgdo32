@@ -57,6 +57,90 @@ test('first SSE connection failure retries registration and loads logs without a
     assert.equal(p.element('loader').style.visibility, 'hidden');
 });
 
+test('saved logs load while every live-stream connection fails', async () => {
+    const p = page();
+    await p.context.loadLogs(); await p.settle();
+    for (let i = 0; i < 3; i++) {
+        p.sources[i].emit('error');
+        p.retry(); await p.settle();
+    }
+    assert.equal(p.element('showlog').innerText, 'history\n');
+    assert.equal(p.element('loader').style.visibility, 'hidden');
+    assert.equal(p.requests.filter(url => url === 'showlog').length, 1);
+});
+
+test('saved logs do not wait for a subscription response', async () => {
+    const p = page();
+    const fetch = p.context.fetch;
+    p.context.fetch = url => url.startsWith('rest/events/subscribe') ? new Promise(() => {}) : fetch(url);
+    await p.context.loadLogs(); await p.settle();
+    assert.equal(p.sources.length, 0);
+    assert.equal(p.element('showlog').innerText, 'history\n');
+    assert.equal(p.element('loader').style.visibility, 'hidden');
+});
+
+test('live lines received while history loads appear once', async () => {
+    const p = page();
+    const fetch = p.context.fetch;
+    let resolveHistory;
+    p.context.fetch = url => url === 'showlog' ? new Promise(resolve => { resolveHistory = resolve; }) : fetch(url);
+    await p.context.loadLogs(); await p.settle();
+    p.sources[0].emit('logger', 'live');
+    assert.equal(p.element('showlog').innerText, 'live\n');
+    resolveHistory({ ok: true, status: 200, text: async () => 'history\r\nlive\r\n' });
+    await p.settle();
+    assert.equal(p.element('showlog').innerText, 'history\nlive\n');
+    assert.equal(p.context.tmpLogMsgs.length, 0);
+});
+
+test('saved history loads before a delayed subscription connects, then live lines append', async () => {
+    const p = page();
+    const fetch = p.context.fetch;
+    let resolveSubscription;
+    p.context.fetch = url => url.startsWith('rest/events/subscribe') ?
+        new Promise(resolve => { resolveSubscription = resolve; }) : fetch(url);
+    await p.context.loadLogs(); await p.settle();
+    assert.equal(p.sources.length, 0);
+    assert.equal(p.element('showlog').innerText, 'history\n');
+    assert.equal(p.element('loader').style.visibility, 'hidden');
+    resolveSubscription({ ok: true, status: 200, text: async () => '/rest/events/0' });
+    await p.settle();
+    p.sources[0].emit('open'); await p.settle();
+    p.sources[0].emit('logger', 'after history');
+    assert.equal(p.element('showlog').innerText, 'history\nafter history\n');
+    assert.equal(p.context.tmpLogMsgs.length, 0);
+    assert.equal(p.requests.filter(url => url === 'showlog').length, 1);
+});
+
+test('a delayed live event matching already displayed history is not treated as exactly-once delivery', async () => {
+    const p = page();
+    await p.context.loadLogs(); await p.settle();
+    p.sources[0].emit('open'); await p.settle();
+    // There is no server cursor to distinguish a delayed overlap from a repeated message.
+    p.sources[0].emit('logger', 'history');
+    assert.equal(p.element('showlog').innerText, 'history\nhistory\n');
+    assert.equal(p.context.tmpLogMsgs.length, 0);
+});
+
+test('initial status failure hides the loader without an unhandled rejection', async () => {
+    const p = page();
+    p.context.fetch = async () => { throw new Error('offline'); };
+    assert.equal(await p.context.loadLogs(), false);
+    assert.equal(p.element('loader').style.visibility, 'hidden');
+    assert.equal(p.sources.length, 0);
+});
+
+test('failed history request does not leave the loader or overlap buffer active', async () => {
+    const p = page();
+    const fetch = p.context.fetch;
+    p.context.fetch = url => url === 'showlog' ? Promise.resolve({ ok: false, status: 503 }) : fetch(url);
+    await p.context.loadLogs(); await p.settle();
+    p.sources[0].emit('logger', 'still live');
+    assert.equal(p.element('showlog').innerText, 'still live\n');
+    assert.equal(p.element('loader').style.visibility, 'hidden');
+    assert.equal(p.context.tmpLogMsgs.length, 0);
+});
+
 test('offline subscribe request retries and preserves event delivery after reconnect', async () => {
     const p = page({ subscriptionFails: true });
     await p.context.loadLogs(); await p.settle();
@@ -81,7 +165,7 @@ test('Reload cancels a pending retry', async () => {
     assert.equal(p.sources.length, 2);
 });
 
-test('temporary HTTP subscription rejection retries before loading logs', async () => {
+test('temporary HTTP subscription rejection retries while saved logs load', async () => {
     const p = page();
     const fetch = p.context.fetch;
     let rejectOnce = true;
@@ -94,6 +178,7 @@ test('temporary HTTP subscription rejection retries before loading logs', async 
     };
     await p.context.loadLogs(); await p.settle();
     assert.equal(p.sources.length, 0);
+    assert.equal(p.element('showlog').innerText, 'history\n');
     p.retry(); await p.settle();
     p.sources[0].emit('open'); await p.settle();
     assert.equal(p.element('showlog').innerText, 'history\n');
@@ -123,4 +208,21 @@ test('Reload ignores a subscription response from the previous load', async () =
     await p.settle();
     assert.equal(p.sources.length, 1);
     assert.equal(p.sources[0].url.startsWith('/rest/events/0?'), true);
+});
+
+test('Reload ignores history and live events belonging to the previous load', async () => {
+    const p = page();
+    const fetch = p.context.fetch;
+    let resolveHistory;
+    p.context.fetch = url => url === 'showlog' ? new Promise(resolve => { resolveHistory = resolve; }) : fetch(url);
+    await p.context.loadLogs(); await p.settle();
+    const oldSource = p.sources[0];
+    p.context.fetch = fetch;
+    await p.context.clearLog(true); await p.settle();
+    oldSource.emit('logger', 'stale');
+    oldSource.emit('error');
+    resolveHistory({ ok: true, status: 200, text: async () => 'old history\n' });
+    await p.settle();
+    assert.equal(p.element('showlog').innerText, 'history\n');
+    assert.equal(p.timers.filter(Boolean).length, 0);
 });

@@ -137,7 +137,7 @@ function openTab(evt, tabName) {
         fetch("status.json")
             .then((response) => {
                 if (!response.ok || response.status !== 200) {
-                    reject(`Error requsting status.json, RC: ${response.status}`);
+                    throw new Error(`Error requesting status.json, RC: ${response.status}`);
                 } else {
                     return response.text();
                 }
@@ -145,9 +145,9 @@ function openTab(evt, tabName) {
             .then((text) => {
                 serverStatus = JSON.parse(text);
                 document.getElementById("statusjson").innerText = text;
-                loaderElem.style.visibility = "hidden";
             })
-            .catch(error => console.warn(error));
+            .catch(error => console.warn(error))
+            .finally(() => { loaderElem.style.visibility = "hidden"; });
     }
 }
 
@@ -159,33 +159,39 @@ async function loadLogs() {
     tmpLogMsgs.length = 0;
     // Load all the logs in parallel, showing progress indicator while we do...
     loaderElem.style.visibility = "visible";
-    // Fetch status from the server... we need it for the username and to check if authentication is required
-    let response = await fetch("status.json");
-    if (!response.ok || response.status !== 200) {
-        reject(`Error requsting status.json, RC: ${response.status}`);
-        loaderElem.style.visibility = "hidden";
-        console.error(`Error requesting status.json, RC: ${response.status}`);
-        return false;
-    }
-    serverStatus = JSON.parse(await response.text());
-    // check if authenticated, before loading logs
-    if (!await checkAuth(false)) {
-        loaderElem.style.visibility = "hidden";
-        console.warn("Authentication failed in loadLogs");
-        return false;
-    }
-    else {
+    try {
+        // Status supplies the username and whether authentication is required.
+        const response = await fetch("status.json");
+        if (!response.ok || response.status !== 200) {
+            throw new Error(`Error requesting status.json, RC: ${response.status}`);
+        }
+        const status = JSON.parse(await response.text());
+        if (generation !== logConnectionGeneration) return;
+        serverStatus = status;
+        const authenticated = await checkAuth(false);
+        if (generation !== logConnectionGeneration) return;
+        if (!authenticated) {
+            loaderElem.style.visibility = "hidden";
+            console.warn("Authentication failed in loadLogs");
+            return false;
+        }
         console.log("Authentication successful in loadLogs");
+        subscribeLogs(generation);
+        // Saved logs must remain available when the live stream cannot open.
+        loadLogPages(generation);
+    } catch (error) {
+        console.warn(error);
+        if (generation === logConnectionGeneration) loaderElem.style.visibility = "hidden";
+        return false;
     }
-    if (generation !== logConnectionGeneration) return;
-    subscribeLogs(generation);
 }
 
-function subscribeLogs(generation, loadPages = true) {
+function subscribeLogs(generation) {
+    if (generation !== logConnectionGeneration) return;
     const retry = () => {
         if (generation !== logConnectionGeneration) return;
         clearTimeout(logReconnectTimer);
-        logReconnectTimer = setTimeout(() => subscribeLogs(generation, loadPages), 5000);
+        logReconnectTimer = setTimeout(() => subscribeLogs(generation), 5000);
     };
     console.log("Subscribe to Server Sent Events");
     fetch("rest/events/subscribe?id=" + clientUUID + "&log=1&heartbeat=0", { method: "GET", headers: { 'X-API-Key': passwordHash } })
@@ -201,14 +207,8 @@ function subscribeLogs(generation, loadPages = true) {
             const evtUrl = text + '?id=' + clientUUID;
             console.log(`Register for Server Sent Events at ${evtUrl}`);
             const source = evtSource = new EventSource(evtUrl);
-            source.onopen = () => {
-                console.log("Load each log page");
-                if (loadPages) {
-                    loadPages = false;
-                    loadLogPages();
-                }
-            };
             source.addEventListener("logger", (event) => {
+                if (generation !== logConnectionGeneration || source !== evtSource) return;
                 let divElem = document.getElementById("logTab");
                 let scroll = (divElem.scrollHeight - divElem.scrollTop - divElem.clientHeight) < 10;
                 document.getElementById("showlog").insertAdjacentText('beforeend', event.data + "\n");
@@ -217,6 +217,7 @@ function subscribeLogs(generation, loadPages = true) {
                 if (scroll) divElem.scrollTop = divElem.scrollHeight;
             });
             source.addEventListener("error", (event) => {
+                if (generation !== logConnectionGeneration || source !== evtSource) return;
                 // Re-register because the server may have reclaimed the old slot.
                 console.log(`SSE error occurred while attempting to connect to ${source.url}`);
                 source.close();
@@ -229,42 +230,52 @@ function subscribeLogs(generation, loadPages = true) {
         });
 }
 
-async function loadLogPages() {
+async function loadLogPages(generation) {
     // Load the pages in background
-    Promise.allSettled([
+    return Promise.allSettled([
 
         fetch("showlog", { method: "GET", headers: { 'X-API-Key': passwordHash } })
             .then((response) => {
                 if (!response.ok || response.status !== 200) {
-                    reject(`Error requesting logs, RC: ${response.status}`);
+                    throw new Error(`Error requesting logs, RC: ${response.status}`);
                 } else {
                     return response.text();
                 }
             })
             .then((text) => {
-                sysLogLoaded = true;
+                if (generation !== logConnectionGeneration) return;
                 // reduce newlines down to single \n
                 text = text.replaceAll('\r\n', '\n');
-                while (line = tmpLogMsgs.pop()) {
+                for (const line of tmpLogMsgs) {
                     console.log(`Remove dup: ${line}`);
                     text = text.replace(line + '\n', '');
                 }
+                tmpLogMsgs.length = 0;
+                sysLogLoaded = true;
                 document.getElementById("showlog").insertAdjacentText('afterbegin', text);
                 let divElem = document.getElementById("logTab");
                 // Scroll to the bottom
                 divElem.scrollTop = divElem.scrollHeight;
             })
-            .catch(error => console.warn(error)),
+            .catch(error => {
+                console.warn(error);
+                if (generation === logConnectionGeneration) {
+                    // No history will arrive to reconcile with live messages.
+                    tmpLogMsgs.length = 0;
+                    sysLogLoaded = true;
+                }
+            }),
 
         fetch("status.json")
             .then((response) => {
                 if (!response.ok || response.status !== 200) {
-                    reject(`Error requesting status.json, RC: ${response.status}`);
+                    throw new Error(`Error requesting status.json, RC: ${response.status}`);
                 } else {
                     return response.text();
                 }
             })
             .then((text) => {
+                if (generation !== logConnectionGeneration) return;
                 serverStatus = JSON.parse(text);
                 document.getElementById("deviceName").textContent = serverStatus.deviceName;
                 document.title = serverStatus.deviceName;
@@ -275,12 +286,13 @@ async function loadLogPages() {
         fetch("showrebootlog", { method: "GET", headers: { 'X-API-Key': passwordHash } })
             .then((response) => {
                 if (!response.ok || response.status !== 200) {
-                    reject(`Error requesting reboot logs, RC: ${response.status}`);
+                    throw new Error(`Error requesting reboot logs, RC: ${response.status}`);
                 } else {
                     return response.text();
                 }
             })
             .then((text) => {
+                if (generation !== logConnectionGeneration) return;
                 document.getElementById("rebootlog").innerText = text;
             })
             .catch(error => console.warn(error)),
@@ -288,17 +300,19 @@ async function loadLogPages() {
         fetch("crashlog", { method: "GET", headers: { 'X-API-Key': passwordHash } })
             .then((response) => {
                 if (!response.ok || response.status !== 200) {
-                    reject(`Error requesting crash logs, RC: ${response.status}`);
+                    throw new Error(`Error requesting crash logs, RC: ${response.status}`);
                 } else {
                     return response.text();
                 }
             })
             .then((text) => {
+                if (generation !== logConnectionGeneration) return;
                 document.getElementById("crashlog").innerText = text;
             })
             .catch(error => console.warn(error)),
     ])
         .then((results) => {
+            if (generation !== logConnectionGeneration) return;
             // Once all loaded reset the progress indicator
             loaderElem.style.visibility = "hidden";
             console.log("All logs loaded");
