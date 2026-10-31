@@ -151,12 +151,13 @@ struct HttpOwnedResponse {
     NetworkClient owner;
     HttpOwnedState state = HttpOwnedState::Empty;
     int fd = -1;
-    uint32_t generation = 0, lastAck = 0, lastProgress = 0, retained = 0;
+    uint32_t generation = 0, lastAck = 0, retained = 0;
     struct netconn *connection = nullptr;
     struct tcp_pcb *pcb = nullptr;
     ip_addr_t localIP{}, remoteIP{};
     uint16_t localPort = 0, remotePort = 0;
     bool initialized = false, reported = false;
+    _millis_t lastProgress = 0;
 };
 struct HttpOwnedCounters {
     uint32_t tracked = 0, released = 0, aborted = 0, quarantined = 0;
@@ -167,7 +168,8 @@ HttpOwnedCounters httpOwnedCounters;
 struct tcpip_callback_msg *httpOwnedMessage = nullptr;
 std::atomic<bool> httpOwnedDone{false};
 bool httpOwnedPending = false;
-uint32_t httpOwnedNow = 0, httpOwnedPolledAt = 0, httpOwnedPayload = 0;
+_millis_t httpOwnedNow = 0, httpOwnedPolledAt = 0;
+uint32_t httpOwnedPayload = 0;
 // Main-only evidence: never read callback-owned entries/payload from a handler.
 uint32_t httpOwnedCurrentPayload = 0, httpOwnedLastPayload = 0;
 constexpr size_t HTTP_OWNED_JSON_SIZE = 384;
@@ -272,7 +274,7 @@ void httpOwnedInspect(void *)
             entry.lastAck = pcb->lastack;
             entry.lastProgress = httpOwnedNow;
         }
-        if (!truncated && static_cast<uint32_t>(httpOwnedNow - entry.lastProgress) >= HTTP_MAX_SEND_WAIT)
+        if (!truncated && httpOwnedNow - entry.lastProgress >= HTTP_MAX_SEND_WAIT)
         {
             // tcp_abort frees queues/PCB and invokes the original netconn
             // err_tcp callback. Never dereference pcb after this call.
@@ -346,7 +348,7 @@ bool httpOwnedPoll()
             }
         }
     }
-    const uint32_t now = static_cast<uint32_t>(_millis());
+    const _millis_t now = _millis();
     bool active = false;
     for (auto &entry : httpOwned)
     {
@@ -374,7 +376,7 @@ bool httpOwnedPoll()
     for (const auto &entry : httpOwned)
         if (entry.state == HttpOwnedState::Active)
             httpOwnedCurrentPayload += entry.retained;
-    if (active && static_cast<uint32_t>(now - httpOwnedPolledAt) >= HTTP_OWNED_POLL_MS)
+    if (active && now - httpOwnedPolledAt >= HTTP_OWNED_POLL_MS)
     {
         httpOwnedPolledAt = now;
         httpOwnedNow = now;
@@ -425,7 +427,7 @@ void setupHttpOwnedExperiment()
             slot->owner = retained;
             slot->fd = fd;
             slot->generation = ++httpOwnedCounters.tracked;
-            slot->lastProgress = static_cast<uint32_t>(_millis());
+            slot->lastProgress = _millis();
             slot->state = HttpOwnedState::Active;
         }
         return handled;
