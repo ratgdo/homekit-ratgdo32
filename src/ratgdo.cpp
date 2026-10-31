@@ -23,6 +23,7 @@
 #include <LittleFS.h>
 #else
 #include <esp_core_dump.h>
+#include <esp_system.h>
 #include <esp_log.h>
 #include <ping/ping_sock.h>
 #endif
@@ -150,6 +151,13 @@ static void ping_stop();
  */
 void setup()
 {
+#ifdef ESP32
+    // Hold the bus inactive before network/HomeKit initialization, and cover
+    // restart paths owned by libraries as well as sync_and_restart().
+    quiesce_gdo_tx();
+    if (esp_register_shutdown_handler(quiesce_gdo_tx) != ESP_OK)
+        ESP_LOGE(TAG, "Could not register GDO transmitter shutdown handler");
+#endif
     free_heap_at_boot = ESP.getFreeHeap();
 #ifdef ESP8266
     // Arduino memory optimization moves the user (cont) stack (4K in size) to overlap the bottom

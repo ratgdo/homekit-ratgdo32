@@ -63,6 +63,10 @@ extern uint32_t rolling_code;
 extern door_control_type_t doorControlType;
 extern GarageDoorCurrentState doorState;
 extern bool comms_setup_done;
+#ifdef ESP32
+// Lock-free TX disconnect for shutdown and panic paths, safe with cache disabled.
+extern void quiesce_gdo_tx();
+#endif
 extern bool comms_status_done;
 extern char gdoFirmwareVersion[];
 

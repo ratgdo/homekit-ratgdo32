@@ -25,6 +25,9 @@
 #include "config.h"
 #include "comms.h"
 #include "led.h"
+#ifdef ESP32
+#include "gdo_uart.h"
+#endif
 
 #ifdef USE_GDOLIB
 #include "gdo.h"
@@ -43,6 +46,14 @@
 #include "encoder.h"
 
 static const char *TAG = "ratgdo-comms";
+
+#ifdef ESP32
+void IRAM_ATTR quiesce_gdo_tx()
+{
+    Esp32GdoUartPins pins;
+    gdo_uart::quiet_tx(pins, UART_TX_PIN);
+}
+#endif
 
 bool comms_setup_done = false;
 
@@ -621,14 +632,13 @@ void setup_comms()
         tx_minimum_delay = SECPLUS1_TX_MINIMUM_DELAY;
 
 #ifdef ESP32
-        gpio_reset_pin(UART_TX_PIN);
-        gpio_reset_pin(UART_RX_PIN);
-        Sec1Serial.begin(1200, SERIAL_8E1, UART_RX_PIN, UART_TX_PIN, true);
-        // Make sure the RX pin is pulled up and not pulled down, otherwise we will get a lot of receive errors.
-        gpio_pulldown_dis(UART_RX_PIN);
-        gpio_pullup_en(UART_RX_PIN);
+        Esp32GdoUartPins pins;
+        if (!gdo_uart::begin_sec1(Sec1Serial, pins, UART_RX_PIN, UART_TX_PIN, SERIAL_8E1))
+        {
+            ESP_LOGE(TAG, "Security+ 1.0 UART initialization failed; transmitter disabled");
+            return;
+        }
         Sec1Serial.onReceiveError(receiveErrorHandler);
-        Sec1Serial.setTimeout(10); // 10 ms used for Sec1Serial.readBytes() in transmitSec1()
 #else
         Sec1Serial.begin(1200, SWSERIAL_8E1, UART_RX_PIN, UART_TX_PIN, true, 32);
         Sec1Serial.onReceive(receiveHandler);
@@ -846,6 +856,10 @@ void setup_comms()
  */
 void shutdown_comms()
 {
+#ifdef ESP32
+    // Disconnect the UART before teardown can block or flush any pending bytes.
+    quiesce_gdo_tx();
+#endif
     if (!comms_setup_done)
         return;
 
@@ -858,9 +872,6 @@ void shutdown_comms()
     {
         Sec1Serial.end();
 #ifdef ESP32
-        gpio_reset_pin(UART_TX_PIN);
-        gpio_pullup_dis(UART_TX_PIN);
-        gpio_pulldown_en(UART_TX_PIN);
         gpio_reset_pin(UART_RX_PIN);
 #endif
     }
@@ -868,9 +879,6 @@ void shutdown_comms()
     {
         sw_serial.end();
 #ifdef ESP32
-        gpio_reset_pin(UART_TX_PIN);
-        gpio_pullup_dis(UART_TX_PIN);
-        gpio_pulldown_en(UART_TX_PIN);
         gpio_reset_pin(UART_RX_PIN);
 #endif
     }
@@ -880,6 +888,11 @@ void shutdown_comms()
         digitalWrite(DISCRETE_OPEN_PIN, LOW);
         digitalWrite(DISCRETE_CLOSE_PIN, LOW);
     }
+#endif
+#ifdef ESP32
+    // end() may reconfigure the pins. Finish at the explicit inactive TX level,
+    // rather than gpio_reset_pin(), whose default enables a pull-up.
+    quiesce_gdo_tx();
 #endif
 }
 
