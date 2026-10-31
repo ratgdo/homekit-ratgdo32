@@ -81,6 +81,24 @@ test('Reload cancels a pending retry', async () => {
     assert.equal(p.sources.length, 2);
 });
 
+test('temporary HTTP subscription rejection retries before loading logs', async () => {
+    const p = page();
+    const fetch = p.context.fetch;
+    let rejectOnce = true;
+    p.context.fetch = async url => {
+        if (url.startsWith('rest/events/subscribe') && rejectOnce) {
+            rejectOnce = false;
+            return { ok: false, status: 503 };
+        }
+        return fetch(url);
+    };
+    await p.context.loadLogs(); await p.settle();
+    assert.equal(p.sources.length, 0);
+    p.retry(); await p.settle();
+    p.sources[0].emit('open'); await p.settle();
+    assert.equal(p.element('showlog').innerText, 'history\n');
+});
+
 test('Reload closes an established stream before opening its replacement', async () => {
     const p = page();
     await p.context.loadLogs(); await p.settle();
