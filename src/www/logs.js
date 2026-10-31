@@ -9,6 +9,8 @@
 var evtSource = undefined;      // for Server Sent Events (SSE)
 var serverStatus = undefined;   // for status
 const clientUUID = uuidv4();    // uniquely identify this session
+var logReconnectTimer = undefined;
+var logConnectionGeneration = 0;
 var sysLogLoaded = false;
 var tmpLogMsgs = [];
 
@@ -150,6 +152,9 @@ function openTab(evt, tabName) {
 }
 
 async function loadLogs() {
+    const generation = ++logConnectionGeneration;
+    clearTimeout(logReconnectTimer);
+    if (evtSource) evtSource.close();
     sysLogLoaded = false;
     tmpLogMsgs.length = 0;
     // Load all the logs in parallel, showing progress indicator while we do...
@@ -172,24 +177,38 @@ async function loadLogs() {
     else {
         console.log("Authentication successful in loadLogs");
     }
+    if (generation !== logConnectionGeneration) return;
+    subscribeLogs(generation);
+}
+
+function subscribeLogs(generation, loadPages = true) {
+    const retry = () => {
+        if (generation !== logConnectionGeneration) return;
+        clearTimeout(logReconnectTimer);
+        logReconnectTimer = setTimeout(() => subscribeLogs(generation, loadPages), 5000);
+    };
     console.log("Subscribe to Server Sent Events");
     fetch("rest/events/subscribe?id=" + clientUUID + "&log=1&heartbeat=0", { method: "GET", headers: { 'X-API-Key': passwordHash } })
         .then((response) => {
             if (!response.ok || response.status !== 200) {
-                reject(`Error registering for Server Sent Events, RC: ${response.status}`);
+                throw new Error(`Error registering for Server Sent Events, RC: ${response.status}`);
             } else {
                 return response.text();
             }
         })
         .then((text) => {
+            if (generation !== logConnectionGeneration) return;
             const evtUrl = text + '?id=' + clientUUID;
             console.log(`Register for Server Sent Events at ${evtUrl}`);
-            evtSource = new EventSource(evtUrl);
-            evtSource.onopen = () => {
+            const source = evtSource = new EventSource(evtUrl);
+            source.onopen = () => {
                 console.log("Load each log page");
-                loadLogPages();
+                if (loadPages) {
+                    loadPages = false;
+                    loadLogPages();
+                }
             };
-            evtSource.addEventListener("logger", (event) => {
+            source.addEventListener("logger", (event) => {
                 let divElem = document.getElementById("logTab");
                 let scroll = (divElem.scrollHeight - divElem.scrollTop - divElem.clientHeight) < 10;
                 document.getElementById("showlog").insertAdjacentText('beforeend', event.data + "\n");
@@ -197,14 +216,16 @@ async function loadLogs() {
                 // Only scroll the page if we are already at bottom of the page
                 if (scroll) divElem.scrollTop = divElem.scrollHeight;
             });
-            evtSource.addEventListener("error", (event) => {
-                // If an error occurs close the connection.
-                console.log(`SSE error occurred while attempting to connect to ${evtSource.url}`);
-                evtSource.close();
+            source.addEventListener("error", (event) => {
+                // Re-register because the server may have reclaimed the old slot.
+                console.log(`SSE error occurred while attempting to connect to ${source.url}`);
+                source.close();
+                retry();
             });
         })
         .catch((error) => {
             console.warn(`Failed to register for Server Sent Events: ${error}`);
+            retry();
         });
 }
 
