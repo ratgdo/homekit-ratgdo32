@@ -1925,7 +1925,8 @@ void handle_firmware_upload()
         ESP_LOGI(TAG, "Update: %s", upload.filename.c_str());
         verify = !strcmp(server.arg("action").c_str(), "verify");
         const String sizeArg = server.arg("size");
-        const String md5 = server.arg("md5");
+        char md5[36];
+        const size_t md5Length = strlcpy(md5, server.arg("md5").c_str(), sizeof(md5));
         size = 0;
         if (sizeArg.length() &&
             !readOTAFirmwareSize(sizeArg.c_str(), sizeArg.c_str() + sizeArg.length(), size))
@@ -1933,11 +1934,11 @@ void handle_firmware_upload()
             _updaterError = "Invalid firmware size";
             return;
         }
-        if (md5.length())
+        if (md5Length)
         {
-            bool valid = md5.length() == 32;
-            for (size_t i = 0; valid && i < md5.length(); ++i)
-                valid = otaMetadataHex(md5.c_str()[i]) >= 0;
+            bool valid = md5Length == 32;
+            for (size_t i = 0; valid && i < md5Length; ++i)
+                valid = otaMetadataHex(md5[i]) >= 0;
             if (!valid)
             {
                 _updaterError = "Invalid firmware MD5";
@@ -1947,7 +1948,7 @@ void handle_firmware_upload()
 
         // An omitted hash belongs to this upload, not the previous request.
         firmwareSize = size;
-        strlcpy(firmwareMD5, md5.c_str(), sizeof(firmwareMD5));
+        strlcpy(firmwareMD5, md5, sizeof(firmwareMD5));
         const uint32_t freeSketchSpace = ESP.getFreeSketchSpace();
         const uint32_t maxSketchSpace = freeSketchSpace > 0x1000
             ? (freeSketchSpace - 0x1000) & 0xFFFFF000 : 0;

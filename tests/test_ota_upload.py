@@ -264,7 +264,9 @@ int main() {
         assert(Update.begins==priorBegins && shutdowns==priorShutdowns);
     }
     server.arguments["size"]="128";
-    for (const char *bad : {"abc", "0123456789abcdef0123456789abcdeg01"}) {
+    for (const char *bad : {"abc", "0123456789abcdef0123456789abcdeg01",
+                            "0123456789abcdef0123456789abcdef0",
+                            "0123456789abcdef0123456789abcdef0123456789"}) {
         server.arguments["md5"]=bad;
         start(); assert(_updaterError.length() && !otaUploadActive);
         event(UPLOAD_FILE_END);
