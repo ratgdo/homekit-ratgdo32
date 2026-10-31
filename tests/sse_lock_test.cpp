@@ -24,7 +24,7 @@ int main() {
     std::mutex mutex;
     sseMutex = &mutex;
     std::string client = "connected";
-    std::atomic<bool> started(false), finished(false);
+    std::atomic<bool> started(false), finished(false), pending(false);
     std::thread worker;
     {
         SSELock lock;
@@ -38,6 +38,10 @@ int main() {
         while (!started) std::this_thread::yield();
         SSELock logger(true);
         assert(!logger);
+        // Timer callback must not wait for the lifecycle lock.
+        requestSSEHeartbeat(pending);
+        assert(takeSSEHeartbeat(pending));
+        assert(!takeSSEHeartbeat(pending));
         assert(!finished && client == "connected");
     }
     worker.join();
