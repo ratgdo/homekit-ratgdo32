@@ -520,23 +520,22 @@ void LOG::printMessageLog(Print &outputDev, bool slow)
 
 #ifdef ESP8266
     // Single threaded; preserve the existing IRAM output path.
-    const logBuffer *buffer = msgBuffer;
-    if (buffer)
+    if (msgBuffer)
     {
         // +1 head points to a zero (null terminator of previous log line) which we need to skip.
         // +3 want to round up to multiple of 4
-        size_t start = ((buffer->head + 1 + 3) & ~0x03) % sizeof(buffer->buffer);
-        size_t len = sizeof(buffer->buffer) - start;
+        size_t start = ((msgBuffer->head + 1 + 3) & ~0x03) % sizeof(msgBuffer->buffer);
+        size_t len = sizeof(msgBuffer->buffer) - start;
         // On slow output devices (e.g. network), chunk up to protect against buffer overflow
-        size_t CHUNK = (slow) ? TCP_SND_BUF / 2 : sizeof(buffer->buffer);
+        size_t CHUNK = (slow) ? TCP_SND_BUF / 2 : sizeof(msgBuffer->buffer);
         size_t chunk;
-        if (buffer->wrapped != 0)
+        if (msgBuffer->wrapped != 0)
         {
             while (len)
             {
                 chunk = std::min(len, CHUNK);
                 YIELD();
-                outputDev.write(&buffer->buffer[start], chunk);
+                outputDev.write(&msgBuffer->buffer[start], chunk);
                 if (slow)
                     outputDev.flush();
                 len -= chunk;
@@ -544,12 +543,12 @@ void LOG::printMessageLog(Print &outputDev, bool slow)
             }
         }
         start = 0;
-        len = strlen(buffer->buffer); // must be null terminated
+        len = strlen(msgBuffer->buffer); // must be null terminated
         while (len)
         {
             chunk = std::min(len, CHUNK);
             YIELD();
-            outputDev.write(&buffer->buffer[start], chunk);
+            outputDev.write(&msgBuffer->buffer[start], chunk);
             outputDev.flush();
             len -= chunk;
             start += chunk;
