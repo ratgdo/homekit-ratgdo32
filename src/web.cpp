@@ -19,6 +19,10 @@
 #include <tuple>
 #include <unordered_map>
 #include <time.h>
+#ifdef ESP32
+#include <shared_mutex>
+#include <mutex>
+#endif
 
 // ESP system includes
 #include <Ticker.h>
@@ -136,6 +140,33 @@ std::string _updaterError;
 bool _authenticatedUpdate;
 char firmwareMD5[36] = "";
 size_t firmwareSize = 0;
+
+// OTA tears down UART/GDO services. Recover by a clean restart rather than
+// rebuilding drivers/queues from an HTTP callback or remaining offline if the
+// uploader disappears before requesting its normal reboot.
+static bool otaServicesStopped = false;
+static bool otaUploadActive = false;
+static bool otaRecoveryPending = false;
+static _millis_t otaRecoveryAt = 0;
+static constexpr uint32_t OTA_FAILURE_RESTART_MS = 1000;
+static constexpr uint32_t OTA_STAGED_RESTART_MS = 30000;
+
+static bool recoverStoppedOTAServices()
+{
+    if (!otaRecoveryPending || otaUploadActive)
+        return false;
+#ifdef ESP8266
+    if (static_cast<int32_t>(_millis() - otaRecoveryAt) < 0)
+#else
+    if (_millis() < otaRecoveryAt)
+#endif
+        return false;
+    otaRecoveryPending = false;
+    ESP_LOGW(TAG, "Restarting to restore services stopped for firmware upload");
+    server.stop();
+    sync_and_restart();
+    return true;
+}
 
 // Common HTTP responses
 constexpr char response400missing[] = "400: Bad Request, missing argument\n";
@@ -332,6 +363,8 @@ void notify_new_ipv6_address()
 void web_loop()
 {
     if (!web_setup_done)
+        return;
+    if (recoverStoppedOTAServices())
         return;
 
     static char *json = status_json;
@@ -1827,7 +1860,8 @@ void handle_update()
     if (server.args() > 0)
     {
         firmwareUpdateSub = NULL;
-        // Don't reboot, user/client must explicitly request reboot.
+        // The client normally requests reboot after this response. A bounded
+        // fallback also restores services if that client disappears.
         server.send_P(200, type_txt, PSTR("Upload Success.\n"));
     }
     else
@@ -1841,6 +1875,27 @@ void handle_update()
     }
 }
 
+static int otaMetadataHex(char c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+static bool readOTAFirmwareSize(const char *begin, const char *end, size_t &result)
+{
+    result = 0;
+    if (begin == end) return false;
+    for (; begin < end; ++begin)
+    {
+        const unsigned digit = static_cast<unsigned char>(*begin) - '0';
+        if (digit > 9 || result > (UINT32_MAX - digit) / 10) return false;
+        result = result * 10 + digit;
+    }
+    return result != 0;
+}
+
 void handle_firmware_upload()
 {
     // handler for the file upload, gets the sketch bytes, and writes
@@ -1850,7 +1905,10 @@ void handle_firmware_upload()
     HTTPUpload &upload = server.upload();
     static bool verify = false;
     static size_t size = 0;
-    static const char *md5 = NULL;
+#ifdef ESP32
+    // Use the same mutex as homeSpanPAUSE, retaining it across upload callbacks.
+    static std::shared_lock<std::shared_mutex> homekitUpdateLock(homeSpan.getMutex(), std::defer_lock);
+#endif
 
     if (upload.status == UPLOAD_FILE_START)
     {
@@ -1861,36 +1919,64 @@ void handle_firmware_upload()
             ESP_LOGE(TAG, "Unauthenticated Update");
             return;
         }
+        // Never reboot in the middle of a transfer/verification. Keep an
+        // existing recovery deadline armed until a terminal callback, so a
+        // rejected retry cannot permanently cancel recovery.
         ESP_LOGI(TAG, "Update: %s", upload.filename.c_str());
         verify = !strcmp(server.arg("action").c_str(), "verify");
-        size = atoi(server.arg("size").c_str());
-        md5 = server.arg("md5").c_str();
+        const String sizeArg = server.arg("size");
+        char md5[36];
+        const size_t md5Length = strlcpy(md5, server.arg("md5").c_str(), sizeof(md5));
+        size = 0;
+        if (sizeArg.length() &&
+            !readOTAFirmwareSize(sizeArg.c_str(), sizeArg.c_str() + sizeArg.length(), size))
+        {
+            _updaterError = "Invalid firmware size";
+            return;
+        }
+        if (md5Length)
+        {
+            bool valid = md5Length == 32;
+            for (size_t i = 0; valid && i < md5Length; ++i)
+                valid = otaMetadataHex(md5[i]) >= 0;
+            if (!valid)
+            {
+                _updaterError = "Invalid firmware MD5";
+                return;
+            }
+        }
 
-        // We are updating.  If size and MD5 provided, save them
+        // An omitted hash belongs to this upload, not the previous request.
         firmwareSize = size;
-        if (strlen(md5) > 0)
-            strlcpy(firmwareMD5, md5, sizeof(firmwareMD5));
-
-        uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+        strlcpy(firmwareMD5, md5, sizeof(firmwareMD5));
+        const uint32_t freeSketchSpace = ESP.getFreeSketchSpace();
+        const uint32_t maxSketchSpace = freeSketchSpace > 0x1000
+            ? (freeSketchSpace - 0x1000) & 0xFFFFF000 : 0;
+        if (!maxSketchSpace || firmwareSize > maxSketchSpace)
+        {
+            _updaterError = "Not Enough Space";
+            return;
+        }
+        otaUploadActive = true;
         ESP_LOGI(TAG, "Available space for upload: %lu", maxSketchSpace);
         ESP_LOGI(TAG, "Firmware size: %s", (firmwareSize > 0) ? std::to_string(firmwareSize).c_str() : "Unknown");
         ESP_LOGI(TAG, "Flash chip speed %d MHz", ESP.getFlashChipSpeed() / 1000000);
         // struct eboot_command ebootCmd;
         // eboot_command_read(&ebootCmd);
         // ESP_LOGI(TAG, "eboot_command: 0x%08X 0x%08X [0x%08X 0x%08X 0x%08X (%d)]", ebootCmd.magic, ebootCmd.action, ebootCmd.args[0], ebootCmd.args[1], ebootCmd.args[2], ebootCmd.args[2]);
-        if (firmwareSize > maxSketchSpace)
+        if (!verify)
         {
-            ESP_LOGE(TAG, "Firmware size is larger than available OTA upload space");
-            // If we detect this error then we will not shut down all our services, because upload will fail.
-            // Failure is detected on first call to Update.write() where it will set UPDATE_ERROR_SPACE.
-            // This is passed back to the client with a http 400 error and the string "Not Enough Space"
-        }
-        else if (!verify)
-        {
+#ifdef ESP32
+            // Pause at HomeSpan's own polling boundary; retain the task and its locks.
+            if (!homekitUpdateLock.owns_lock())
+                homekitUpdateLock.lock();
+#endif
             // Close services so we don't have to handle network traffic during update
             // Only if not verifying as either will have been shutdown on immediately prior upload, or we
             // just want to verify without disrupting operation of the HomeKit service.
             ESP_LOGI(TAG, "Shutdown HomeKit and GDO communications");
+
+            otaServicesStopped = true;
 
             // Service loop has things like reboot after X days, homekit notifications, etc. that we don't want during OTA
             suspend_service_loop = true;
@@ -1903,9 +1989,6 @@ void handle_firmware_upload()
             // Shutdown HomeKit
             homekit_setup_done = false;
             arduino_homekit_close();
-#else
-            // Shutdown HomeSpan server
-            vTaskDelete(homeSpan.getAutoPollTask());
 #endif
         }
 
@@ -1984,5 +2067,21 @@ void handle_firmware_upload()
             Update.end();
         ESP_LOGI(TAG, "%s was aborted", verify ? "Verify" : "Update");
         firmwareUpdateSub = NULL;
+    }
+#ifdef ESP32
+    // Release polling after success, write/authentication errors, or disconnect.
+    if ((upload.status == UPLOAD_FILE_END || upload.status == UPLOAD_FILE_ABORTED) &&
+        homekitUpdateLock.owns_lock())
+        homekitUpdateLock.unlock();
+#endif
+    if (upload.status == UPLOAD_FILE_END || upload.status == UPLOAD_FILE_ABORTED)
+    {
+        otaUploadActive = false;
+        if (_authenticatedUpdate && otaServicesStopped)
+        {
+            const bool failed = upload.status == UPLOAD_FILE_ABORTED || _updaterError.length();
+            otaRecoveryAt = _millis() + (failed ? OTA_FAILURE_RESTART_MS : OTA_STAGED_RESTART_MS);
+            otaRecoveryPending = true;
+        }
     }
 }
