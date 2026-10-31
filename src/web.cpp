@@ -19,6 +19,8 @@
 #include <tuple>
 #include <unordered_map>
 #include <time.h>
+#include <atomic>
+#include <cstdint>
 
 // ESP system includes
 #include <Ticker.h>
@@ -31,6 +33,17 @@
 #else
 #include "esp_core_dump.h"
 #include <ESPmDNS.h>
+#include <lwip/sockets.h>
+#if defined(RATGDO_HTTP_LIFECYCLE_EXPERIMENT)
+extern "C" {
+#include <lwip/api.h>
+#include <lwip/tcpip.h>
+#include <lwip/priv/tcp_priv.h>
+#include <lwip/priv/sockets_priv.h>
+}
+#endif
+// Preserve Arduino's IPAddress constant rather than lwIP's integer macro.
+#undef INADDR_NONE
 #endif
 
 // RATGDO project includes
@@ -87,10 +100,18 @@ void SSEHandler(uint32_t channel);
 void add_static_mdns();
 void add_dynamic_mdns();
 
+#if defined(ESP32) && defined(RATGDO_HTTP_LIFECYCLE_EXPERIMENT)
+bool retainedBySSE(int fd);
+void handle_http_lifecycle();
+#endif
+
 // Built in URI handlers
 const char restEvents[] = "/rest/events/";
 const std::unordered_map<std::string, std::pair<const HTTPMethod, void (*)()>> builtInUri = {
     {"/status.json", {HTTP_GET, handle_status}},
+#if defined(ESP32) && defined(RATGDO_HTTP_LIFECYCLE_EXPERIMENT)
+    {"/diag/http.json", {HTTP_GET, handle_http_lifecycle}},
+#endif
     {"/reset", {HTTP_POST, handle_reset}},
     {"/reboot", {HTTP_POST, handle_reboot}},
     {"/setgdo", {HTTP_POST, handle_setgdo}},
@@ -115,6 +136,313 @@ const std::unordered_map<std::string, std::pair<const HTTPMethod, void (*)()>> b
 ESP8266WebServer server(80);
 #else
 WebServer server(80);
+#endif
+
+#if defined(ESP32) && defined(RATGDO_HTTP_LIFECYCLE_EXPERIMENT)
+// Experimental pinned-SDK lifecycle: retain only ordinary HTTP response owners
+// until ACK completion, or abort their verified attached PCB after no progress.
+// This does not interrupt a NetworkClient::write blocked inside a handler.
+namespace {
+constexpr unsigned HTTP_OWNED_SLOTS = 2;
+constexpr uint32_t HTTP_OWNED_POLL_MS = HTTP_MAX_SEND_WAIT / 20;
+enum class HttpOwnedState { Empty, Active, Release, Aborted, Quarantined };
+struct HttpOwnedResponse {
+    NetworkClient owner;
+    HttpOwnedState state = HttpOwnedState::Empty;
+    int fd = -1;
+    uint32_t generation = 0, lastAck = 0, retained = 0;
+    struct netconn *connection = nullptr;
+    struct tcp_pcb *pcb = nullptr;
+    ip_addr_t localIP{}, remoteIP{};
+    uint16_t localPort = 0, remotePort = 0;
+    bool initialized = false, reported = false;
+    bool discardQueued = false;
+    _millis_t lastProgress = 0;
+};
+struct HttpOwnedCounters {
+    uint32_t tracked = 0, released = 0, aborted = 0, quarantined = 0;
+    uint32_t postFailures = 0, maximumRetainedPayload = 0;
+};
+HttpOwnedResponse httpOwned[HTTP_OWNED_SLOTS];
+HttpOwnedCounters httpOwnedCounters;
+struct tcpip_callback_msg *httpOwnedMessage = nullptr;
+std::atomic<bool> httpOwnedDone{false};
+bool httpOwnedPending = false;
+_millis_t httpOwnedNow = 0, httpOwnedPolledAt = 0;
+uint32_t httpOwnedPayload = 0;
+// Main-only evidence: never read callback-owned entries/payload from a handler.
+uint32_t httpOwnedCurrentPayload = 0, httpOwnedLastPayload = 0;
+constexpr size_t HTTP_OWNED_JSON_SIZE = 384;
+
+int httpOwnedEvidence(char *json, size_t capacity)
+{
+    return snprintf(json, capacity,
+                    "{\"tracked\":%lu,\"released\":%lu,\"aborted\":%lu,\"quarantined\":%lu,"
+                    "\"callbackPostFailures\":%lu,\"maximumRetainedPayload\":%lu,"
+                    "\"currentRetainedPayload\":%lu,\"lastRetainedPayload\":%lu}",
+                    static_cast<unsigned long>(httpOwnedCounters.tracked),
+                    static_cast<unsigned long>(httpOwnedCounters.released),
+                    static_cast<unsigned long>(httpOwnedCounters.aborted),
+                    static_cast<unsigned long>(httpOwnedCounters.quarantined),
+                    static_cast<unsigned long>(httpOwnedCounters.postFailures),
+                    static_cast<unsigned long>(httpOwnedCounters.maximumRetainedPayload),
+                    static_cast<unsigned long>(httpOwnedCurrentPayload),
+                    static_cast<unsigned long>(httpOwnedLastPayload));
+}
+
+// Core callback: no application logging, sockets, owner methods or pointer
+// retention beyond the retained owner. Main cannot touch owners while pending.
+void httpOwnedInspect(void *)
+{
+    uint32_t total = 0;
+    for (auto &entry : httpOwned)
+    {
+        if (entry.state != HttpOwnedState::Active)
+            continue;
+        struct lwip_sock *socket = lwip_socket_dbg_get_socket(entry.fd);
+        if (!socket || !socket->conn ||
+            NETCONNTYPE_GROUP(socket->conn->type) != NETCONN_TCP ||
+            (entry.initialized && socket->conn != entry.connection))
+        {
+            entry.state = HttpOwnedState::Quarantined;
+            continue;
+        }
+        struct netconn *connection = socket->conn;
+        struct tcp_pcb *pcb = connection->pcb.tcp;
+        if (!pcb)
+        {
+            // A peer reset has already run netconn's error callback. The owned
+            // descriptor still needs normal socket/netconn cleanup by main.
+            entry.state = HttpOwnedState::Release;
+            continue;
+        }
+        // A retained descriptor does not pin a PCB in TIME_WAIT. Compare
+        // pointer values before dereferencing: SDK GC may already have freed it.
+        bool activePCB = false;
+        unsigned visited = 0;
+        for (const struct tcp_pcb *candidate = tcp_active_pcbs;
+             candidate && visited < 64; candidate = candidate->next, ++visited)
+            if (candidate == pcb) { activePCB = true; break; }
+        if (!activePCB)
+        {
+            entry.state = HttpOwnedState::Quarantined;
+            continue;
+        }
+        if (pcb->local_port != 80 ||
+            (pcb->state != ESTABLISHED && pcb->state != CLOSE_WAIT) ||
+            pcb->callback_arg != connection || !pcb->errf ||
+            (entry.initialized &&
+             (pcb != entry.pcb || pcb->local_port != entry.localPort || pcb->remote_port != entry.remotePort ||
+              !ip_addr_cmp(&pcb->local_ip, &entry.localIP) || !ip_addr_cmp(&pcb->remote_ip, &entry.remoteIP))))
+        {
+            entry.state = HttpOwnedState::Quarantined;
+            continue;
+        }
+        if (!entry.initialized)
+        {
+            entry.connection = connection;
+            entry.pcb = pcb;
+            entry.localIP = pcb->local_ip;
+            entry.remoteIP = pcb->remote_ip;
+            entry.localPort = pcb->local_port;
+            entry.remotePort = pcb->remote_port;
+            entry.lastAck = pcb->lastack;
+            entry.lastProgress = httpOwnedNow;
+            entry.initialized = true;
+        }
+        uint32_t retained = 0;
+        unsigned segments = 0;
+        const struct tcp_seg *segment = pcb->unsent;
+        for (; segment && segments < 64; segment = segment->next, ++segments)
+            retained += segment->len;
+        bool truncated = segment != nullptr;
+        segments = 0;
+        for (segment = pcb->unacked; segment && segments < 64; segment = segment->next, ++segments)
+            retained += segment->len;
+        truncated = truncated || segment != nullptr;
+        entry.retained = retained;
+        total += retained;
+        if (!truncated && retained == 0)
+        {
+            // Payload is acknowledged. Full socket close detaches netconn
+            // normally; any FIN-only metadata remains under SDK management.
+            entry.state = HttpOwnedState::Release;
+            continue;
+        }
+        if (pcb->lastack != entry.lastAck)
+        {
+            entry.lastAck = pcb->lastack;
+            entry.lastProgress = httpOwnedNow;
+        }
+        // Retired streams have no active consumer. Discard their queued tail
+        // immediately after verifying ownership, rather than retaining up to
+        // eight send buffers through serial HTTP timeout windows.
+        if ((entry.discardQueued && (retained != 0 || truncated)) ||
+            (!truncated && httpOwnedNow - entry.lastProgress >= HTTP_MAX_SEND_WAIT))
+        {
+            // tcp_abort frees queues/PCB and invokes the original netconn
+            // err_tcp callback. Never dereference pcb after this call.
+            tcp_abort(pcb);
+            entry.state = HttpOwnedState::Aborted;
+        }
+    }
+    httpOwnedPayload = total;
+    httpOwnedDone.store(true, std::memory_order_release);
+}
+
+bool httpOwnedRoom()
+{
+    for (const auto &entry : httpOwned)
+        if (entry.state == HttpOwnedState::Quarantined)
+            return false; // Ownership violation: never close a possibly reused FD.
+    for (const auto &entry : httpOwned)
+        if (entry.state == HttpOwnedState::Empty)
+            return true;
+    return false;
+}
+
+// Return false before any WebServer/owned-client operation while a callback is
+// queued. The caller still returns to the normal comms and service timer loops.
+bool httpOwnedPoll()
+{
+    if (!httpOwnedMessage)
+        return false; // Initialization failure pauses HTTP admission safely.
+    if (httpOwnedPending)
+    {
+        if (!httpOwnedDone.load(std::memory_order_acquire))
+            return false;
+        httpOwnedPending = false;
+        httpOwnedLastPayload = httpOwnedPayload;
+        httpOwnedCounters.maximumRetainedPayload = std::max(httpOwnedCounters.maximumRetainedPayload, httpOwnedPayload);
+        for (auto &entry : httpOwned)
+        {
+            if (entry.state == HttpOwnedState::Release || entry.state == HttpOwnedState::Aborted)
+            {
+                const int currentFD = entry.owner.fd();
+                if (currentFD == -1)
+                {
+                    entry.owner.stop();
+                    entry = HttpOwnedResponse{};
+                    continue;
+                }
+                if (currentFD != entry.fd)
+                    entry.state = HttpOwnedState::Quarantined;
+            }
+            if (entry.state == HttpOwnedState::Quarantined)
+            {
+                if (!entry.reported)
+                {
+                    entry.reported = true;
+                    ++httpOwnedCounters.quarantined;
+                    ESP_LOGE(TAG, "HTTP owner identity changed, quarantining fd %d; HTTP admission paused", entry.fd);
+                }
+            }
+            else if (entry.state == HttpOwnedState::Release || entry.state == HttpOwnedState::Aborted)
+            {
+                if (entry.state == HttpOwnedState::Aborted)
+                {
+                    ++httpOwnedCounters.aborted;
+                    ESP_LOGW(TAG, "HTTP owned response stalled: fd %d, generation %lu, queued payload %lu, peak retained payload %lu, aborted %lu",
+                             entry.fd, entry.generation, entry.retained, httpOwnedCounters.maximumRetainedPayload, httpOwnedCounters.aborted);
+                }
+                else
+                    ++httpOwnedCounters.released;
+                entry.owner.stop();
+                entry = HttpOwnedResponse{};
+            }
+        }
+    }
+    const _millis_t now = _millis();
+    bool active = false;
+    for (auto &entry : httpOwned)
+    {
+        if (entry.state != HttpOwnedState::Active)
+            continue;
+        const int currentFD = entry.owner.fd();
+        if (currentFD == -1)
+        {
+            // An alias already stopped this shared handle. Never use cached fd.
+            entry.owner.stop();
+            entry = HttpOwnedResponse{};
+            continue;
+        }
+        if (currentFD != entry.fd)
+        {
+            entry.state = HttpOwnedState::Quarantined;
+            entry.reported = true;
+            ++httpOwnedCounters.quarantined;
+            ESP_LOGE(TAG, "HTTP owner descriptor changed; HTTP admission paused");
+            continue;
+        }
+        active = true;
+    }
+    httpOwnedCurrentPayload = 0;
+    for (const auto &entry : httpOwned)
+        if (entry.state == HttpOwnedState::Active)
+            httpOwnedCurrentPayload += entry.retained;
+    if (active && now - httpOwnedPolledAt >= HTTP_OWNED_POLL_MS)
+    {
+        httpOwnedPolledAt = now;
+        httpOwnedNow = now;
+        httpOwnedDone.store(false, std::memory_order_relaxed);
+        httpOwnedPending = true;
+        if (tcpip_callbackmsg_trycallback(httpOwnedMessage) != ERR_OK)
+        {
+            httpOwnedPending = false;
+            ++httpOwnedCounters.postFailures;
+        }
+        return false;
+    }
+    return httpOwnedRoom();
+}
+
+void setupHttpOwnedExperiment()
+{
+    httpOwnedMessage = tcpip_callbackmsg_new(httpOwnedInspect, nullptr);
+    if (!httpOwnedMessage)
+    {
+        ESP_LOGE(TAG, "HTTP lifecycle experiment unavailable: callback allocation failed; HTTP admission paused");
+        return;
+    }
+    server.addMiddleware([](WebServer &web, Middleware::Callback next)
+    {
+        const String uri = web.uri();
+        // String copies can fail under memory pressure. Do not dispatch a URI
+        // that could have lost its SSE exclusion during that allocation.
+        if (!uri || uri.length() == 0)
+            return false;
+        // Only GET event-channel handlers retain a long-lived client. The
+        // subscribe endpoint returns a normal short response. Other suffixes
+        // stay excluded too: existing dispatch converts them with atoi().
+        const bool eventStream = web.method() == HTTP_GET &&
+                                 uri.startsWith("/rest/events/") && uri != "/rest/events/subscribe";
+        if (uri == "/update" || uri == "/reboot" || uri == "/reset")
+            return next();
+        HttpOwnedResponse *slot = nullptr;
+        for (auto &entry : httpOwned)
+            if (entry.state == HttpOwnedState::Empty) { slot = &entry; break; }
+        if (!slot || httpOwnedPending)
+            return false; // Admission gate should prevent reaching this branch.
+        NetworkClient retained = web.client(); // Strong reference before handler.
+        const bool handled = next();
+        const int fd = retained.fd(); // A failed write may already have stopped it.
+        // Successful streams, including failed headers awaiting retirement,
+        // retain their owner in the subscription. Invalid/rejected stream
+        // requests produce ordinary responses and still need bounded cleanup.
+        if (eventStream && fd >= 0 && retainedBySSE(fd))
+            return handled;
+        if (fd >= 0)
+        {
+            slot->owner = retained;
+            slot->fd = fd;
+            slot->generation = ++httpOwnedCounters.tracked;
+            slot->lastProgress = _millis();
+            slot->state = HttpOwnedState::Active;
+        }
+        return handled;
+    });
+}
+} // namespace
 #endif
 
 // Local copy of door status
@@ -180,24 +508,145 @@ constexpr char gitTaggedURL[] = "https://raw.githubusercontent.com/" _GITUSER "/
 // Just reloading page causes register on new channel.  So we need a reasonable number
 // to accommodate "extra" until old one is detected as disconnected.
 #define SSE_MAX_CHANNELS 8
+// SSE lifecycle helpers are local to the HTTP implementation.
+// Claim removal before cleanup or diagnostics, either of which may log and
+// synchronously reenter the broadcaster. Only the winning caller owns cleanup.
+template <typename Cleanup, typename Notify>
+bool retireSSESubscription(std::atomic<bool> &active,
+                           std::atomic<uint32_t> &count,
+                           Cleanup cleanup, Notify notify)
+{
+    if (!active.exchange(false))
+        return false;
+    const uint32_t remaining = count.fetch_sub(1) - 1;
+    cleanup();
+    notify(remaining);
+    return true;
+}
+
+// Ticker callbacks never touch clients or wait for the lifecycle lock.
+inline void requestSSEHeartbeat(std::atomic<bool> &pending) { pending.store(true); }
+inline bool takeSSEHeartbeat(std::atomic<bool> &pending) { return pending.exchange(false); }
+
+// The caller holds the lifecycle lock while checking and assigning the client.
+template <typename UUID, typename Client>
+bool bindSSEClient(bool active, const UUID &registeredUUID,
+                   const UUID &requestedUUID, Client &current, const Client &incoming)
+{
+    if (!active || registeredUUID != requestedUUID)
+        return false;
+    current = incoming;
+    return true;
+}
+
 struct SSESubscription
 {
     IPAddress clientIP;
     WiFiClient client;
     Ticker heartbeatTimer;
+    std::atomic<bool> heartbeatPending{false};
     uint32_t heartbeatInterval;
+    std::atomic<bool> active{false};
     bool SSEconnected;
     int SSEfailCount;
     String clientUUID;
     bool logViewer;
+#if defined(ESP32) && defined(RATGDO_HTTP_LIFECYCLE_EXPERIMENT)
+    bool retiring = false;
+#endif
 };
+void SSEheartbeat(SSESubscription *s);
 SSESubscription subscription[SSE_MAX_CHANNELS];
 // During firmware update note which subscribed client is updating
-SSESubscription *firmwareUpdateSub = NULL;
-uint32_t subscriptionCount = 0;
+std::atomic<SSESubscription *> firmwareUpdateSub{nullptr};
+std::atomic<uint32_t> subscriptionCount{0};
 
-// Performance management - removed redundant connection tracking
-#define MIN_REQUEST_INTERVAL_MS 100
+// All subscription fields and clients are protected by this lock. Logger
+// broadcasts must never wait: callers can hold the logger's own mutex.
+#ifdef ESP8266
+static bool sseLocked = false;
+#else
+static SemaphoreHandle_t sseMutex = NULL;
+#endif
+class SSELock
+{
+public:
+    explicit SSELock(bool tryOnly = false)
+    {
+#ifdef ESP8266
+        (void)tryOnly;
+        acquired = !sseLocked;
+        if (acquired) sseLocked = true;
+#else
+        acquired = sseMutex && xSemaphoreTake(sseMutex, tryOnly ? 0 : portMAX_DELAY) == pdTRUE;
+#endif
+    }
+    ~SSELock()
+    {
+        if (!acquired) return;
+#ifdef ESP8266
+        sseLocked = false;
+#else
+        xSemaphoreGive(sseMutex);
+#endif
+    }
+    explicit operator bool() const { return acquired; }
+private:
+    bool acquired;
+};
+
+#if defined(ESP32) && defined(RATGDO_HTTP_LIFECYCLE_EXPERIMENT)
+bool retainedBySSE(int fd)
+{
+    SSELock lock;
+    if (!lock) return false;
+    for (const auto &s : subscription)
+        if ((s.active || s.retiring) && s.client.fd() == fd)
+            return true;
+    return false;
+}
+
+// Main only. Retiring clients remain strongly owned by their existing SSE
+// slots until one of the two HTTP retirement slots is available. No close or
+// replacement can orphan their queued payload while waiting for handoff.
+bool drainRetiredSSE()
+{
+    if (httpOwnedPending)
+        return false;
+    SSELock lock;
+    if (!lock) return false;
+    bool waiting = false;
+    for (auto &s : subscription)
+    {
+        if (!s.retiring)
+            continue;
+        const int fd = s.client.fd();
+        if (fd >= 0)
+        {
+            HttpOwnedResponse *slot = nullptr;
+            for (auto &entry : httpOwned)
+                if (entry.state == HttpOwnedState::Empty) { slot = &entry; break; }
+            if (!slot)
+            {
+                waiting = true;
+                continue;
+            }
+            slot->owner = s.client; // Retain first, then detach the SSE alias.
+            slot->fd = fd;
+            slot->generation = ++httpOwnedCounters.tracked;
+            slot->lastProgress = static_cast<uint32_t>(_millis());
+            slot->discardQueued = true;
+            slot->state = HttpOwnedState::Active;
+        }
+        s.client = WiFiClient(); // Never stop() an alias of the retained owner.
+        s.clientIP = INADDR_NONE;
+        s.clientUUID.clear();
+        s.retiring = false;
+    }
+    return !waiting && httpOwnedRoom();
+}
+#endif
+
 
 // Performance monitoring
 static uint32_t request_count = 0;
@@ -241,20 +690,59 @@ int activeRequestCount = 0;
 static char writeBuffer[512];
 bool clientWrite(WiFiClient client, const char *data)
 {
-    size_t len = strlen(data);
-    size_t written = 0;
-#ifdef ESP8266
-    client.flush(); // make sure previous data all sent.
+    const size_t len = strlen(data);
+    if (len == 0)
+        return true;
+#ifdef ESP32
+    // NetworkClient::write() retries select() for seconds even when its stream
+    // timeout is short. Never let a stalled browser block the GDO/HTTP loop,
+    // the timer task, or a HomeKit task emitting a log message.
+    if (send(client.fd(), data, len, MSG_DONTWAIT) == static_cast<ssize_t>(len))
+        return true;
+    client.stop();
+    return false;
+#else
+    if (client.write(data, len) == len)
+        return true;
+    client.stop();
+    return false;
 #endif
-    written = client.write(data, len);
-    if (written == 0)
-    {
-        YIELD();
-        client.stop();
-        ESP_LOGW(TAG, "Failed writing to WiFi Client (%d of %d), connection closed.", written, len);
-        return false;
-    }
-    return true;
+}
+
+// Callers hold SSELock across the whole event, so its spans cannot interleave
+// with another broadcaster. Borrow the existing strings rather than allocating
+// a temporary frame or sharing writeBuffer with status/redirect handlers.
+static bool sendSSEEvent(WiFiClient client, const char *event, const char *data)
+{
+#ifdef ESP32
+    // One gathered nonblocking write avoids a separate TCP send for each span.
+    // lwIP copies these borrowed bytes before returning; no frame is allocated.
+    struct iovec parts[] = {
+        {const_cast<char *>("event: "), 7},
+        {const_cast<char *>(event), strlen(event)},
+        {const_cast<char *>("\ndata: "), 7},
+        {const_cast<char *>(data), strlen(data)},
+        {const_cast<char *>("\n\n"), 2}};
+    size_t length = 0;
+    for (const auto &part : parts)
+        length += part.iov_len;
+    struct msghdr message = {};
+    message.msg_iov = parts;
+    message.msg_iovlen = sizeof(parts) / sizeof(parts[0]);
+    if (sendmsg(client.fd(), &message, MSG_DONTWAIT) == static_cast<ssize_t>(length))
+        return true;
+#if !defined(RATGDO_HTTP_LIFECYCLE_EXPERIMENT)
+    client.stop();
+#endif
+    return false;
+#else
+    // Preserve the existing ESP8266 behavior: finish earlier queued output
+    // before beginning a new event. Do not flush between pieces of one event.
+    client.flush();
+    return clientWrite(client, "event: ") && clientWrite(client, event) &&
+           clientWrite(client, "\ndata: ") && clientWrite(client, data) &&
+           clientWrite(client, "\n\n");
+#endif
 }
 
 // Helper functions for connection throttling
@@ -333,10 +821,28 @@ void web_loop()
 {
     if (!web_setup_done)
         return;
+#if defined(ESP32) && defined(RATGDO_HTTP_LIFECYCLE_EXPERIMENT)
+    const bool ownedRoom = httpOwnedPoll();
+    const bool mayHandleClient = drainRetiredSSE() && ownedRoom;
+#endif
+
+    // Timer callbacks only signal work; client access stays in the web loop.
+    for (uint32_t i = 0; i < SSE_MAX_CHANNELS; ++i)
+    {
+        if (takeSSEHeartbeat(subscription[i].heartbeatPending))
+        {
+            TAKE_MUTEX(); // JSON must always precede the SSE lock.
+            {
+                SSELock lock;
+                if (lock && subscription[i].active)
+                    SSEheartbeat(&subscription[i]);
+            }
+            GIVE_MUTEX();
+        }
+    }
 
     static char *json = status_json;
     _millis_t upTime = _millis();
-    static _millis_t last_request_time = 0;
 
     // manage frequency of mDNS updates
     if (mdnsUpdatePending)
@@ -482,16 +988,12 @@ void web_loop()
         mdnsDoorUpdateAt = lastDoorUpdateAt;
         mdnsUpdatePending = true;
     }
-    // Rate limiting - minimum interval between requests
-    _millis_t current_time = _millis();
-    if (current_time - last_request_time < MIN_REQUEST_INTERVAL_MS)
-    {
-        return; // Skip this cycle to enforce rate limit
-    }
-
-    server.handleClient();
-    // Update last request time after handling client
-    last_request_time = current_time;
+    // WebServer::handleClient() advances a connection state machine. Delaying
+    // every step adds latency even to an idle server; it is not request limiting.
+#if defined(ESP32) && defined(RATGDO_HTTP_LIFECYCLE_EXPERIMENT)
+    if (mayHandleClient)
+#endif
+        server.handleClient();
 }
 
 void setup_web()
@@ -517,6 +1019,7 @@ void setup_web()
 #ifndef ESP8266
     // We allocated json as a global block.  We are on dual core CPU.  We need to serialize access to the resource.
     jsonMutex = xSemaphoreCreateMutex();
+    sseMutex = xSemaphoreCreateMutex();
 #endif
     last_reported_paired = homekit_is_paired();
 
@@ -549,6 +1052,9 @@ void setup_web()
     size_t headerkeyssize = sizeof(headerkeys) / sizeof(char *);
     // ask server to track these headers
     server.collectHeaders(headerkeys, headerkeyssize);
+#if defined(ESP32) && defined(RATGDO_HTTP_LIFECYCLE_EXPERIMENT)
+    setupHttpOwnedExperiment();
+#endif
     server.begin();
     // initialize all the Server-Sent Events (SSE) slots.
     for (uint32_t i = 0; i < SSE_MAX_CHANNELS; i++)
@@ -638,6 +1144,25 @@ static bool requestAuthenticated()
     }
     return true;
 }
+
+#if defined(ESP32) && defined(RATGDO_HTTP_LIFECYCLE_EXPERIMENT)
+void handle_http_lifecycle()
+{
+    if (!requestAuthenticated())
+        return;
+    // Separate bounded output: status.json already approaches its capacity.
+    // This runs on the web loop; all values below are published by main only.
+    char json[HTTP_OWNED_JSON_SIZE];
+    const int length = httpOwnedEvidence(json, sizeof(json));
+    if (length < 0 || static_cast<size_t>(length) >= sizeof(json))
+    {
+        server.send(500, "text/plain", "HTTP diagnostic overflow");
+        return;
+    }
+    server.sendHeader(F("Cache-Control"), F("no-cache, no-store"));
+    server.send(200, type_json, json);
+}
+#endif
 
 void handle_auth()
 {
@@ -1220,6 +1745,8 @@ bool helperUpdateUnderway(const std::string &key, const char *value, configSetti
     // save values...
     strlcpy(firmwareMD5, md5, sizeof(firmwareMD5));
     firmwareSize = (size_t)atoi(size);
+    SSELock lock;
+    if (!lock) return false;
     for (uint32_t channel = 0; channel < SSE_MAX_CHANNELS; channel++)
     {
         if (subscription[channel].SSEconnected && subscription[channel].clientUUID == uuid && subscription[channel].client.connected())
@@ -1400,14 +1927,24 @@ void handle_setgdo()
 
 void removeSSEsubscription(SSESubscription *s)
 {
-    if (subscriptionCount > 0)
-        subscriptionCount--; // Prevent negative count
-    s->heartbeatTimer.detach();
-    ESP_LOGD(TAG, "Remove SSE subscription. Total subscribed: %d", subscriptionCount);
-    s->client.stop();
-    s->clientIP = INADDR_NONE;
-    s->clientUUID.clear();
-    s->SSEconnected = false;
+    retireSSESubscription(s->active, subscriptionCount, [&]() {
+        // Retire before any call that can log and reenter SSEBroadcastState.
+        SSESubscription *expected = s;
+        firmwareUpdateSub.compare_exchange_strong(expected, nullptr);
+        s->SSEconnected = false;
+        s->heartbeatTimer.detach();
+        s->heartbeatPending = false;
+#if defined(ESP32) && defined(RATGDO_HTTP_LIFECYCLE_EXPERIMENT)
+        s->retiring = s->client.fd() >= 0;
+        if (s->retiring)
+            return; // Reserve this slot and its owner until main hands it off.
+#endif
+        s->client.stop();
+        s->clientIP = INADDR_NONE;
+        s->clientUUID.clear();
+    }, [&](uint32_t remaining) {
+        ESP_LOGD(TAG, "Remove SSE subscription. Total subscribed: %d", remaining);
+    });
 }
 
 void SSEheartbeat(SSESubscription *s)
@@ -1438,7 +1975,6 @@ void SSEheartbeat(SSESubscription *s)
     {
         static int8_t lastRSSI = 0;
         static char *json = status_json;
-        TAKE_MUTEX();
         JSON_START(json);
         JSON_ADD_INT("upTime", _millis());
         JSON_ADD_INT("freeHeap", free_heap);
@@ -1468,9 +2004,8 @@ void SSEheartbeat(SSESubscription *s)
         JSON_END();
         JSON_REMOVE_NL(json);
         // retry needed to before event:
-        snprintf_P(writeBuffer, sizeof(writeBuffer), PSTR("event: message\ndata: %s\n\n"), json);
-        clientWrite(s->client, writeBuffer);
-        GIVE_MUTEX();
+        if (!sendSSEEvent(s->client, "message", json))
+            removeSSEsubscription(s);
         YIELD();
     }
     else
@@ -1483,6 +2018,8 @@ void SSEheartbeat(SSESubscription *s)
 
 void SSEHandler(uint32_t channel)
 {
+    SSELock lock;
+    if (!lock) return;
     if (server.args() != 1)
     {
         ESP_LOGE(TAG, "Sending %s, for: %s", response400missing, server.uri().c_str());
@@ -1491,47 +2028,59 @@ void SSEHandler(uint32_t channel)
     }
 
     SSESubscription &s = subscription[channel];
-    s.client = server.client(); // capture SSE server client connection
-    if (s.clientUUID != server.arg(0))
+#if defined(ESP32) && defined(RATGDO_HTTP_LIFECYCLE_EXPERIMENT)
+    if (s.active && s.clientUUID == server.arg(0) && s.client.fd() >= 0)
     {
-        ESP_LOGE(TAG, "Client %s (%s) tries to listen for SSE but not subscribed", s.client.remoteIP().toString().c_str(), server.arg(0).c_str());
+        // Retire the previous stream before replacing its strong owner.
+        // The browser resubscribes after this ordinary error response.
+        removeSSEsubscription(&s);
+        server.send(503, type_txt, "Previous event stream is retiring; resubscribe");
+        return;
+    }
+#endif
+    if (!bindSSEClient(s.active, s.clientUUID, server.arg(0), s.client, server.client()))
+    {
+        ESP_LOGE(TAG, "Client %s (%s) tries to listen for SSE but not subscribed", server.client().remoteIP().toString().c_str(), server.arg(0).c_str());
         return handle_notfound();
     }
     s.client.setNoDelay(true);
     s.client.setTimeout(CLIENT_WRITE_TIMEOUT);       // default is 5000ms which is way too long (Watchdog will fire)
     server.setContentLength(CONTENT_LENGTH_UNKNOWN); // the payload can go on forever
-    server.sendContent_P(PSTR("HTTP/1.1 200 OK\nContent-Type: text/event-stream;\nConnection: keep-alive\nCache-Control: no-cache\nAccess-Control-Allow-Origin: *\n\n"));
+    const char *headers = PSTR("HTTP/1.1 200 OK\nContent-Type: text/event-stream;\nConnection: keep-alive\nCache-Control: no-cache\nAccess-Control-Allow-Origin: *\n\n");
+#if defined(ESP32) && defined(RATGDO_HTTP_LIFECYCLE_EXPERIMENT)
+    // NetworkClient::write may close its shared handle on failure. Keep the
+    // stream owner until verified retirement instead.
+    const size_t headerLength = strlen(headers);
+    if (send(s.client.fd(), headers, headerLength, MSG_DONTWAIT) != static_cast<ssize_t>(headerLength))
+    {
+        removeSSEsubscription(&s);
+        return;
+    }
+#else
+    server.sendContent_P(headers);
+#endif
     s.SSEconnected = true;
     s.SSEfailCount = 0;
     if (s.heartbeatInterval)
     {
-        s.heartbeatTimer.attach_ms(s.heartbeatInterval * 1000, [&s]
-                                   {
-#ifdef ESP8266
-                                       schedule_recurrent_function_us([&s]()
-                                                                      {
-                                                                          SSEheartbeat(&s);
-                                                                          return false; // run the fn only once
-                                                                      },
-                                                                      0); // zero micro seconds (run asap)
-#else
-                                       SSEheartbeat(&s);
-                                       return;
-#endif
-                                   });
+        s.heartbeatTimer.attach_ms(s.heartbeatInterval * 1000, [&s] {
+            requestSSEHeartbeat(s.heartbeatPending);
+        });
     }
     ESP_LOGD(TAG, "Client %s (%s) listening for SSE events on channel %d", s.client.remoteIP().toString().c_str(), s.clientUUID.c_str(), channel);
 }
 
 void handle_subscribe()
 {
+    SSELock lock;
+    if (!lock) return;
     uint32_t channel;
     IPAddress clientIP = server.client().remoteIP(); // get IP address of client
     std::string SSEurl = restEvents;
 
     if (subscriptionCount == SSE_MAX_CHANNELS)
     {
-        ESP_LOGE(TAG, "Client %s SSE Subscription declined, subscription count: %d", clientIP.toString().c_str(), subscriptionCount);
+        ESP_LOGE(TAG, "Client %s SSE Subscription declined, subscription count: %d", clientIP.toString().c_str(), subscriptionCount.load());
         for (channel = 0; channel < SSE_MAX_CHANNELS; channel++)
         {
             ESP_LOGD(TAG, "Client %d: %s at %s", channel, subscription[channel].clientUUID.c_str(), subscription[channel].clientIP.toString().c_str());
@@ -1572,6 +2121,10 @@ void handle_subscribe()
     bool foundExisting = false;
     for (channel = 0; channel < SSE_MAX_CHANNELS; channel++)
     {
+#if defined(ESP32) && defined(RATGDO_HTTP_LIFECYCLE_EXPERIMENT)
+        if (subscription[channel].retiring)
+            continue;
+#endif
         if (subscription[channel].clientUUID == server.arg(id))
         {
             if (subscription[channel].SSEconnected)
@@ -1595,7 +2148,11 @@ void handle_subscribe()
     {
         // Need to allocate a new slot
         for (channel = 0; channel < SSE_MAX_CHANNELS; channel++)
-            if (subscription[channel].clientIP == IPAddress(INADDR_NONE))
+            if (subscription[channel].clientIP == IPAddress(INADDR_NONE)
+#if defined(ESP32) && defined(RATGDO_HTTP_LIFECYCLE_EXPERIMENT)
+                && !subscription[channel].retiring
+#endif
+            )
                 break;
     }
 
@@ -1648,16 +2205,23 @@ void handle_subscribe()
 
     // Safe assignment with validation
     subscription[channel].clientIP = clientIP;
+#if defined(ESP32) && defined(RATGDO_HTTP_LIFECYCLE_EXPERIMENT)
+    // The ordinary HTTP registry owns the subscription response. Do not
+    // duplicate that owner in a slot reserved for the future event stream.
+    subscription[channel].client = WiFiClient();
+#else
     subscription[channel].client = client;
+#endif
     subscription[channel].heartbeatTimer = Ticker();
     subscription[channel].SSEconnected = false;
     subscription[channel].SSEfailCount = 0;
     subscription[channel].clientUUID = server.arg(id);
     subscription[channel].logViewer = logViewer;
     subscription[channel].heartbeatInterval = heartbeatInterval;
+    subscription[channel].active = true;
 
     SSEurl += std::to_string(channel);
-    ESP_LOGD(TAG, "Client %s (%s) SSE subscription: %s, Total: %d, Heartbeat: %d, Log: %d", clientIP.toString().c_str(), server.arg(id).c_str(), SSEurl.c_str(), subscriptionCount, heartbeatInterval, (int)logViewer);
+    ESP_LOGD(TAG, "Client %s (%s) SSE subscription: %s, Total: %d, Heartbeat: %d, Log: %d", clientIP.toString().c_str(), server.arg(id).c_str(), SSEurl.c_str(), subscriptionCount.load(), heartbeatInterval, (int)logViewer);
     server.sendHeader(F("Cache-Control"), F("no-cache, no-store"));
     server.send_P(200, type_txt, SSEurl.c_str());
 }
@@ -1728,6 +2292,9 @@ void SSEBroadcastState(const char *data, BroadcastType type)
     if (!web_setup_done)
         return;
 
+    SSELock lock(type == LOG_MESSAGE);
+    if (!lock) return;
+
     // Flash LED to signal activity
     // led.flash(FLASH_MS);
 
@@ -1746,18 +2313,8 @@ void SSEBroadcastState(const char *data, BroadcastType type)
                 {
                     if (subscription[i].logViewer)
                     {
-                        if (snprintf_P(writeBuffer, sizeof(writeBuffer), PSTR("event: logger\ndata: %s\n\n"), data) >= (int)sizeof(writeBuffer))
-                        {
-                            // Will not fit in our write buffer, let system printf handle
-#ifdef ESP8266
-                            subscription[i].client.flush(); // make sure previous data all sent.
-#endif
-                            subscription[i].client.printf("event: logger\ndata: %s\n\n", data);
-                        }
-                        else
-                        {
-                            clientWrite(subscription[i].client, writeBuffer);
-                        }
+                        if (!sendSSEEvent(subscription[i].client, "logger", data))
+                            removeSSEsubscription(&subscription[i]);
                     }
                 }
                 else if (type == RATGDO_STATUS)
@@ -1765,18 +2322,8 @@ void SSEBroadcastState(const char *data, BroadcastType type)
                     ESP_LOGV(TAG, "Client %s (%s) send status SSE on channel %d, data: %s",
                              IPAddress(subscription[i].clientIP).toString().c_str(),
                              subscription[i].clientUUID.c_str(), i, data);
-                    if (snprintf_P(writeBuffer, sizeof(writeBuffer), PSTR("event: message\ndata: %s\n\n"), data) >= (int)sizeof(writeBuffer))
-                    {
-                        // Will not fit in our write buffer, let system printf handle
-#ifdef ESP8266
-                        subscription[i].client.flush(); // make sure previous data all sent.
-#endif
-                        subscription[i].client.printf("event: message\ndata: %s\n\n", data);
-                    }
-                    else
-                    {
-                        clientWrite(subscription[i].client, writeBuffer);
-                    }
+                    if (!sendSSEEvent(subscription[i].client, "message", data))
+                        removeSSEsubscription(&subscription[i]);
                 }
             }
             else
@@ -1941,16 +2488,22 @@ void handle_firmware_upload()
                 ESP_LOGI(TAG, "%s progress: %d", verify ? "Verify" : "Update", uploadPercent);
                 nextPrintPercent += 5;
                 // Report percentage to browser client if it is listening
-                if (firmwareUpdateSub && firmwareUpdateSub->client.connected())
                 {
                     static char *json = status_json;
                     TAKE_MUTEX();
-                    JSON_START(json);
-                    JSON_ADD_INT("uploadPercent", uploadPercent);
-                    JSON_END();
-                    JSON_REMOVE_NL(json);
-                    snprintf_P(writeBuffer, sizeof(writeBuffer), PSTR("event: uploadStatus\ndata: %s\n\n"), json);
-                    clientWrite(firmwareUpdateSub->client, writeBuffer);
+                    {
+                        SSELock lock;
+                        SSESubscription *updateSub = firmwareUpdateSub.load();
+                        if (lock && updateSub && updateSub->active && updateSub->client.connected())
+                        {
+                            JSON_START(json);
+                            JSON_ADD_INT("uploadPercent", uploadPercent);
+                            JSON_END();
+                            JSON_REMOVE_NL(json);
+                            if (!sendSSEEvent(updateSub->client, "uploadStatus", json))
+                                removeSSEsubscription(updateSub);
+                        }
+                    }
                     GIVE_MUTEX();
                 }
             }
