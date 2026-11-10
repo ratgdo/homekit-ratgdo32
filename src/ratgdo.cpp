@@ -25,6 +25,8 @@
 #include <esp_core_dump.h>
 #include <esp_log.h>
 #include <ping/ping_sock.h>
+#include <atomic>
+#include "link_watchdog.h"
 #endif
 
 // RATGDO project includes
@@ -143,6 +145,7 @@ static bool ping_timed_out = false;
 static esp_ping_handle_t ping;
 static void ping_start();
 static void ping_stop();
+static void link_watchdog_loop(_millis_t current_millis);
 #endif
 
 /****************************************************************************
@@ -528,6 +531,8 @@ void service_timer_loop()
             WiFi.reconnect();
         }
     }
+
+    link_watchdog_loop(current_millis);
 #endif
 }
 
@@ -594,5 +599,90 @@ static void ping_stop()
 {
     esp_ping_stop(ping);
     esp_ping_delete_session(ping);
+}
+
+/****************************************************************************
+ * Link watchdog: recover when associated but not passing traffic.
+ * Decision logic lives in link_watchdog.h; this is the ESP glue.
+ */
+static esp_ping_handle_t link_ping = NULL;
+static std::atomic<bool> link_ping_done{false};
+static LinkWatch link_watch;
+
+static void link_ping_noop(esp_ping_handle_t hdl, void *args) {}
+static void link_ping_end(esp_ping_handle_t hdl, void *args)
+{
+    // Runs in the ping task: only signal; the main loop reads and deletes the session.
+    link_ping_done.store(true);
+}
+
+static void link_watchdog_loop(_millis_t current_millis)
+{
+    static _millis_t last_check = 0;
+
+    if (link_ping)
+    {
+        if (!link_ping_done.load())
+            return;
+        uint32_t sent = 0, received = 0;
+        esp_ping_get_profile(link_ping, ESP_PING_PROF_REQUEST, &sent, sizeof(sent));
+        esp_ping_get_profile(link_ping, ESP_PING_PROF_REPLY, &received, sizeof(received));
+        esp_ping_delete_session(link_ping);
+        link_ping = NULL;
+
+        bool wasArmed = link_watch.armed;
+        LinkResult r = link_watch_step(link_watch, sent, received);
+        if (!wasArmed && link_watch.armed)
+            ESP_LOGI(TAG, "Link watchdog armed: gateway %s answers ping (%lu/%lu), RSSI %d dBm",
+                     WiFi.gatewayIP().toString().c_str(), received, sent, WiFi.RSSI());
+        uint32_t windowSecs = LINK_WINDOW_CHECKS * LINK_CHECK_INTERVAL_MS / 1000;
+        switch (r.action)
+        {
+        case LINK_RECONNECT:
+            ESP_LOGW(TAG, "Link degraded: %u%% gateway ping loss over %lus, RSSI %d dBm. Reconnecting WiFi (next reconnect no sooner than %lus)",
+                     r.lossPct, windowSecs, WiFi.RSSI(), r.holdWindows * windowSecs);
+            // HomeSpan sees the disconnect and reconnects through wifiBegin().
+            WiFi.disconnect();
+            break;
+        case LINK_RECOVERED:
+            ESP_LOGW(TAG, "Link recovered by WiFi reconnect (healthy %lus), RSSI %d dBm",
+                     LINK_RECOVERED_WINDOWS * windowSecs, WiFi.RSSI());
+            break;
+        default:
+            if (r.evaluated && r.lossPct > 0)
+                ESP_LOGI(TAG, "Link: %u%% gateway ping loss over %lus, RSSI %d dBm", r.lossPct, windowSecs, WiFi.RSSI());
+            break;
+        }
+        return;
+    }
+
+    if (current_millis - last_check < LINK_CHECK_INTERVAL_MS)
+        return;
+    last_check = current_millis;
+
+    if (softAPmode || WiFi.status() != WL_CONNECTED)
+        return;
+    IPAddress gw = WiFi.gatewayIP();
+    if (gw == IPAddress(0, 0, 0, 0))
+        return;
+
+    esp_ping_config_t cfg = ESP_PING_DEFAULT_CONFIG();
+    gw.to_ip_addr_t(&cfg.target_addr);
+    cfg.count = LINK_PINGS_PER_CHECK;
+    esp_ping_callbacks_t cbs = {};
+    cbs.on_ping_success = link_ping_noop;
+    cbs.on_ping_timeout = link_ping_noop;
+    cbs.on_ping_end = link_ping_end;
+    link_ping_done.store(false);
+    if (esp_ping_new_session(&cfg, &cbs, &link_ping) != ESP_OK)
+    {
+        link_ping = NULL;
+        return;
+    }
+    if (esp_ping_start(link_ping) != ESP_OK)
+    {
+        esp_ping_delete_session(link_ping);
+        link_ping = NULL;
+    }
 }
 #endif
