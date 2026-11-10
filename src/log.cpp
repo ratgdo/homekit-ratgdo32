@@ -21,6 +21,8 @@
 #ifndef ESP8266
 #include <esp32-hal.h>
 #include <esp_core_dump.h>
+#include <lwip/opt.h>
+#include <arch/sys_arch.h>
 #endif
 
 // RATGDO project includes
@@ -56,6 +58,16 @@ esp_log_level_t logLevel = ESP_LOG_VERBOSE;
 // Allows us to intercept all ESP_LOGx() even outside our code.
 void esp_log_hook(const char *fmt, va_list args)
 {
+#ifndef ESP8266
+    // Serial setup and fallback output also acquire driver locks. Core-held
+    // logs may only enter the preallocated logger buffer, when it exists.
+    if (sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER))
+    {
+        if (ratgdoLogger)
+            ratgdoLogger->logToBuffer(fmt, args);
+        return;
+    }
+#endif
     if (!Serial)
     {
         // Before we can log anything, we need to initialize the serial port.
@@ -211,7 +223,21 @@ LOG::LOG()
 
 void LOG::logToBuffer(const char *fmt, va_list args)
 {
-    TAKE_MUTEX();
+#ifndef ESP8266
+    // lwIP logs while holding its non-recursive TCPIP core lock. Socket
+    // delivery would take that lock again; waiting for another logger can
+    // also deadlock if that logger is waiting for the core.
+    const bool coreLocked = sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER);
+    if (coreLocked)
+    {
+        if (xSemaphoreTakeRecursive(logMutex, 0) != pdTRUE)
+            return;
+    }
+    else
+#endif
+    {
+        TAKE_MUTEX();
+    }
     // parse the format string into lineBuffer
     vsnprintf(lineBuffer, LINE_BUFFER_SIZE, fmt, args);
     // If timestamp is wrapped in () and not [] then message is from one of the ESP_LOGx() functions.
@@ -232,8 +258,12 @@ void LOG::logToBuffer(const char *fmt, va_list args)
         lineBuffer[LINE_BUFFER_SIZE - 1] = 0;
     }
 
-    //  print line to the serial port
-    SERIAL_PRINT(lineBuffer);
+    // UART output can wait for a driver mutex or TX space. Keep core-held
+    // logging in the preallocated ring without any serial or network I/O.
+#ifndef ESP8266
+    if (!coreLocked)
+#endif
+        SERIAL_PRINT(lineBuffer);
 
     // copy the line into the message save buffer
     size_t len = strlen(lineBuffer);
@@ -254,7 +284,11 @@ void LOG::logToBuffer(const char *fmt, va_list args)
     msgBuffer->buffer[msgBuffer->head] = 0; // null terminate
 
     static bool inFn = false;
-    if (!inFn)
+    if (!inFn
+#ifndef ESP8266
+        && !coreLocked
+#endif
+    )
     {
         // Control recursion... make sure we don't get into a loop if any
         // of the functions we use here log a message.  This is known to happen
