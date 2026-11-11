@@ -213,7 +213,9 @@ int main() {
     // callback is quiescent and HomeSpan's pause has been released.
     start(); event(UPLOAD_FILE_ABORTED);
     assert(otaRecoveryAt==now+OTA_FAILURE_RESTART_MS && pollCanRun());
-    now=otaRecoveryAt; assert(recoverStoppedOTAServices());
+    now=otaRecoveryAt; httpOwnedPending=true;
+    assert(!recoverStoppedOTAServices() && restarts==1);
+    httpOwnedPending=false; assert(recoverStoppedOTAServices());
     assert(restarts==2);
 
     // Re-entering START is idempotent; aborted and repeated uploads can recover.
