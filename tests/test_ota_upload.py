@@ -21,7 +21,7 @@ def function(source, declaration):
 
 
 class OtaUpload(unittest.TestCase):
-    def test_esp8266_recovery_deadline_wrap(self):
+    def test_esp8266_recovery_delay_wrap(self):
         source = (ROOT / "src/web.cpp").read_text()
         recovery = source[source.index("static bool otaServicesStopped"):
                           source.index("// Common HTTP responses")]
@@ -38,16 +38,17 @@ unsigned restarts=0;
 void sync_and_restart() { ++restarts; }
 ''' + recovery + r'''
 int main() {
+    // The delay spans the 32-bit millis() wrap.
     now=UINT32_MAX-500;
     otaRecoveryPending=true;
-    otaRecoveryAt=now+OTA_FAILURE_RESTART_MS;
+    otaRecoveryStart=now; otaRecoveryDelay=OTA_FAILURE_RESTART_MS;
     assert(!recoverStoppedOTAServices());
-    now=otaRecoveryAt-1; assert(!recoverStoppedOTAServices());
-    now=otaRecoveryAt; assert(recoverStoppedOTAServices());
+    now=otaRecoveryStart+OTA_FAILURE_RESTART_MS-1; assert(!recoverStoppedOTAServices());
+    now=otaRecoveryStart+OTA_FAILURE_RESTART_MS; assert(recoverStoppedOTAServices());
     assert(restarts==1 && server.stops==1);
-    otaRecoveryPending=true; otaRecoveryAt=now+OTA_STAGED_RESTART_MS;
+    otaRecoveryPending=true; otaRecoveryStart=now; otaRecoveryDelay=OTA_STAGED_RESTART_MS;
     assert(!recoverStoppedOTAServices());
-    now=otaRecoveryAt; otaUploadActive=true;
+    now=otaRecoveryStart+OTA_STAGED_RESTART_MS; otaUploadActive=true;
     assert(!recoverStoppedOTAServices());
     otaUploadActive=false; assert(recoverStoppedOTAServices());
     assert(restarts==2);
@@ -64,7 +65,7 @@ int main() {
 
     def test_actual_callback_pause_cleanup_and_md5_ownership(self):
         source = (ROOT / "src/web.cpp").read_text()
-        callback = function(source, "static int otaMetadataHex(") + function(source, "static bool readOTAFirmwareSize(") + function(source, "void handle_firmware_upload()\n{")
+        callback = function(source, "void handle_firmware_upload()\n{")
         recovery = source[source.index("static bool otaServicesStopped"):
                           source.index("// Common HTTP responses")]
         loop_start = source.index("void web_loop()\n{")
@@ -74,6 +75,7 @@ int main() {
 #include <atomic>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <future>
 #include <map>
@@ -169,8 +171,9 @@ struct FlashUpdate {
     bool begin(size_t size,int) {
         ++begins;
         // Oversized images are rejected without stopping the running services.
-        if (size<=0x1ff000) assert(!pollCanRun());
-        checksum.clear(); active=beginOk; return beginOk;
+        const bool ok=beginOk && size<=0x1ff000;
+        if (ok) assert(!pollCanRun());
+        checksum.clear(); active=ok; return ok;
     }
     size_t write(uint8_t *,size_t size) { ++writes; assert(!pollCanRun()); return writeOk?size:0; }
     bool end(bool=false) { ++ends; if (active) assert(!pollCanRun()); active=false; return endOk; }
@@ -203,17 +206,17 @@ int main() {
     // A verify request extends a successful staging deadline. No reboot can
     // happen from an active callback, even when its old deadline has expired.
     start(); event(UPLOAD_FILE_WRITE); event(UPLOAD_FILE_END);
-    const auto oldDeadline=otaRecoveryAt;
+    const auto oldDeadline=otaRecoveryStart+otaRecoveryDelay;
     now=oldDeadline-1; start(true); assert(otaRecoveryPending && otaUploadActive);
     now=oldDeadline+500; assert(!recoverStoppedOTAServices());
     event(UPLOAD_FILE_END); assert(otaRecoveryPending);
-    assert(otaRecoveryAt==now+OTA_STAGED_RESTART_MS);
+    assert(otaRecoveryStart==now && otaRecoveryDelay==OTA_STAGED_RESTART_MS);
 
     // A disconnected/aborted transfer recovers quickly, only after the core
     // callback is quiescent and HomeSpan's pause has been released.
     start(); event(UPLOAD_FILE_ABORTED);
-    assert(otaRecoveryAt==now+OTA_FAILURE_RESTART_MS && pollCanRun());
-    now=otaRecoveryAt; httpOwnedPending=true;
+    assert(otaRecoveryStart==now && otaRecoveryDelay==OTA_FAILURE_RESTART_MS && pollCanRun());
+    now+=OTA_FAILURE_RESTART_MS; httpOwnedPending=true;
     assert(!recoverStoppedOTAServices() && restarts==1);
     httpOwnedPending=false; assert(recoverStoppedOTAServices());
     assert(restarts==2);
@@ -242,9 +245,9 @@ int main() {
     authenticated=true; start(); event(UPLOAD_FILE_ABORTED); assert(pollCanRun());
 
     // Rejected authentication cannot cancel an already armed recovery.
-    const auto recoveryDeadline=otaRecoveryAt;
+    const auto recoveryStart=otaRecoveryStart;
     authenticated=false; start();
-    assert(otaRecoveryPending && otaRecoveryAt==recoveryDeadline);
+    assert(otaRecoveryPending && otaRecoveryStart==recoveryStart);
     authenticated=true;
 
     // Verify-only and oversize requests that never stopped services must not
@@ -257,35 +260,13 @@ int main() {
     start(); event(UPLOAD_FILE_END);
     assert(!otaRecoveryPending && commsRunning && vehicle_setup_done && !suspend_service_loop);
 
-    // Metadata errors leave services and flash setup untouched.
-    const unsigned priorBegins=Update.begins, priorShutdowns=shutdowns;
-    for (const char *bad : {"0", "-1", "12x", "4294967296", " 128", "1.5"}) {
-        server.arguments["size"]=bad;
-        start(); assert(_updaterError.length() && !otaUploadActive);
-        event(UPLOAD_FILE_WRITE); event(UPLOAD_FILE_END);
-        assert(Update.begins==priorBegins && shutdowns==priorShutdowns);
-    }
     server.arguments["size"]="128";
-    for (const char *bad : {"abc", "0123456789abcdef0123456789abcdeg01",
-                            "0123456789abcdef0123456789abcdef0",
-                            "0123456789abcdef0123456789abcdef0123456789"}) {
-        server.arguments["md5"]=bad;
-        start(); assert(_updaterError.length() && !otaUploadActive);
-        event(UPLOAD_FILE_END);
-        assert(Update.begins==priorBegins && shutdowns==priorShutdowns);
-    }
-    server.arguments["md5"]="";
-    for (uint32_t space : {0u, 0xfffu, 0x1000u, 0x1fffu}) {
-        ESP.freeSpace=space; start(); assert(_updaterError=="Not Enough Space");
-        event(UPLOAD_FILE_END);
-        assert(Update.begins==priorBegins && shutdowns==priorShutdowns);
-    }
-    ESP.freeSpace=0x200000;
-    // Legacy requests may omit both fields, without retaining an older hash.
-    server.arguments["size"]="";
-    std::strcpy(firmwareMD5,"0123456789abcdef0123456789abcdef");
-    start(); assert(!_updaterError.length() && firmwareSize==0 && firmwareMD5[0]==0);
-    assert(Update.checksum.empty()); event(UPLOAD_FILE_ABORTED);
+
+    // An upload without md5 keeps the hash set earlier by updateUnderway.
+    server.arguments.erase("md5");
+    std::strcpy(firmwareMD5,"fedcba9876543210fedcba9876543210");
+    start(true); assert(Update.checksum=="fedcba9876543210fedcba9876543210");
+    event(UPLOAD_FILE_END);
 
 }
 '''
