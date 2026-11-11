@@ -1,4 +1,4 @@
-"""Native check of the link watchdog decision logic in src/link_watchdog.h."""
+"""Native check of the link watchdog decision logic in src/ratgdo.cpp."""
 from pathlib import Path
 import os
 import subprocess
@@ -9,9 +9,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 HARNESS = r'''
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <vector>
-#include "link_watchdog.h"
 
 // Feed one full window of sessions with the given replies per session.
 static LinkResult window(LinkWatch &w, unsigned replies) {
@@ -105,9 +105,12 @@ class LinkWatchdogTest(unittest.TestCase):
     def test_decisions(self):
         with tempfile.TemporaryDirectory(prefix="ratgdo-link-") as d:
             cpp, binary = Path(d) / "t.cpp", Path(d) / "t"
-            cpp.write_text(HARNESS)
+            source = (ROOT / "src/ratgdo.cpp").read_text()
+            logic = source[source.index("// Calibration knobs"):
+                           source.index("static esp_ping_handle_t link_ping")]
+            cpp.write_text(HARNESS.replace("#include <vector>\n", "#include <vector>\n" + logic, 1))
             subprocess.run([os.environ.get("CXX", "c++"), "-std=c++17", "-Wall", "-Wextra", "-Werror",
-                            "-fsanitize=address,undefined", "-I", str(ROOT / "src"),
+                            "-fsanitize=address,undefined",
                             str(cpp), "-o", str(binary)], check=True)
             self.assertEqual(subprocess.check_output([str(binary)], text=True).strip(), "ok")
 
