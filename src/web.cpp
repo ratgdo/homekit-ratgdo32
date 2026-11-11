@@ -483,6 +483,11 @@ static bool recoverStoppedOTAServices()
     if (_millis() < otaRecoveryAt)
 #endif
         return false;
+#if defined(ESP32) && defined(RATGDO_HTTP_LIFECYCLE_EXPERIMENT)
+    // Do not close a shared response owner during core-thread inspection.
+    if (httpOwnedPending)
+        return false;
+#endif
     otaRecoveryPending = false;
     ESP_LOGW(TAG, "Restarting to restore services stopped for firmware upload");
     server.stop();
