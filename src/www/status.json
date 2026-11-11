@@ -33,6 +33,7 @@
   "rebootSeconds": 0,
   "freeHeap": 20000,
   "minHeap": 10000,
+  "maxAllocHeap": 8000,
   "minStack": 2000,
   "crashCount": 1,
   "wifiPhyMode": 0,
