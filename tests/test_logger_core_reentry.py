@@ -30,9 +30,17 @@ static int xSemaphoreTakeRecursive(std::recursive_mutex *m,int wait) {
     m->lock(); return pdTRUE;
 }
 static void xSemaphoreGiveRecursive(std::recursive_mutex *m) { m->unlock(); }
+#ifdef ESP8266
+// As in log.cpp: ESP8266 is single threaded, so the logger has no mutex.
+#define TAKE_MUTEX()
+#define GIVE_MUTEX()
+#else
 #define TAKE_MUTEX() xSemaphoreTakeRecursive(logMutex,portMAX_DELAY)
 #define GIVE_MUTEX() xSemaphoreGiveRecursive(logMutex)
-static unsigned serialWrites, sseWrites, syslogWrites;
+#endif
+static unsigned serialWrites, sseWrites, syslogWrites, romWrites;
+static int esp_rom_printf(const char *,...) { return ++romWrites; }
+static int esp_rom_vprintf(const char *,va_list) { return ++romWrites; }
 #define SERIAL_PRINT(x) (++serialWrites)
 constexpr size_t LINE_BUFFER_SIZE=256;
 static char lineBuffer[LINE_BUFFER_SIZE];
@@ -90,7 +98,7 @@ int main() {
         coreHeld=false;
     }
     assert(sseWrites==oldSSE && syslogWrites==oldSyslog);
-    assert(serialWrites==oldSerial && ring.head>oldHead);
+    assert(serialWrites==oldSerial && romWrites==1 && ring.head>oldHead);
     // A logger already owns the logger lock and waits for core. The task
     // holding core must drop the contended message instead of waiting back.
     std::atomic<bool> acquired{false};
@@ -110,7 +118,7 @@ int main() {
         coreHeld=false;
     }
     worker.join();
-    assert(serialWrites==serialBeforeContention && ring.head==headBeforeContention);
+    assert(serialWrites==serialBeforeContention && romWrites==1 && ring.head==headBeforeContention);
     assert(sseWrites==oldSSE && syslogWrites==oldSyslog);
 #endif
     const unsigned beforeSSE=sseWrites, beforeSyslog=syslogWrites;
@@ -125,20 +133,22 @@ int main() {
     assert(sseWrites==sends+1 && syslogWrites==syslogs+1);
 #ifndef ESP8266
     // Core-held hooks must not inspect/start the UART or enter serial/network
-    // sinks, including the fallback before the logger exists.
+    // sinks. They still reach the console through ROM printf, including the
+    // fallback before the logger exists.
     Serial.ready=false;
     begins=Serial.begins;
     const unsigned checks=Serial.checks, writes=serialWrites;
     sends=sseWrites; syslogs=syslogWrites;
     size_t head=ring.head;
+    const unsigned rom=romWrites;
     coreHeld=true;
     emitHook("prefix () core hook\n");
-    assert(ring.head>head);
+    assert(ring.head>head && romWrites==rom+1);
     head=ring.head;
     ratgdoLogger=nullptr;
     emitHook("prefix () early core hook\n");
     coreHeld=false;
-    assert(ring.head==head);
+    assert(ring.head==head && romWrites==rom+2);
     assert(Serial.begins==begins && Serial.checks==checks && serialWrites==writes);
     assert(sseWrites==sends && syslogWrites==syslogs);
 #else

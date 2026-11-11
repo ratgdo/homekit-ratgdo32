@@ -23,6 +23,7 @@
 #include <esp_core_dump.h>
 #include <lwip/opt.h>
 #include <arch/sys_arch.h>
+#include <esp_rom_sys.h>
 #endif
 
 // RATGDO project includes
@@ -59,12 +60,15 @@ esp_log_level_t logLevel = ESP_LOG_VERBOSE;
 void esp_log_hook(const char *fmt, va_list args)
 {
 #ifndef ESP8266
-    // Serial setup and fallback output also acquire driver locks. Core-held
-    // logs may only enter the preallocated logger buffer, when it exists.
+    // Serial.begin() and Serial.print() can block on UART driver locks while
+    // lwIP holds its core lock. ROM printf writes the UART directly, so core-held
+    // logs still reach the serial port even before ratgdoLogger exists.
     if (sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER))
     {
         if (ratgdoLogger)
             ratgdoLogger->logToBuffer(fmt, args);
+        else if (!suppressSerialLog)
+            esp_rom_vprintf(fmt, args);
         return;
     }
 #endif
@@ -226,18 +230,11 @@ void LOG::logToBuffer(const char *fmt, va_list args)
 #ifndef ESP8266
     // lwIP logs while holding its non-recursive TCPIP core lock. Socket
     // delivery would take that lock again; waiting for another logger can
-    // also deadlock if that logger is waiting for the core.
+    // also deadlock if that logger is waiting for the core, so only try.
     const bool coreLocked = sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER);
-    if (coreLocked)
-    {
-        if (xSemaphoreTakeRecursive(logMutex, 0) != pdTRUE)
-            return;
-    }
-    else
+    if (xSemaphoreTakeRecursive(logMutex, coreLocked ? 0 : portMAX_DELAY) != pdTRUE)
+        return;
 #endif
-    {
-        TAKE_MUTEX();
-    }
     // parse the format string into lineBuffer
     vsnprintf(lineBuffer, LINE_BUFFER_SIZE, fmt, args);
     // If timestamp is wrapped in () and not [] then message is from one of the ESP_LOGx() functions.
@@ -258,10 +255,15 @@ void LOG::logToBuffer(const char *fmt, va_list args)
         lineBuffer[LINE_BUFFER_SIZE - 1] = 0;
     }
 
-    // UART output can wait for a driver mutex or TX space. Keep core-held
-    // logging in the preallocated ring without any serial or network I/O.
+    //  print line to the serial port
 #ifndef ESP8266
-    if (!coreLocked)
+    if (coreLocked)
+    {
+        // Serial.print() can wait for a driver mutex or TX space; ROM printf cannot.
+        if (!suppressSerialLog)
+            esp_rom_printf("%s", lineBuffer);
+    }
+    else
 #endif
         SERIAL_PRINT(lineBuffer);
 
