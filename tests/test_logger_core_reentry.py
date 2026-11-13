@@ -31,11 +31,12 @@ static int xSemaphoreTakeRecursive(std::recursive_mutex *m,int wait) {
 }
 static void xSemaphoreGiveRecursive(std::recursive_mutex *m) { m->unlock(); }
 #ifdef ESP8266
-// As in log.cpp: ESP8266 is single threaded, so the logger has no mutex.
-#define TAKE_MUTEX()
+// As in log.cpp: ESP8266 is single threaded, with no logger mutex or lwIP core lock.
+#define TAKE_MUTEX(delay) pdTRUE
 #define GIVE_MUTEX()
+#define sys_thread_tcpip(x) (false)
 #else
-#define TAKE_MUTEX() xSemaphoreTakeRecursive(logMutex,portMAX_DELAY)
+#define TAKE_MUTEX(delay) xSemaphoreTakeRecursive(logMutex,delay)
 #define GIVE_MUTEX() xSemaphoreGiveRecursive(logMutex)
 #endif
 static unsigned serialWrites, sseWrites, syslogWrites, romWrites;
@@ -58,8 +59,8 @@ static LOG *ratgdoLogger=&logger;
 static bool suppressSerialLog=false;
 struct MockSerial {
     bool ready=false;
-    unsigned begins=0, checks=0;
-    explicit operator bool() { ++checks; return ready; }
+    unsigned begins=0;
+    explicit operator bool() { return ready; }
     void begin(unsigned) { ++begins; ready=true; }
     void print(const char *) { ++serialWrites; }
 };
@@ -98,9 +99,10 @@ int main() {
         coreHeld=false;
     }
     assert(sseWrites==oldSSE && syslogWrites==oldSyslog);
-    assert(serialWrites==oldSerial && romWrites==1 && ring.head>oldHead);
+    assert(serialWrites==oldSerial+1 && romWrites==0 && ring.head>oldHead);
     // A logger already owns the logger lock and waits for core. The task
-    // holding core must drop the contended message instead of waiting back.
+    // holding core must drop the contended message instead of waiting back,
+    // printing it to the ROM console only when serial logging is enabled.
     std::atomic<bool> acquired{false};
     std::thread worker;
     const unsigned serialBeforeContention=serialWrites;
@@ -115,6 +117,9 @@ int main() {
         while (!acquired.load()) std::this_thread::yield();
         coreHeld=true;
         emit("prefix () contended\n");
+        suppressSerialLog=true;
+        emit("prefix () contended quiet\n");
+        suppressSerialLog=false;
         coreHeld=false;
     }
     worker.join();
@@ -132,24 +137,24 @@ int main() {
     assert(Serial.begins==begins+1 && Serial.ready);
     assert(sseWrites==sends+1 && syslogWrites==syslogs+1);
 #ifndef ESP8266
-    // Core-held hooks must not inspect/start the UART or enter serial/network
-    // sinks. They still reach the console through ROM printf, including the
-    // fallback before the logger exists.
+    // Core-held hooks must not start the UART or enter network sinks. They
+    // still reach the console through the ROM, including the fallback before
+    // the logger exists.
     Serial.ready=false;
     begins=Serial.begins;
-    const unsigned checks=Serial.checks, writes=serialWrites;
+    const unsigned writes=serialWrites;
     sends=sseWrites; syslogs=syslogWrites;
     size_t head=ring.head;
     const unsigned rom=romWrites;
     coreHeld=true;
     emitHook("prefix () core hook\n");
-    assert(ring.head>head && romWrites==rom+1);
+    assert(ring.head>head && serialWrites==writes+1 && romWrites==rom);
     head=ring.head;
     ratgdoLogger=nullptr;
     emitHook("prefix () early core hook\n");
     coreHeld=false;
-    assert(ring.head==head && romWrites==rom+2);
-    assert(Serial.begins==begins && Serial.checks==checks && serialWrites==writes);
+    assert(ring.head==head && romWrites==rom+1);
+    assert(Serial.begins==begins);
     assert(sseWrites==sends && syslogWrites==syslogs);
 #else
     // ESP8266 still initializes and writes the console normally.
@@ -165,10 +170,10 @@ int main() {
     // Non-core early fallback is preserved on both platforms.
     Serial.ready=false;
     begins=Serial.begins;
-    const unsigned fallbackWrites=serialWrites;
+    const unsigned fallbackRom=romWrites;
     sends=sseWrites; syslogs=syslogWrites;
     emitHook("prefix () early normal hook\n");
-    assert(Serial.begins==begins+1 && serialWrites>fallbackWrites);
+    assert(Serial.begins==begins+1 && romWrites==fallbackRom+1);
     assert(sseWrites==sends && syslogWrites==syslogs);
     ratgdoLogger=&logger;
 }
