@@ -44,7 +44,7 @@ class LogSnapshotTest(unittest.TestCase):
         ''' + counter + r'''
         void *checkedCopy(void*d,const void*s,size_t n){assert(held>0&&n<=256);return std::memcpy(d,s,n);}
         #define memcpy checkedCopy
-        #define TAKE_MUTEX() do{logMutex.lock();++held;}while(0)
+        #define TAKE_MUTEX(delay) do{logMutex.lock();++held;}while(0)
         #define GIVE_MUTEX() do{assert(held);--held;logMutex.unlock();}while(0)
         #define YIELD() do{assert(!held);std::this_thread::yield();}while(0)
         #define PSTR(s) s

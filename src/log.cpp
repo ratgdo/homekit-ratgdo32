@@ -241,7 +241,8 @@ void LOG::logToBuffer(const char *fmt, va_list args)
     if (TAKE_MUTEX((coreLocked ? 0 : portMAX_DELAY)) != pdTRUE)            // Always pdTRUE on ESP8266
     {
         // If we failed to take the mutex, we still want to print the line to the serial port then abort
-        esp_rom_vprintf(fmt, args);
+        if (!suppressSerialLog)
+            esp_rom_vprintf(fmt, args);
         return;
     }
     // parse the format string into lineBuffer
