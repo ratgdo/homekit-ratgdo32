@@ -48,11 +48,30 @@ bool comms_setup_done = false;
 
 /********************************** LOCAL STORAGE *****************************************/
 #ifndef USE_GDOLIB
+enum class PendingCommandType : uint8_t
+{
+    None = 0,
+    Door,
+    LightOn,
+    LightOff,
+    LockOn,
+    LockOff
+};
+
+struct PendingCommand
+{
+    _millis_t since;
+    uint32_t generation;
+    bool sent;
+};
+
 struct __attribute__((aligned(4))) PacketAction
 {
     Packet pkt;
     bool inc_counter;
     uint32_t delay;
+    uint32_t pending_generation;
+    PendingCommandType pending_type;
 };
 
 // On ESP32 we use the FreeRTOS queues.  This is not available on our ESP8266 builds.
@@ -383,49 +402,230 @@ enum secplus1Codes : uint8_t
 
     Unknown = 0xFF // (when rx fails parity test)
 };
-static _millis_t pendingLightOn = 0;
-static _millis_t pendingLightOff = 0;
-static _millis_t pendingLockOn = 0;
-static _millis_t pendingLockOff = 0;
-static _millis_t pendingDoorCommand = 0;
+static PendingCommand pendingLightOn = {0, 0, false};
+static PendingCommand pendingLightOff = {0, 0, false};
+static PendingCommand pendingLockOn = {0, 0, false};
+static PendingCommand pendingLockOff = {0, 0, false};
+static PendingCommand pendingDoorCommand = {0, 0, false};
+static uint32_t pendingSec2Generation = 0;
+
+#ifdef ESP32
+static portMUX_TYPE pendingSec2Mux = portMUX_INITIALIZER_UNLOCKED;
+#define PENDING_SEC2_ENTER() taskENTER_CRITICAL(&pendingSec2Mux)
+#define PENDING_SEC2_EXIT() taskEXIT_CRITICAL(&pendingSec2Mux)
+#else
+#define PENDING_SEC2_ENTER() ((void)0)
+#define PENDING_SEC2_EXIT() ((void)0)
+#endif
 
 #define SECPLUS2_PENDING_TIMEOUT 1000
 
-static bool pending_expired(_millis_t pending, _millis_t now)
+static bool pending_expired(const PendingCommand &pending, _millis_t now)
 {
-    _millis_t elapsed = now - pending;
-    // On ESP8266, reject future timestamps while allowing wrapped elapsed times under half the clock range.
-    return pending && elapsed > SECPLUS2_PENDING_TIMEOUT && elapsed < 0x80000000;
+    _millis_t elapsed = now - pending.since;
+    bool expired = pending.generation && pending.sent && elapsed > SECPLUS2_PENDING_TIMEOUT;
+#ifdef ESP8266
+    // Reject future timestamps while allowing wrapped elapsed times under half the 32-bit clock range.
+    expired = expired && elapsed < 0x80000000;
+#endif
+    return expired;
+}
+
+static uint32_t pending_sec2_reserve(PendingCommand &pending, PendingCommand *opposite = nullptr,
+                                     bool reject_duplicate = false, PendingCommand *previous = nullptr,
+                                     PendingCommand *previous_opposite = nullptr)
+{
+    PENDING_SEC2_ENTER();
+    if (reject_duplicate && pending.generation)
+    {
+        PENDING_SEC2_EXIT();
+        return 0;
+    }
+
+    if (previous)
+        *previous = pending;
+    if (opposite && previous_opposite)
+        *previous_opposite = *opposite;
+
+    if (++pendingSec2Generation == 0)
+        ++pendingSec2Generation;
+    pending.since = 0;
+    pending.generation = pendingSec2Generation;
+    pending.sent = false;
+    if (opposite)
+    {
+        opposite->since = 0;
+        opposite->generation = 0;
+        opposite->sent = false;
+    }
+    uint32_t generation = pending.generation;
+    PENDING_SEC2_EXIT();
+    return generation;
+}
+
+static void pending_sec2_rollback(PendingCommand &pending, PendingCommand *opposite,
+                                  uint32_t generation, const PendingCommand &previous,
+                                  const PendingCommand *previous_opposite = nullptr)
+{
+    PENDING_SEC2_ENTER();
+    if (pending.generation == generation)
+    {
+        pending = previous;
+        if (opposite && previous_opposite)
+            *opposite = *previous_opposite;
+    }
+    PENDING_SEC2_EXIT();
+}
+
+static bool pending_sec2_active(const PendingCommand &pending)
+{
+    PENDING_SEC2_ENTER();
+    bool active = pending.generation != 0;
+    PENDING_SEC2_EXIT();
+    return active;
+}
+
+static void pending_sec2_clear(PendingCommand &pending)
+{
+    PENDING_SEC2_ENTER();
+    pending.since = 0;
+    pending.generation = 0;
+    pending.sent = false;
+    PENDING_SEC2_EXIT();
+}
+
+static void pending_sec2_clear_if_generation(PendingCommand &pending, uint32_t generation)
+{
+    PENDING_SEC2_ENTER();
+    if (pending.generation == generation)
+    {
+        pending.since = 0;
+        pending.generation = 0;
+        pending.sent = false;
+    }
+    PENDING_SEC2_EXIT();
+}
+
+static PendingCommand *pending_sec2_command(PendingCommandType type)
+{
+    switch (type)
+    {
+    case PendingCommandType::Door:
+        return &pendingDoorCommand;
+    case PendingCommandType::LightOn:
+        return &pendingLightOn;
+    case PendingCommandType::LightOff:
+        return &pendingLightOff;
+    case PendingCommandType::LockOn:
+        return &pendingLockOn;
+    case PendingCommandType::LockOff:
+        return &pendingLockOff;
+    default:
+        return nullptr;
+    }
+}
+
+static void pending_sec2_sent(PendingCommandType type, uint32_t generation)
+{
+    PendingCommand *pending = pending_sec2_command(type);
+    if (!pending)
+        return;
+
+    _millis_t now = _millis();
+    PENDING_SEC2_ENTER();
+    if (generation && pending->generation == generation)
+    {
+        pending->since = now;
+        pending->sent = true;
+    }
+    PENDING_SEC2_EXIT();
+}
+
+static void pending_sec2_dropped(PendingCommandType type, uint32_t generation)
+{
+    PendingCommand *pending = pending_sec2_command(type);
+    if (pending)
+        pending_sec2_clear_if_generation(*pending, generation);
+}
+
+static void pending_sec2_sent(const PacketAction &action)
+{
+    pending_sec2_sent(action.pending_type, action.pending_generation);
+}
+
+static void pending_sec2_dropped(const PacketAction &action)
+{
+    pending_sec2_dropped(action.pending_type, action.pending_generation);
+}
+
+static void pending_sec2_acknowledge(PendingCommand &pending)
+{
+    PENDING_SEC2_ENTER();
+    if (pending.sent)
+    {
+        pending.since = 0;
+        pending.generation = 0;
+        pending.sent = false;
+    }
+    PENDING_SEC2_EXIT();
+}
+
+static void pending_sec2_acknowledge_pair(PendingCommand &pendingOn, PendingCommand &pendingOff)
+{
+    PENDING_SEC2_ENTER();
+    if (pendingOn.sent)
+    {
+        pendingOn.since = 0;
+        pendingOn.generation = 0;
+        pendingOn.sent = false;
+    }
+    if (pendingOff.sent)
+    {
+        pendingOff.since = 0;
+        pendingOff.generation = 0;
+        pendingOff.sent = false;
+    }
+    PENDING_SEC2_EXIT();
 }
 
 static void check_pending_sec2()
 {
     _millis_t now = _millis();
-    if (pending_expired(pendingLightOn, now))
+    bool lightOnExpired = false, lightOffExpired = false;
+    bool lockOnExpired = false, lockOffExpired = false, doorExpired = false;
+    PENDING_SEC2_ENTER();
+    if ((lightOnExpired = pending_expired(pendingLightOn, now)))
     {
+        pendingLightOn = {0, 0, false};
+    }
+    if ((lightOffExpired = pending_expired(pendingLightOff, now)))
+    {
+        pendingLightOff = {0, 0, false};
+    }
+    if ((lockOnExpired = pending_expired(pendingLockOn, now)))
+    {
+        pendingLockOn = {0, 0, false};
+    }
+    if ((lockOffExpired = pending_expired(pendingLockOff, now)))
+    {
+        pendingLockOff = {0, 0, false};
+    }
+    if ((doorExpired = pending_expired(pendingDoorCommand, now)))
+    {
+        pendingDoorCommand = {0, 0, false};
+    }
+    PENDING_SEC2_EXIT();
+
+    if (lightOnExpired)
         ESP_LOGW(TAG, "Timed out waiting for light command");
-        pendingLightOn = 0;
-    }
-    if (pending_expired(pendingLightOff, now))
-    {
+    if (lightOffExpired)
         ESP_LOGW(TAG, "Timed out waiting for light command");
-        pendingLightOff = 0;
-    }
-    if (pending_expired(pendingLockOn, now))
-    {
+    if (lockOnExpired)
         ESP_LOGW(TAG, "Timed out waiting for lock command");
-        pendingLockOn = 0;
-    }
-    if (pending_expired(pendingLockOff, now))
-    {
+    if (lockOffExpired)
         ESP_LOGW(TAG, "Timed out waiting for lock command");
-        pendingLockOff = 0;
-    }
-    if (pending_expired(pendingDoorCommand, now))
-    {
+    if (doorExpired)
         ESP_LOGW(TAG, "Timed out waiting for door command");
-        pendingDoorCommand = 0;
-    }
 }
 
 #define SEC1_CMD(s) (s == secplus1Codes::DoorButtonPress)      ? "door press"    \
@@ -969,7 +1169,7 @@ void sec1_poll_status(uint8_t sec1PollCmd)
     data.type = PacketDataType::Status;
     data.value.cmd = sec1PollCmd;
     Packet pkt = Packet(PacketCommand::Status, data, id_code);
-    PacketAction pkt_ac = {pkt, true, 0};
+    PacketAction pkt_ac = {pkt, true, 0, 0, PendingCommandType::None};
 
     if (!txQueuePush(&pkt_ac))
     {
@@ -1088,7 +1288,7 @@ void update_door_state(GarageDoorCurrentState current_state)
     _millis_t now = _millis();
 
     GarageDoorTargetState target_state = garage_door.target_state;
-    pendingDoorCommand = 0;
+    pending_sec2_acknowledge(pendingDoorCommand);
 
     // Determine target state
     switch (current_state)
@@ -1560,8 +1760,8 @@ void sec1_process_message(uint8_t key, uint8_t value = 0xFF)
             // Force update of light state in any listening client
             last_reported_garage_door.light = !garage_door.light;
             // Clear pending light on/off flags as we have now received an update from the door about the light state
-            pendingLightOn = 0;
-            pendingLightOff = 0;
+            pending_sec2_clear(pendingLightOn);
+            pending_sec2_clear(pendingLightOff);
             // If user want to trigger motion sensor based on light button, do it now as we know the light state has changed
             if (motionTriggers.bit.lightKey)
             {
@@ -1591,8 +1791,8 @@ void sec1_process_message(uint8_t key, uint8_t value = 0xFF)
             // Force update of lock state in any listening client
             last_reported_garage_door.current_lock = (LockCurrentState)0xFF;
             // Clear pending lock on/off flags as we have now received an update from the door about the lock state
-            pendingLockOn = 0;
-            pendingLockOff = 0;
+            pending_sec2_clear(pendingLockOn);
+            pending_sec2_clear(pendingLockOff);
             // If user want to trigger motion sensor based on lock button, do it now as we know the lock state has changed
             if (motionTriggers.bit.lockKey)
             {
@@ -1660,6 +1860,8 @@ bool process_send_queue()
         {
             // success, reset retry count
             retryCount = 0;
+            if (doorControlType == DOOR_CONTROL_SEC_PLUS_V2)
+                pending_sec2_sent(pkt_ac);
             // Remove TX packet from the queue
             txQueuePop(&pkt_ac);
         }
@@ -1679,6 +1881,8 @@ bool process_send_queue()
             {
                 ESP_LOGE(TAG, "SEC%d TX send failed, exceeded max retry", doorControlType);
                 retryCount = 0;
+                if (doorControlType == DOOR_CONTROL_SEC_PLUS_V2)
+                    pending_sec2_dropped(pkt_ac);
                 // Remove TX packet from the queue
                 txQueuePop(&pkt_ac);
             }
@@ -1920,8 +2124,7 @@ void comms_loop_sec2()
             if (pkt.m_data.value.status.light != garage_door.light)
             {
                 ESP_LOGI(TAG, "Light: %s (%s)", pkt.m_data.value.status.light ? "On" : "Off", timeString());
-                pendingLightOn = 0;
-                pendingLightOff = 0;
+                pending_sec2_acknowledge_pair(pendingLightOn, pendingLightOff);
                 notify_homekit_light(pkt.m_data.value.status.light);
             }
 
@@ -1945,8 +2148,7 @@ void comms_loop_sec2()
                 // Force update of lock state in any listening client
                 last_reported_garage_door.current_lock = (LockCurrentState)0xFF;
                 // Clear pending lock on/off flags as we have now received an update from the door about the lock state
-                pendingLockOn = 0;
-                pendingLockOff = 0;
+                pending_sec2_acknowledge_pair(pendingLockOn, pendingLockOff);
             }
 
             // Handle obstruction from status packet if pin-based detection not available
@@ -2032,8 +2234,7 @@ void comms_loop_sec2()
                 ESP_LOGD(TAG, "Lock Cmd %d", lock);
                 notify_homekit_target_lock(lock);
                 // Clear pending lock on/off flags as we have now received an update from the door about the lock state
-                pendingLockOn = 0;
-                pendingLockOff = 0;
+                pending_sec2_acknowledge_pair(pendingLockOn, pendingLockOff);
                 // If user want to trigger motion sensor based on lock button, do it now as we know the lock state has changed
                 if (motionTriggers.bit.lockKey)
                 {
@@ -2067,8 +2268,7 @@ void comms_loop_sec2()
                 ESP_LOGD(TAG, "Light Cmd %s", l ? "On" : "Off");
                 notify_homekit_light(l);
                 // Clear pending light on/off flags as we have now received an update from the door about the light state
-                pendingLightOn = 0;
-                pendingLightOff = 0;
+                pending_sec2_acknowledge_pair(pendingLightOn, pendingLightOff);
                 // If user want to trigger motion sensor based on light button, do it now as we know the light state has changed
                 if (motionTriggers.bit.lightKey)
                 {
@@ -2326,7 +2526,9 @@ void comms_loop_sec2()
                 lastStatusPkt == 0 ||
                 garage_door.current_state == GarageDoorCurrentState::CURR_OPENING ||
                 garage_door.current_state == GarageDoorCurrentState::CURR_CLOSING ||
-                pendingDoorCommand || pendingLightOn || pendingLightOff || pendingLockOn || pendingLockOff)
+                pending_sec2_active(pendingDoorCommand) || pending_sec2_active(pendingLightOn) ||
+                pending_sec2_active(pendingLightOff) || pending_sec2_active(pendingLockOn) ||
+                pending_sec2_active(pendingLockOff))
             {
                 ESP_LOGD(TAG, "Possibly missed a status packet, requesting GDO to resend");
                 send_get_status();
@@ -2621,7 +2823,9 @@ bool process_PacketAction(PacketAction &pkt_ac)
 
 bool door_command(DoorAction action)
 {
-    if (pendingDoorCommand)
+    uint32_t pendingGeneration = 0;
+    if (doorControlType != DOOR_CONTROL_DRY_CONTACT &&
+        !(pendingGeneration = pending_sec2_reserve(pendingDoorCommand, nullptr, true)))
     {
         ESP_LOGW(TAG, "Pending door command exists, dropping new command");
         return false;
@@ -2639,10 +2843,11 @@ bool door_command(DoorAction action)
         data.value.door_action.id = 1;
 
         Packet pkt = Packet(PacketCommand::DoorAction, data, id_code);
-        PacketAction pkt_ac = {pkt, false, 0};
+        PacketAction pkt_ac = {pkt, false, 0, 0, PendingCommandType::None};
         if (!txQueuePush(&pkt_ac))
         {
             ESP_LOGE(TAG, "packet queue full, dropping door command pressed pkt");
+            pending_sec2_clear_if_generation(pendingDoorCommand, pendingGeneration);
             return false;
         }
 
@@ -2661,12 +2866,19 @@ bool door_command(DoorAction action)
         if (doorControlType == DOOR_CONTROL_SEC_PLUS_V1)
             pkt_ac.pkt.m_data.value.cmd = secplus1Codes::DoorButtonRelease;
         pkt_ac.inc_counter = true;
+        if (doorControlType == DOOR_CONTROL_SEC_PLUS_V2)
+        {
+            pkt_ac.pending_generation = pendingGeneration;
+            pkt_ac.pending_type = PendingCommandType::Door;
+        }
         if (!txQueuePush(&pkt_ac))
         {
             ESP_LOGE(TAG, "packet queue full, dropping door command release pkt");
+            pending_sec2_clear_if_generation(pendingDoorCommand, pendingGeneration);
             return false;
         }
-        pendingDoorCommand = _millis();
+        if (doorControlType == DOOR_CONTROL_SEC_PLUS_V1)
+            pending_sec2_sent(PendingCommandType::Door, pendingGeneration);
 
         // if sec+1.0, repeat the release
         if (doorControlType == DOOR_CONTROL_SEC_PLUS_V1)
@@ -2771,7 +2983,7 @@ void door_command_close()
                                        // If this timer fires (was not cancelled when we get notification that door has stopped) then
                                        // we probably missed a status mesage, assume it's closed.
                                        ESP_LOGW(TAG, "Door did not close in expected time, assuming it is closed");
-                                       pendingDoorCommand = 0;
+                                       pending_sec2_clear(pendingDoorCommand);
                                        notify_homekit_current_door_state_change(GarageDoorCurrentState::CURR_CLOSED);
                                        if (!wpDisconnectOnTx)
                                            digitalWrite(STATUS_DOOR_PIN, LOW);
@@ -2786,7 +2998,7 @@ void door_command_close()
                                 // If this timer fires (was not cancelled when we get notification that door is closing) then
                                 // it is likely that there is an error and door did not move from its open state.
                                 checkDoorCompleted.detach();
-                                pendingDoorCommand = 0;
+                                pending_sec2_clear(pendingDoorCommand);
                                 ESP_LOGE(TAG, "Door is supposed to be closing but is not.  Current state: %s", DOOR_STATE(garage_door.current_state));
                                 notify_homekit_current_door_state_change(garage_door.current_state);
                                 if (!wpDisconnectOnTx && (doorControlType != DOOR_CONTROL_DRY_CONTACT))
@@ -2820,7 +3032,7 @@ void door_command_open()
                                        // If this timer fires (was not cancelled when we get notification that door has stopped) then
                                        // we probably missed a status mesage, assume it's open.
                                        ESP_LOGW(TAG, "Door did not open in expected time, assuming it is open");
-                                       pendingDoorCommand = 0;
+                                       pending_sec2_clear(pendingDoorCommand);
                                        notify_homekit_current_door_state_change(GarageDoorCurrentState::CURR_OPEN);
                                        if (!wpDisconnectOnTx)
                                            digitalWrite(STATUS_DOOR_PIN, HIGH);
@@ -2835,7 +3047,7 @@ void door_command_open()
                                 // If this timer fires (was not cancelled when we get notification that door is opening) then
                                 // it is likely that there is an error and door did not move from its closed state.
                                 checkDoorCompleted.detach();
-                                pendingDoorCommand = 0;
+                                pending_sec2_clear(pendingDoorCommand);
                                 ESP_LOGE(TAG, "Door is supposed to be opening but is not.  Current state: %s", DOOR_STATE(garage_door.current_state));
                                 notify_homekit_current_door_state_change(garage_door.current_state);
                                 if (!wpDisconnectOnTx && (doorControlType != DOOR_CONTROL_DRY_CONTACT))
@@ -3230,7 +3442,7 @@ void send_get_version()
     d.type = PacketDataType::NoData;
     d.value.no_data = NoData();
     Packet pkt = Packet(PacketCommand::Unknown, d, id_code);
-    PacketAction pkt_ac = {pkt, true, 0};
+    PacketAction pkt_ac = {pkt, true, 0, 0, PendingCommandType::None};
     if (!txQueuePush(&pkt_ac))
     {
         ESP_LOGE(TAG, "packet queue full, dropping get status pkt");
@@ -3247,7 +3459,7 @@ void send_get_status()
     d.type = PacketDataType::NoData;
     d.value.no_data = NoData();
     Packet pkt = Packet(PacketCommand::GetStatus, d, id_code);
-    PacketAction pkt_ac = {pkt, true, 0};
+    PacketAction pkt_ac = {pkt, true, 0, 0, PendingCommandType::None};
     if (!txQueuePush(&pkt_ac))
     {
         ESP_LOGE(TAG, "packet queue full, dropping get status pkt");
@@ -3265,7 +3477,7 @@ void send_get_openings()
     d.value.unknown = UnknownCommandData();
     d.value.unknown.flags = 0x01;
     Packet pkt = Packet(PacketCommand::GetOpenings, d, id_code);
-    PacketAction pkt_ac = {pkt, true, 0};
+    PacketAction pkt_ac = {pkt, true, 0, 0, PendingCommandType::None};
     if (!txQueuePush(&pkt_ac))
     {
         ESP_LOGE(TAG, "packet queue full, dropping get openings pkt");
@@ -3283,7 +3495,7 @@ void send_get_battery()
     d.value.unknown = UnknownCommandData();
     d.value.unknown.flags = 0x05;
     Packet pkt = Packet(PacketCommand::GetBattery, d, id_code);
-    PacketAction pkt_ac = {pkt, true, 0};
+    PacketAction pkt_ac = {pkt, true, 0, 0, PendingCommandType::None};
     if (!txQueuePush(&pkt_ac))
     {
         ESP_LOGE(TAG, "packet queue full, dropping get battery pkt");
@@ -3303,7 +3515,7 @@ void send_cancel_ttc()
     d.value.cancel_ttc.state = CancelTtcState::Cancel;
     d.value.cancel_ttc.flags = 0x01;
     Packet pkt = Packet(PacketCommand::CancelTtc, d, id_code);
-    PacketAction pkt_ac = {pkt, true, 0};
+    PacketAction pkt_ac = {pkt, true, 0, 0, PendingCommandType::None};
     if (!txQueuePush(&pkt_ac))
     {
         ESP_LOGE(TAG, "packet queue full, dropping cancel ttc pkt");
@@ -3321,7 +3533,7 @@ void send_set_ttc(uint16_t seconds)
     d.value.set_ttc.seconds = seconds;
     d.value.set_ttc.flags = 0x01;
     Packet pkt = Packet(PacketCommand::SetTtc, d, id_code);
-    PacketAction pkt_ac = {pkt, true, 0};
+    PacketAction pkt_ac = {pkt, true, 0, 0, PendingCommandType::None};
     if (!txQueuePush(&pkt_ac))
     {
         ESP_LOGE(TAG, "packet queue full, dropping set ttc pkt");
@@ -3362,12 +3574,6 @@ bool set_lock(bool value, bool verify)
             last_reported_garage_door.current_lock = (LockCurrentState)0xFF;
             return false;
         }
-        else if ((value && pendingLockOn) || (!value && pendingLockOff))
-        {
-            // We are already in the process of changing the lock state, so ignore duplicate request
-            ESP_LOGD(TAG, "Lock %s command already pending; ignored duplicate request", (value) ? "lock" : "unlock");
-            return false;
-        }
     }
 
     PacketData data;
@@ -3376,8 +3582,16 @@ bool set_lock(bool value, bool verify)
     garage_door.target_lock = (value) ? TGT_LOCKED : TGT_UNLOCKED;
     ESP_LOGD(TAG, "Set Garage Door Remote locks: %s", (value) ? "locked" : "unlocked");
 
-    pendingLockOn = value ? _millis() : 0;
-    pendingLockOff = value ? 0 : _millis();
+    PendingCommand &pending = value ? pendingLockOn : pendingLockOff;
+    PendingCommand &opposite = value ? pendingLockOff : pendingLockOn;
+    PendingCommand previousPending, previousOpposite;
+    uint32_t pendingGeneration = pending_sec2_reserve(pending, &opposite, verify,
+                                                       &previousPending, &previousOpposite);
+    if (!pendingGeneration)
+    {
+        ESP_LOGD(TAG, "Lock %s command already pending; ignored duplicate request", (value) ? "lock" : "unlock");
+        return false;
+    }
 
     // SECURITY1.0
     if (doorControlType == DOOR_CONTROL_SEC_PLUS_V1)
@@ -3385,11 +3599,12 @@ bool set_lock(bool value, bool verify)
         data.value.lock.pressed = true;
         data.value.cmd = secplus1Codes::LockButtonPress;
         Packet pkt = Packet(PacketCommand::Lock, data, id_code);
-        PacketAction pkt_ac = {pkt, true, 0};
+        PacketAction pkt_ac = {pkt, true, 0, 0, PendingCommandType::None};
 
         if (!txQueuePush(&pkt_ac))
         {
             ESP_LOGE(TAG, "packet queue full, dropping lock pkt");
+            pending_sec2_rollback(pending, &opposite, pendingGeneration, previousPending, &previousOpposite);
             return false;
         }
         // button release
@@ -3398,12 +3613,14 @@ bool set_lock(bool value, bool verify)
         if (!txQueuePush(&pkt_ac))
         {
             ESP_LOGE(TAG, "packet queue full, dropping lock pkt");
+            pending_sec2_rollback(pending, &opposite, pendingGeneration, previousPending, &previousOpposite);
             return false;
         }
         // repeat the release
         if (!txQueuePush(&pkt_ac))
         {
             ESP_LOGE(TAG, "packet queue full, dropping lock pkt");
+            pending_sec2_rollback(pending, &opposite, pendingGeneration, previousPending, &previousOpposite);
             return false;
         }
     }
@@ -3411,14 +3628,18 @@ bool set_lock(bool value, bool verify)
     else
     {
         Packet pkt = Packet(PacketCommand::Lock, data, id_code);
-        PacketAction pkt_ac = {pkt, true, 0};
+        PacketAction pkt_ac = {pkt, true, 0, 0, PendingCommandType::None};
+        pkt_ac.pending_generation = pendingGeneration;
+        pkt_ac.pending_type = value ? PendingCommandType::LockOn : PendingCommandType::LockOff;
         if (!txQueuePush(&pkt_ac))
         {
             ESP_LOGE(TAG, "packet queue full, dropping lock pkt");
-            pendingLockOn = pendingLockOff = 0;
+            pending_sec2_rollback(pending, &opposite, pendingGeneration, previousPending, &previousOpposite);
             return false;
         }
     }
+    if (doorControlType == DOOR_CONTROL_SEC_PLUS_V1)
+        pending_sec2_sent(value ? PendingCommandType::LockOn : PendingCommandType::LockOff, pendingGeneration);
     return true;
 }
 #endif // USE_GDOLIB
@@ -3445,7 +3666,7 @@ void sec1_light_press(uint32_t delay)
     data.value.light.pressed = true;
     data.value.cmd = secplus1Codes::LightButtonPress;
     Packet pkt = Packet(PacketCommand::Light, data, id_code);
-    PacketAction pkt_ac = {pkt, true, delay};
+    PacketAction pkt_ac = {pkt, true, delay, 0, PendingCommandType::None};
 
     if (!txQueuePush(&pkt_ac))
     {
@@ -3467,7 +3688,7 @@ void sec1_light_release(uint8_t howManyReleases, uint32_t delay)
     data.value.light.pressed = false;
     data.value.cmd = secplus1Codes::LightButtonRelease;
     Packet pkt = Packet(PacketCommand::Light, data, id_code);
-    PacketAction pkt_ac = {pkt, true, delay};
+    PacketAction pkt_ac = {pkt, true, delay, 0, PendingCommandType::None};
 
     for (int numReleases = 0; numReleases < std::max(2, (int)howManyReleases); numReleases++)
     {
@@ -3490,18 +3711,20 @@ bool set_light(bool value, bool verify)
             last_reported_garage_door.light = !value;
             return false;
         }
-        else if ((value && pendingLightOn) || (!value && pendingLightOff))
-        {
-            // We have already sent a command to change the light, but haven't received confirmation yet.  Don't send another command.
-            ESP_LOGD(TAG, "Light %s command already pending; ignored duplicate request", (value) ? "on" : "off");
-            return false;
-        }
     }
 
     ESP_LOGD(TAG, "Set Garage Door Light: %s", (value) ? "on" : "off");
 
-    pendingLightOn = value ? _millis() : 0;
-    pendingLightOff = value ? 0 : _millis();
+    PendingCommand &pending = value ? pendingLightOn : pendingLightOff;
+    PendingCommand &opposite = value ? pendingLightOff : pendingLightOn;
+    PendingCommand previousPending, previousOpposite;
+    uint32_t pendingGeneration = pending_sec2_reserve(pending, &opposite, verify,
+                                                       &previousPending, &previousOpposite);
+    if (!pendingGeneration)
+    {
+        ESP_LOGD(TAG, "Light %s command already pending; ignored duplicate request", (value) ? "on" : "off");
+        return false;
+    }
 
     // SECURITY+1.0
     if (doorControlType == DOOR_CONTROL_SEC_PLUS_V1)
@@ -3509,6 +3732,7 @@ bool set_light(bool value, bool verify)
         // only can toggle the light
         sec1_light_press();
         sec1_light_release();
+        pending_sec2_sent(value ? PendingCommandType::LightOn : PendingCommandType::LightOff, pendingGeneration);
     }
     // SECURITY+2.0
     else
@@ -3517,11 +3741,13 @@ bool set_light(bool value, bool verify)
         data.type = PacketDataType::Light;
         data.value.light.light = (value) ? LightState::On : LightState::Off;
         Packet pkt = Packet(PacketCommand::Light, data, id_code);
-        PacketAction pkt_ac = {pkt, true, 0};
+        PacketAction pkt_ac = {pkt, true, 0, 0, PendingCommandType::None};
+        pkt_ac.pending_generation = pendingGeneration;
+        pkt_ac.pending_type = value ? PendingCommandType::LightOn : PendingCommandType::LightOff;
         if (!txQueuePush(&pkt_ac))
         {
             ESP_LOGE(TAG, "packet queue full, dropping light pkt");
-            pendingLightOn = pendingLightOff = 0;
+            pending_sec2_rollback(pending, &opposite, pendingGeneration, previousPending, &previousOpposite);
             return false;
         }
         if (verify)
