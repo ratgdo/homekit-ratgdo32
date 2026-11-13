@@ -411,11 +411,32 @@ static uint32_t pendingSec2Generation = 0;
 
 #ifdef ESP32
 static portMUX_TYPE pendingSec2Mux = portMUX_INITIALIZER_UNLOCKED;
+static SemaphoreHandle_t pendingSec2QueueMutex = nullptr;
 #define PENDING_SEC2_ENTER() taskENTER_CRITICAL(&pendingSec2Mux)
 #define PENDING_SEC2_EXIT() taskEXIT_CRITICAL(&pendingSec2Mux)
+class PendingSec2QueueGuard
+{
+public:
+    PendingSec2QueueGuard() : acquired(pendingSec2QueueMutex != nullptr)
+    {
+        if (acquired)
+            xSemaphoreTake(pendingSec2QueueMutex, portMAX_DELAY);
+    }
+    ~PendingSec2QueueGuard()
+    {
+        if (acquired)
+            xSemaphoreGive(pendingSec2QueueMutex);
+    }
+
+private:
+    bool acquired;
+};
 #else
 #define PENDING_SEC2_ENTER() ((void)0)
 #define PENDING_SEC2_EXIT() ((void)0)
+class PendingSec2QueueGuard
+{
+};
 #endif
 
 #define SECPLUS2_PENDING_TIMEOUT 1000
@@ -487,6 +508,7 @@ static bool pending_sec2_active(const PendingCommand &pending)
 
 static void pending_sec2_clear(PendingCommand &pending)
 {
+    PendingSec2QueueGuard queueGuard;
     PENDING_SEC2_ENTER();
     pending.since = 0;
     pending.generation = 0;
@@ -560,6 +582,7 @@ static void pending_sec2_dropped(const PacketAction &action)
 
 static void pending_sec2_acknowledge(PendingCommand &pending)
 {
+    PendingSec2QueueGuard queueGuard;
     PENDING_SEC2_ENTER();
     if (pending.sent)
     {
@@ -572,6 +595,7 @@ static void pending_sec2_acknowledge(PendingCommand &pending)
 
 static void pending_sec2_acknowledge_pair(PendingCommand &pendingOn, PendingCommand &pendingOff)
 {
+    PendingSec2QueueGuard queueGuard;
     PENDING_SEC2_ENTER();
     if (pendingOn.sent)
     {
@@ -831,6 +855,16 @@ void setup_comms()
 {
     if (comms_setup_done)
         return;
+
+#if defined(ESP32) && !defined(USE_GDOLIB)
+    if (!pendingSec2QueueMutex)
+        pendingSec2QueueMutex = xSemaphoreCreateMutex();
+    if (!pendingSec2QueueMutex)
+    {
+        ESP_LOGE(TAG, "Failed to create pending command queue mutex");
+        return;
+    }
+#endif
 
     if (doorControlType == DOOR_CONTROL_UNKNOWN)
         doorControlType = static_cast<door_control_type_t>(userConfig->getGDOSecurityType());
@@ -1811,6 +1845,7 @@ void sec1_process_message(uint8_t key, uint8_t value = 0xFF)
 
 bool process_send_queue()
 {
+    PendingSec2QueueGuard queueGuard;
     // PROCESS TRANSMIT QUEUE
     //
     PacketAction pkt_ac;
@@ -2823,6 +2858,7 @@ bool process_PacketAction(PacketAction &pkt_ac)
 
 bool door_command(DoorAction action)
 {
+    PendingSec2QueueGuard queueGuard;
     uint32_t pendingGeneration = 0;
     if (doorControlType != DOOR_CONTROL_DRY_CONTACT &&
         !(pendingGeneration = pending_sec2_reserve(pendingDoorCommand, nullptr, true)))
@@ -3564,6 +3600,7 @@ bool set_lock(bool value, bool verify)
 #else  // USE_GDOLIB
 bool set_lock(bool value, bool verify)
 {
+    PendingSec2QueueGuard queueGuard;
     // return value: true = lock state changed, else state unchanged
     if (verify)
     {
@@ -3701,6 +3738,7 @@ void sec1_light_release(uint8_t howManyReleases, uint32_t delay)
 
 bool set_light(bool value, bool verify)
 {
+    PendingSec2QueueGuard queueGuard;
     // return value: true = light state changed, else state unchanged
     if (verify)
     {

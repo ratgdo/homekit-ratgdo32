@@ -10,7 +10,7 @@ SOURCE = Path(__file__).resolve().parents[1] / "src/comms.cpp"
 class Sec2PendingTimeoutTest(unittest.TestCase):
     def test_pending_timeouts_follow_queued_generation(self):
         source = SOURCE.read_text()
-        start = source.index("static PendingCommand pendingLightOn =")
+        start = source.index("#define SECPLUS2_PENDING_TIMEOUT")
         end = source.index("#define SEC1_CMD", start)
         helpers = source[start:end]
         loop_start = source.index("void comms_loop_sec2()")
@@ -20,18 +20,24 @@ class Sec2PendingTimeoutTest(unittest.TestCase):
         self.assertIn("pending_sec2_sent(pkt_ac);", source)
         self.assertIn("pending_sec2_dropped(pkt_ac);", source)
         self.assertIn("pkt_ac.pending_generation = pendingGeneration;", source)
+        self.assertIn("pendingSec2QueueMutex = xSemaphoreCreateMutex();", source)
+        for signature in (
+            "bool process_send_queue()\n{\n    PendingSec2QueueGuard queueGuard;",
+            "bool door_command(DoorAction action)\n{\n    PendingSec2QueueGuard queueGuard;",
+            "bool set_lock(bool value, bool verify)\n{\n    PendingSec2QueueGuard queueGuard;",
+            "bool set_light(bool value, bool verify)\n{\n    PendingSec2QueueGuard queueGuard;",
+        ):
+            self.assertIn(signature, source)
         harness = r"""
 #include <cassert>
 #include <cstdint>
 #ifdef ESP32
 using _millis_t = int64_t;
-using portMUX_TYPE = int;
-#define portMUX_INITIALIZER_UNLOCKED 0
-#define taskENTER_CRITICAL(mux) ((void)(mux))
-#define taskEXIT_CRITICAL(mux) ((void)(mux))
 #else
 using _millis_t = uint32_t;
 #endif
+#define PENDING_SEC2_ENTER() ((void)0)
+#define PENDING_SEC2_EXIT() ((void)0)
 enum class PendingCommandType : uint8_t { None, Door, LightOn, LightOff, LockOn, LockOff };
 struct PendingCommand { _millis_t since; uint32_t generation; bool sent; };
 struct PacketAction {
@@ -40,6 +46,15 @@ struct PacketAction {
     uint32_t delay;
     uint32_t pending_generation;
     PendingCommandType pending_type;
+};
+PendingCommand pendingLightOn = {0, 0, false}, pendingLightOff = {0, 0, false};
+PendingCommand pendingLockOn = {0, 0, false}, pendingLockOff = {0, 0, false};
+PendingCommand pendingDoorCommand = {0, 0, false};
+uint32_t pendingSec2Generation = 0;
+int queueGuardCount = 0;
+struct PendingSec2QueueGuard {
+    PendingSec2QueueGuard() { ++queueGuardCount; }
+    ~PendingSec2QueueGuard() { --queueGuardCount; }
 };
 uint32_t now = 0;
 _millis_t _millis() { return now; }
@@ -124,6 +139,7 @@ int main() {
     now = 499; check_pending_sec2(); assert(pending_sec2_active(pendingLightOff));
     now = 500; check_pending_sec2(); assert(!pending_sec2_active(pendingLightOff));
 #endif
+    assert(queueGuardCount == 0);
 }
 """
         with tempfile.TemporaryDirectory() as tmp:
