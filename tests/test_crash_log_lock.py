@@ -47,7 +47,7 @@ HARNESS = r'''
 using _millis_t = int64_t;
 std::recursive_mutex logMutex;
 thread_local int held=0;
-#define TAKE_MUTEX() do { logMutex.lock(); ++held; } while (0)
+#define TAKE_MUTEX(delay) do { logMutex.lock(); ++held; } while (0)
 #define GIVE_MUTEX() do { --held; logMutex.unlock(); } while (0)
 struct Buffer { uint32_t wrapped=0, head=0; char buffer[32]{}; } rtcCrashLog;
 int32_t crashCount=0; time_t crashTime=0; _millis_t crashUpTime=0;
