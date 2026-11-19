@@ -86,6 +86,9 @@ bool helperLightHomeKit(const std::string &key, const char *value, configSetting
 bool helperMotionHomeKit(const std::string &key, const char *value, configSetting *action);
 bool helperStopDoorHomeKit(const std::string &key, const char *value, configSetting *action);
 #endif
+#ifdef USE_GDOLIB
+bool helperUseSWserial(const std::string &key, const char *value, configSetting *action);
+#endif
 
 #ifdef ESP8266
 static inline bool isPROGMEM(const void *ptr)
@@ -396,12 +399,13 @@ bool helperBuiltInTTC(const std::string &key, const char *value, configSetting *
     userConfig->set(key, value);
     garage_door.builtInTTC = userConfig->getBuiltInTTC();
 #ifdef USE_GDOLIB
-    if (!userConfig->getBuiltInTTC())
-    {
-        // We have just disabled use of GDO's built-in time-to-close.
-        ESP_LOGI(TAG, "Disable built-in TTC, set to: %d", userConfig->getTTCseconds() < 60 ? 0 : userConfig->getTTCseconds());
-        gdo_set_time_to_close(userConfig->getTTCseconds() < 60 ? 0 : userConfig->getTTCseconds());
-    }
+    // Built-in time-to-close only exists on Sec+ 2.0
+    if (doorControlType != DOOR_CONTROL_SEC_PLUS_V2)
+        return true;
+    if (garage_door.builtInTTC == 0)
+        gdo_cancel_ttc();
+    else
+        gdo_set_time_to_close(garage_door.builtInTTC);
 #else
     if (garage_door.builtInTTC == 0)
     {

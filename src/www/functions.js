@@ -400,11 +400,17 @@ function setElementsFromStatus(status) {
                 document.getElementById("lastRebootAt").innerHTML = date.toLocaleString(tzFormat, tzOptions);
                 break;
             case "GDOSecurityType":
-                document.getElementById(key).innerHTML = (value == 1) ? "Sec+" : (value == 2) ? "Sec+&nbsp;2.0" : "Dry&nbsp;Contact";
+                // 4 and 5 only exist in GDOLIB builds, which report the protocol in use
+                const doorType = serverStatus.doorControlType ?? value;
+                document.getElementById(key).innerHTML = (value == 1) ? "Sec+" : (value == 2) ? "Sec+&nbsp;2.0" : (value == 4) ? "Sec+&nbsp;w/&nbsp;smart&nbsp;panel" : (value == 5) ? "Auto" : "Dry&nbsp;Contact";
                 document.getElementById("gdosec1").checked = (value == 1);
                 document.getElementById("gdosec2").checked = (value == 2);
                 document.getElementById("gdodrycontact").checked = (value == 3);
-                document.getElementById("builtInTTCrow").style.display = (value == 2) ? "table-row" : "none";
+                document.getElementById("gdosecpanel").checked = (value == 4);
+                document.getElementById("gdosecauto").checked = (value == 5);
+                if (serverStatus.doorControlType != undefined)
+                    document.getElementById("gdolibProtocols").style.display = "inline";
+                document.getElementById("builtInTTCrow").style.display = (doorType == 2) ? "table-row" : "none";
                 document.getElementById("lockButton").style.display = (value != 3) ? "inline-block" : "none";
                 document.getElementById("doorButton").style.margin = (value != 3) ? "" : "auto"; // auto will center the button
                 document.getElementById("lightButton").style.display = (value != 3) ? "inline-block" : "none";
@@ -415,13 +421,13 @@ function setElementsFromStatus(status) {
                 }
                 document.getElementById("dcOpenClose").disabled = (value == 3);
                 document.getElementById("obstFromStatus").disabled = (value == 3);
-                document.getElementById("useToggle").disabled = (value != 2);
+                document.getElementById("useToggle").disabled = (doorType != 2);
                 document.getElementById("lightHomeKit").disabled = (value == 3);
                 document.getElementById("dcDebounceDurationRow").style.opacity = (value == 3) ? 1 : 0.5;
                 document.getElementById("dcDebounceDuration").disabled = (value != 3);
-                document.getElementById("motionMotion").disabled = (value != 2);
+                document.getElementById("motionMotion").disabled = (doorType != 2);
                 //document.getElementById("encoderEnabled").disabled = (value != 3);
-                document.getElementById("gdoFirmwareRow").style.display = (value == 2) ? "table-row" : "none";
+                document.getElementById("gdoFirmwareRow").style.display = (doorType == 2) ? "table-row" : "none";
                 document.getElementById("wpDisconnectOnTx").disabled = (value != 1);
                 toggleEncoderOptions();
                 toggleHardwiredBypassRow();
@@ -783,6 +789,7 @@ function setElementsFromStatus(status) {
             case "webMaxResponseTime":
             case "openHistory":
             case "closeHistory":
+            case "doorControlType":
                 // No-op: Not displayed in UI
                 break;
             default:
@@ -1458,7 +1465,9 @@ async function saveSettings() {
         return;
     }
     const gdoSec = (document.getElementById("gdosec1").checked) ? '1'
-        : (document.getElementById("gdosec2").checked) ? '2' : '3';
+        : (document.getElementById("gdosec2").checked) ? '2'
+        : (document.getElementById("gdosecpanel").checked) ? '4'
+        : (document.getElementById("gdosecauto").checked) ? '5' : '3';
     const pwReq = (document.getElementById("pwreq").checked) ? '1' : '0';
 
     const motionTriggers = getMotionTriggers();
