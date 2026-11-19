@@ -41,6 +41,9 @@ static uint64_t logAppendBytes = 0;
 
 // Logger tag
 static const char *TAG = "ratgdo-logger";
+#ifdef GRGDO1_V1
+SerialConsoleState serialConsole;
+#endif
 
 // Construct the singleton object for logger access
 LOG *LOG::instancePtr = new LOG();
@@ -67,7 +70,11 @@ esp_log_level_t logLevel = ESP_LOG_VERBOSE;
 
 void SERIAL_PRINT(const char *str)
 {
+#ifdef GRGDO1_V1
+    if (serialConsole.isReady() && !suppressSerialLog)
+#else
     if (!suppressSerialLog)
+#endif
     {
         while (*str)
             rom_putc(*str++);
@@ -82,10 +89,15 @@ void esp_log_hook(const char *fmt, va_list args)
         // Before we can log anything, we need to initialize the serial port.
         // On ESP32, Serial.begin() and Serial.print() can block on UART driver locks while
         // lwIP holds its core lock. ROM printf writes the UART directly
+#ifdef GRGDO1_V1
+        // GRGDO1 rev1 lends UART0's pins to I2C, so never restart or wait on it then.
+        serialConsole.ensureStarted(Serial);
+#else
         Serial.begin(115200);
         while (!Serial)
             ; // Wait for serial port to open
         Serial.print("\n\n\n");
+#endif
     }
 
     if (ratgdoLogger)
@@ -234,6 +246,18 @@ LOG::LOG()
     msgBuffer->wrapped = 0;
     msgBuffer->head = 0;
 }
+
+#ifdef GRGDO1_V1
+void LOG::disableSerialConsole()
+{
+    // Drain any in-flight logger serial write before UART teardown. Release the
+    // log lock before end(), which can itself emit framework log messages.
+    TAKE_MUTEX(portMAX_DELAY);
+    serialConsole.disable();
+    suppressSerialLog = true;
+    GIVE_MUTEX();
+}
+#endif
 
 void LOG::logToBuffer(const char *fmt, va_list args)
 {

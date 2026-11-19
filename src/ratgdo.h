@@ -42,6 +42,7 @@
 #define SERIAL_NUMBER "0P3ND00R"
 #define MODEL_NAME "ratgdo_v2.5"
 #define CHIP_FAMILY "ESP8266"
+#define HARDWARE_NAME "ratgdo"
 #else // not ESP8266
 #ifndef DEVICE_NAME
 #define DEVICE_NAME "homekit-ratgdo"
@@ -57,6 +58,13 @@
 #endif
 #ifndef CHIP_FAMILY
 #define CHIP_FAMILY "ESP32"
+#endif
+#ifdef GRGDO1_V1
+#define HARDWARE_NAME "grgdo1-rev1"
+#elif defined(GRGDO1_V2)
+#define HARDWARE_NAME "grgdo1-rev2"
+#else
+#define HARDWARE_NAME "ratgdo32" // also ratgdo32-disco, same firmware
 #endif
 #endif // ESP8266
 

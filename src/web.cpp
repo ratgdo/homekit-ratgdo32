@@ -932,12 +932,16 @@ void build_status_json(char *json)
     // Build the JSON string
     _millis_t upTime = _millis();
     JSON_START(json);
+#ifdef GITUSER
+    JSON_ADD_STR("gitUser", gitUser);
+#endif
     JSON_ADD_STR("gitRepo", gitRepo);
     JSON_ADD_INT("upTime", upTime);
     JSON_ADD_STR(cfg_deviceName, userConfig->getDeviceName());
     JSON_ADD_STR("userName", userConfig->getwwwUsername());
     JSON_ADD_BOOL("paired", homekit_is_paired());
     JSON_ADD_STR("firmwareVersion", std::string(AUTO_VERSION).c_str());
+    JSON_ADD_STR("hardware", HARDWARE_NAME);
     JSON_ADD_STR(cfg_localIP, userConfig->getLocalIP());
     JSON_ADD_STR(cfg_subnetMask, userConfig->getSubnetMask());
     JSON_ADD_STR(cfg_gatewayIP, userConfig->getGatewayIP());
