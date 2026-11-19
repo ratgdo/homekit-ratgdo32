@@ -795,11 +795,11 @@ void setup_comms()
             .uart_tx_pin = UART_TX_PIN,
             .uart_rx_pin = UART_RX_PIN,
             .obst_in_pin = INPUT_OBST_PIN,
-            .obst_tp_pin = GPIO_NUM_0,  // only used for testing obstruction sensor
-            .dc_open_pin = GPIO_NUM_0,  // disable dry-contact
-            .dc_close_pin = GPIO_NUM_0, // disable dry-contact
-            .dc_discrete_open_pin = GPIO_NUM_0,
-            .dc_discrete_close_pin = GPIO_NUM_0,
+            .obst_tp_pin = GPIO_NUM_NC,  // only used for testing obstruction sensor
+            .dc_open_pin = GPIO_NUM_NC,  // disable dry-contact
+            .dc_close_pin = GPIO_NUM_NC, // disable dry-contact
+            .dc_discrete_open_pin = GPIO_NUM_NC,
+            .dc_discrete_close_pin = GPIO_NUM_NC,
             .use_sw_serial = userConfig->getUseSWserial(),
         };
         if (userConfig->getDCOpenClose())
@@ -866,7 +866,7 @@ void setup_comms()
             .uart_tx_pin = UART_TX_PIN,
             .uart_rx_pin = UART_RX_PIN, // not used for dry contact
             .obst_in_pin = INPUT_OBST_PIN,
-            .obst_tp_pin = GPIO_NUM_0, // only used for testing obstruction sensor
+            .obst_tp_pin = GPIO_NUM_NC, // only used for testing obstruction sensor
             .dc_open_pin = DRY_CONTACT_OPEN_PIN,
             .dc_close_pin = DRY_CONTACT_CLOSE_PIN,
             .dc_discrete_open_pin = DISCRETE_OPEN_PIN,
