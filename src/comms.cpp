@@ -820,8 +820,8 @@ void setup_comms()
             .obst_tp_pin = GPIO_NUM_0, // only used for testing obstruction sensor
             .dc_open_pin = DRY_CONTACT_OPEN_PIN,
             .dc_close_pin = DRY_CONTACT_CLOSE_PIN,
-            .dc_discrete_open_pin = (DISCRETE_OPEN_PIN >= 0) ? DISCRETE_OPEN_PIN : GPIO_NUM_0, // gdolib treats GPIO_NUM_0 as not used
-            .dc_discrete_close_pin = (DISCRETE_CLOSE_PIN >= 0) ? DISCRETE_CLOSE_PIN : GPIO_NUM_0,
+            .dc_discrete_open_pin = DISCRETE_OPEN_PIN,
+            .dc_discrete_close_pin = DISCRETE_CLOSE_PIN,
             .dc_debounce_ms = (uint32_t)userConfig->getDCDebounceDuration(),
         };
         if ((err = gdo_set_protocol(GDO_PROTOCOL_DRY_CONTACT)) != ESP_OK)
