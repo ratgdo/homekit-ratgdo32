@@ -941,7 +941,11 @@ void build_status_json(char *json)
     JSON_ADD_STR("userName", userConfig->getwwwUsername());
     JSON_ADD_BOOL("paired", homekit_is_paired());
     JSON_ADD_STR("firmwareVersion", std::string(AUTO_VERSION).c_str());
+#ifdef HARDWARE_NAME_DISCO
+    JSON_ADD_STR("hardware", garage_door.has_distance_sensor ? HARDWARE_NAME_DISCO : HARDWARE_NAME);
+#else
     JSON_ADD_STR("hardware", HARDWARE_NAME);
+#endif
     JSON_ADD_STR(cfg_localIP, userConfig->getLocalIP());
     JSON_ADD_STR(cfg_subnetMask, userConfig->getSubnetMask());
     JSON_ADD_STR(cfg_gatewayIP, userConfig->getGatewayIP());

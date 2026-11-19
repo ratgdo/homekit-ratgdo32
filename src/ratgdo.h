@@ -64,7 +64,11 @@
 #elif defined(GRGDO1_V2)
 #define HARDWARE_NAME "grgdo1-rev2"
 #else
-#define HARDWARE_NAME "ratgdo32" // also ratgdo32-disco, same firmware
+#define HARDWARE_NAME "ratgdo32"
+#ifdef RATGDO32_DISCO
+// Same firmware as ratgdo32, reported once the distance sensor has been found
+#define HARDWARE_NAME_DISCO "ratgdo32-disco"
+#endif
 #endif
 #endif // ESP8266
 
