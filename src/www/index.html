@@ -195,6 +195,12 @@
                     id="vehicleDistInch"></span>&nbsp;inch)</span>
               </td>
             </tr>
+            <tr id="temperatureRow" style="display:none;">
+              <td colspan="2">Temperature:</td>
+              <td id="degrees"></td>
+              <td colspan="3">Humidity:</td>
+              <td id="humidity"></td>
+            </tr>
           </table>
         </div>
         <div id="GDOcontrols" class="fullwidth button-row"
@@ -505,6 +511,15 @@
                   </table>
                 </td>
               </tr>
+              <tr id="celsiusRow" style="display:none;">
+                <td class="label">Temperature:</td>
+                <td>
+                  <input type="radio" id="celsius" name="celsius" value="1">
+                  <label for="celsius">Celsius</label>
+                  <input type="radio" id="fahrenheit" name="celsius" value="0">
+                  <label for="fahrenheit">Fahrenheit</label>
+                </td>
+              </tr>
               <tr>
                 <td style="font-size: 0.65em;"><br><u>Reboot required:</u></td>
                 <td></td>
@@ -608,6 +623,13 @@
                       </td>
                     </tr>
                   </table>
+                </td>
+              </tr>
+              <tr id="dht22PinRow" style="display:none;">
+                <td class="label">DHT22 Sensor:</td>
+                <td>
+                  <input type="number" id="dht22Pin" name="dht22Pin" placeholder="-1" min="-1" max="33" size="3" style="width:50px;">
+                  <span style="font-size: 0.8em;">GPIO pin (-1 to disable)</span>
                 </td>
               </tr>
               <tr id="trWifiPhyMode" style="display: none">

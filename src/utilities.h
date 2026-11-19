@@ -79,6 +79,10 @@ extern bool softAPmode;
 extern const char www_realm[];
 // automatically reboot after X seconds
 extern uint32_t rebootSeconds;
+#ifdef USE_DHT22
+// DHT22 sensor GPIO pin, -1 if none
+extern int dht22Pin;
+#endif
 
 // Bitset that identifies what will trigger the motion sensor
 typedef struct

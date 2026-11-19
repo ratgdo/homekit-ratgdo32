@@ -45,6 +45,10 @@ bool softAPmode = false;
 const char www_realm[] = "RATGDO Login Required";
 // automatically reboot after X seconds
 uint32_t rebootSeconds = 0;
+#ifdef USE_DHT22
+// DHT22 sensor GPIO pin, -1 if none
+int dht22Pin = -1;
+#endif
 
 time_t clockSet = 0;
 bool enableNTP = false;
@@ -220,6 +224,9 @@ void load_all_config_settings()
     syslogFacility = userConfig->getSyslogFacility();
     rebootSeconds = userConfig->getRebootSeconds();
     garage_door.builtInTTC = userConfig->getBuiltInTTC();
+#ifdef USE_DHT22
+    dht22Pin = userConfig->getDHT22Pin();
+#endif
 
     // Now log what we have loaded
     ESP_LOGI(TAG, "   deviceName:          %s", userConfig->getDeviceName());
