@@ -1074,7 +1074,7 @@ void build_status_json(char *json)
     JSON_ADD_BOOL(cfg_TTCsound, userConfig->getTTCsound());
 #endif
 #ifdef USE_DHT22
-    JSON_ADD_INT(cfg_dht22Pin, (int32_t)userConfig->getDHT22Pin());
+    JSON_ADD_INT(cfg_dht22Pin, userConfig->getDHT22Pin());
     JSON_ADD_BOOL(cfg_celsius, userConfig->getCelsius());
     if (!isnan(temperature))
         JSON_ADD_FLOAT("degrees", temperature);
