@@ -47,7 +47,7 @@ const char www_realm[] = "RATGDO Login Required";
 uint32_t rebootSeconds = 0;
 #ifdef USE_DHT22
 // DHT22 sensor GPIO pin, -1 if none
-int dht22Pin = -1;
+gpio_num_t dht22Pin = GPIO_NUM_NC;
 #endif
 
 time_t clockSet = 0;
