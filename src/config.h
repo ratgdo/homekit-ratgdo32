@@ -229,7 +229,7 @@ public:
 #endif
 #ifdef USE_DHT22
     // -1 unless the saved pin is an output capable GPIO other than 6-11 (SPI flash)
-    int getDHT22Pin() { int p = std::get<int>(get(cfg_dht22Pin)); return (p >= 0 && p < GPIO_PIN_COUNT && GPIO_IS_VALID_OUTPUT_GPIO(p) && (p < 6 || p > 11)) ? p : -1; };
+    int32_t getDHT22Pin() { int p = std::get<int>(get(cfg_dht22Pin)); return (p >= 0 && p < GPIO_PIN_COUNT && GPIO_IS_VALID_OUTPUT_GPIO(p) && (p < 6 || p > 11)) ? p : -1; };
     bool getCelsius() { return std::get<bool>(get(cfg_celsius)); };
 #endif
 #ifdef RATGDO32_DISCO
