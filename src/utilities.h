@@ -81,7 +81,7 @@ extern const char www_realm[];
 extern uint32_t rebootSeconds;
 #ifdef USE_DHT22
 // DHT22 sensor GPIO pin, -1 if none
-extern int dht22Pin;
+extern gpio_num_t dht22Pin;
 #endif
 
 // Bitset that identifies what will trigger the motion sensor
