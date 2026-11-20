@@ -97,7 +97,7 @@ constexpr char cfg_encoderEnabled[] PROGMEM = "encoderEnabled";
 constexpr char cfg_encoderReversed[] PROGMEM = "encoderReversed";
 #endif
 #ifdef USE_DHT22
-constexpr char cfg_dht22Pin[] PROGMEM = "dht22Pin"; // same key as GRGDO1 firmware, so a saved pin carries over
+constexpr char cfg_dht22Pin[] PROGMEM = "dht22Pin";
 constexpr char cfg_celsius[] PROGMEM = "celsius";
 #endif
 #ifdef ESP8266
@@ -229,7 +229,7 @@ public:
 #endif
 #ifdef USE_DHT22
     // -1 unless the saved pin is an output capable GPIO other than 6-11 (SPI flash)
-    int32_t getDHT22Pin() { int p = std::get<int>(get(cfg_dht22Pin)); return (p >= 0 && p < GPIO_PIN_COUNT && GPIO_IS_VALID_OUTPUT_GPIO(p) && (p < 6 || p > 11)) ? p : -1; };
+    gpio_num_t getDHT22Pin() { int p = std::get<int>(get(cfg_dht22Pin)); return (p >= 0 && p < GPIO_PIN_COUNT && GPIO_IS_VALID_OUTPUT_GPIO(p) && (p < 6 || p > 11)) ? static_cast<gpio_num_t>(p) : GPIO_NUM_NC; };
     bool getCelsius() { return std::get<bool>(get(cfg_celsius)); };
 #endif
 #ifdef RATGDO32_DISCO
