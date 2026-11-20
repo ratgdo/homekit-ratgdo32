@@ -17,7 +17,6 @@
 
 #include <cstring>
 #include <cstdint>
-#include <cstdio>
 #include <string>
 
 // Keep room for JSON_END ("\n}\0") so a truncated object is still valid JSON.
