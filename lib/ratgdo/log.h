@@ -16,6 +16,10 @@
 
 #include <Arduino.h>
 #include <IPAddress.h>
+#ifdef GRGDO1_V1
+#include "serial_console.h"
+extern SerialConsoleState serialConsole;
+#endif
 #ifdef ESP8266
 #include <LittleFS.h>
 #include "EspSaveCrash.h"
@@ -140,6 +144,9 @@ public:
     void clearCrashLog();
     void printCrashLog(Print &outDevice = Serial);
     void saveMessageLog();
+#ifdef GRGDO1_V1
+    void disableSerialConsole();
+#endif
 };
 extern LOG *ratgdoLogger;
 

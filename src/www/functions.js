@@ -23,6 +23,8 @@ var setGDOcmds = {              // setGDO commands that are not sent from server
 };
 var gitUser = "ratgdo";         // default git user.
 var gitRepo = "homekit-ratgdo"; // default git repository.
+// Hardware (HARDWARE_NAME in ratgdo.h) released as homekit-<hardware>-<version>.firmware.bin
+const hardwareReleases = ["grgdo1-rev1", "grgdo1-rev2"];
 
 var passwordHash = undefined;
 const www_realm = "RATGDO Login Required";
@@ -375,6 +377,9 @@ function setElementsFromStatus(status) {
     }
     for (const [key, value] of Object.entries(status)) {
         switch (key) {
+            case "gitUser":
+                gitUser = value;
+                break;
             case "gitRepo":
                 gitRepo = value;
                 document.getElementById("docsLink").href = "https://github.com/" + gitUser + "/" + gitRepo;
@@ -783,6 +788,7 @@ function setElementsFromStatus(status) {
             case "webMaxResponseTime":
             case "openHistory":
             case "closeHistory":
+            case "hardware":
                 // No-op: Not displayed in UI
                 break;
             default:
@@ -966,7 +972,9 @@ async function checkVersion(progress = "dotdot1") {
     if (latest) {
         console.log("Newest version: " + latest.tag_name);
         const asset = latest.assets.find((obj) => {
-            if (gitRepo == "homekit-ratgdo32") {
+            if (hardwareReleases.includes(serverStatus.hardware)) {
+                return obj.name.startsWith("homekit-" + serverStatus.hardware + "-") && obj.name.endsWith(".firmware.bin");
+            } else if (gitRepo == "homekit-ratgdo32") {
                 return (obj.content_type === "application/octet-stream") && (obj.name.startsWith(gitRepo) && (obj.name.includes("firmware")));
             } else {
                 return (obj.content_type === "application/octet-stream") && (obj.name.startsWith(gitRepo));
@@ -976,7 +984,7 @@ async function checkVersion(progress = "dotdot1") {
             document.getElementById("firmwareDescription").innerHTML = marked.parse(latest.body);
         }
         if (asset?.name) {
-            serverStatus.downloadURL = "https://ratgdo.github.io/" + gitRepo + "/firmware/" + asset.name;
+            serverStatus.downloadURL = "https://" + gitUser + ".github.io/" + gitRepo + "/firmware/" + asset.name;
             msg = "You have newest release";
             if (serverStatus.firmwareVersion?.localeCompare(latest.tag_name, undefined, { numeric: true }) < 0) {
                 // Newest version at GitHub is greater from that installed
