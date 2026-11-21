@@ -174,7 +174,9 @@ SoftwareSerial sw_serial;
 
 #define COMMS_STATUS_TIMEOUT (3 * 1000) // Allow 3 seconds to retrieve initial status
 bool comms_status_done = false;
+#ifndef USE_GDOLIB
 static _millis_t comms_status_start = 0;
+#endif
 static _millis_t tx_minimum_delay = SECPLUS2_TX_MINIMUM_DELAY;
 door_control_type_t doorControlType = DOOR_CONTROL_UNKNOWN;
 
@@ -182,12 +184,14 @@ door_control_type_t doorControlType = DOOR_CONTROL_UNKNOWN;
 // That seems an awful long time, how about we do it every 55 minutes?
 #define COMMS_CHECK_BATTERY (/*(22 * 60 * 60 * 1000) + */ (55 * 60 * 1000))
 
+#ifndef USE_GDOLIB
 static bool is_0x37_panel = false;
 /* Removing this section as testing with 398LM (a 0x37 wall panel) was never successful.
 static bool door_moving = false;
 */
 
 static bool doingPartial = false;
+#endif
 // helper for logs
 #define SEC1_DOOR_STATUS(s) (s == 0x00)   ? "stopped" \
                             : (s == 0x01) ? "opening" \
@@ -362,11 +366,11 @@ __attribute__((always_inline)) inline bool isRxPending()
 
 /******************************* SECURITY 2.0 *********************************/
 SecPlus2Reader reader;
+#endif // USE_GDOLIB
+
 uint32_t id_code = 0;
 uint32_t rolling_code = 0;
 char gdoFirmwareVersion[] = "000.000";
-#endif // USE_GDOLIB
-
 uint32_t last_saved_code = 0;
 #define MAX_CODES_WITHOUT_FLASH_WRITE 10
 
@@ -518,6 +522,22 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
                 gdo_sync();
             }
         }
+        else
+        {
+            if (doorControlType == DOOR_CONTROL_UNKNOWN)
+            {
+                // Auto-detect, use the protocol gdolib found
+                doorControlType = (status->protocol == GDO_PROTOCOL_SEC_PLUS_V2) ? DOOR_CONTROL_SEC_PLUS_V2 : DOOR_CONTROL_SEC_PLUS_V1;
+                if (doorControlType == DOOR_CONTROL_SEC_PLUS_V2)
+                    gdo_set_min_command_interval(tx_minimum_delay);
+            }
+            if (doorControlType == DOOR_CONTROL_SEC_PLUS_V2)
+                gdo_get_firmware();
+        }
+        break;
+    case GDO_CB_EVENT_FIRMWARE:
+        snprintf(gdoFirmwareVersion, sizeof(gdoFirmwareVersion), "%u.%u", status->fw_major, status->fw_minor);
+        ESP_LOGI(TAG, "GDO Sec+2.0 firmware version: %s", gdoFirmwareVersion);
         break;
     case GDO_CB_EVENT_LIGHT:
         ESP_LOGI(TAG, "GDO event: light: %s (%s)", gdo_light_state_to_string(status->light), timeString());
@@ -545,9 +565,9 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
 #endif
             notify_homekit_target_door_state_change(gdo_to_homekit_door_target_state[status->door]);
 
-            // If we are using Sec+2.0 built-in time-to-close then reset the TTC to zero when door is closed
-            if (status->door == GDO_DOOR_STATE_CLOSED && doorControlType == DOOR_CONTROL_SEC_PLUS_V2 && userConfig->getBuiltInTTC())
-                gdo_set_time_to_close(0);
+            // If we were in a automatic close countdown, cancel and reset that.
+            if (status->door == GDO_DOOR_STATE_CLOSING)
+                cancel_builtin_TTC_countdown();
         }
         break;
     }
@@ -593,14 +613,46 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
         break;
     case GDO_CB_EVENT_SET_TTC:
         ESP_LOGI(TAG, "GDO event: set TTC: %d", status->ttc_seconds);
+        if (status->ttc_seconds >= 60)
+        {
+            garage_door.builtInTTC = status->ttc_seconds;
+            userConfig->set(cfg_builtInTTC, (int)status->ttc_seconds);
+        }
         break;
     case GDO_CB_EVENT_UPDATE_TTC:
-        ESP_LOGI(TAG, "GDO event: update TTC: %d", status->ttc_seconds);
+        ESP_LOGI(TAG, "GDO event: update TTC: %d", status->ttc_countdown);
+        if (status->ttc_countdown > 60 && status->ttc_countdown > garage_door.builtInTTC)
+        {
+            garage_door.builtInTTC = status->ttc_countdown;
+            userConfig->set(cfg_builtInTTC, (int)status->ttc_countdown);
+        }
+        if ((status->door == GDO_DOOR_STATE_OPEN || status->door == GDO_DOOR_STATE_OPENING) && status->ttc_countdown > 0)
+        {
+            garage_door.builtInTTCremaining = status->ttc_countdown;
+            garage_door.builtInTTChold = false;
+            if (!builtInTTCcountdown.active())
+                builtInTTCcountdown.attach_ms(1000, []()
+                                              { if (garage_door.builtInTTChold) return;
+                                                if (--garage_door.builtInTTCremaining == 0) builtInTTCcountdown.detach(); });
+        }
+        else
+        {
+            cancel_builtin_TTC_countdown();
+        }
+        break;
+    case GDO_CB_EVENT_HOLD_TTC:
+    case GDO_CB_EVENT_REL_TTC:
+        garage_door.builtInTTChold = (event == GDO_CB_EVENT_HOLD_TTC);
+        ESP_LOGI(TAG, "GDO event: TTC hold %s", garage_door.builtInTTChold ? "on" : "off");
         break;
     case GDO_CB_EVENT_CANCEL_TTC:
+        // gdolib does not say whether this was a cancel, a hold or an obstruction clearing, so keep the saved setting
         ESP_LOGI(TAG, "GDO event: cancel TTC");
-        if (doorControlType == DOOR_CONTROL_SEC_PLUS_V2 && userConfig->getBuiltInTTC())
-            gdo_set_time_to_close(0);
+        if (garage_door.builtInTTC == 0)
+            cancel_builtin_TTC_countdown(); // we turned it off in settings
+        break;
+    case GDO_CB_EVENT_TTC:
+        ESP_LOGI(TAG, "GDO event: TTC state: %d", status->ttc_state);
         break;
     case GDO_CB_EVENT_PAIRED_DEVICES:
         ESP_LOGI(TAG, "GDO event: paired devices, %d remotes, %d keypads, %d wall controls, %d accessories, %d total",
@@ -635,6 +687,7 @@ static void gdo_event_handler(const gdo_status_t *status, gdo_cb_event_t event, 
  * Initialize communications with garage door.
  */
 
+#ifndef USE_GDOLIB
 void initialize_gdo_codes(uint32_t id)
 {
     if (doorControlType != DOOR_CONTROL_SEC_PLUS_V2)
@@ -665,6 +718,7 @@ void initialize_gdo_codes(uint32_t id)
     send_get_status();
     send_get_version();
 }
+#endif // !USE_GDOLIB
 
 void setup_comms()
 {
@@ -738,8 +792,12 @@ void setup_comms()
     IRAM_END(TAG);
 #else // !USE_GDOLIB
     esp_err_t err = ESP_OK;
+    // 4 = Sec+ 1.0 with smart wall panel, 5 = auto-detect (doorControlType set once gdolib syncs)
+    const uint32_t gdoSecurityType = userConfig->getGDOSecurityType();
+    if (gdoSecurityType > DOOR_CONTROL_DRY_CONTACT)
+        doorControlType = (gdoSecurityType == 4) ? DOOR_CONTROL_SEC_PLUS_V1 : DOOR_CONTROL_UNKNOWN;
 
-    if ((doorControlType == DOOR_CONTROL_SEC_PLUS_V1) || (doorControlType == DOOR_CONTROL_SEC_PLUS_V2))
+    if (doorControlType != DOOR_CONTROL_DRY_CONTACT)
     {
         gdo_config_t gdo_conf = {
             .uart_num = UART_NUM_1,
@@ -748,11 +806,11 @@ void setup_comms()
             .uart_tx_pin = UART_TX_PIN,
             .uart_rx_pin = UART_RX_PIN,
             .obst_in_pin = INPUT_OBST_PIN,
-            .obst_tp_pin = GPIO_NUM_0,  // only used for testing obstruction sensor
-            .dc_open_pin = GPIO_NUM_0,  // disable dry-contact
-            .dc_close_pin = GPIO_NUM_0, // disable dry-contact
-            .dc_discrete_open_pin = GPIO_NUM_0,
-            .dc_discrete_close_pin = GPIO_NUM_0,
+            .obst_tp_pin = GPIO_NUM_NC,  // only used for testing obstruction sensor
+            .dc_open_pin = GPIO_NUM_NC,  // disable dry-contact
+            .dc_close_pin = GPIO_NUM_NC, // disable dry-contact
+            .dc_discrete_open_pin = GPIO_NUM_NC,
+            .dc_discrete_close_pin = GPIO_NUM_NC,
             .use_sw_serial = userConfig->getUseSWserial(),
         };
         if (userConfig->getDCOpenClose())
@@ -767,8 +825,8 @@ void setup_comms()
             return;
         }
         // read from flash, default of 0 if file not exist
-        uint32_t id_code = read_door_int(nvram_id_code);
-        uint32_t rolling_code = read_door_int(nvram_rolling);
+        id_code = read_door_int(nvram_id_code);
+        rolling_code = read_door_int(nvram_rolling);
         if (!id_code || !rolling_code)
         {
             ESP_LOGI(TAG, "generate new id code");
@@ -781,9 +839,11 @@ void setup_comms()
         // always be ahead of what the GDO thinks it should be, and save it.
         rolling_code = (rolling_code != 0) ? rolling_code + MAX_CODES_WITHOUT_FLASH_WRITE : 0;
         ESP_LOGI(TAG, "rolling code %lu (0x%02X)", rolling_code, rolling_code);
-        if (doorControlType == DOOR_CONTROL_SEC_PLUS_V2)
+        if (doorControlType != DOOR_CONTROL_SEC_PLUS_V1) // Sec+ 2.0, or auto-detect that may find Sec+ 2.0
         {
-            if ((err = gdo_set_protocol(GDO_PROTOCOL_SEC_PLUS_V2)) != ESP_OK)
+            if (doorControlType == DOOR_CONTROL_SEC_PLUS_V2)
+                gdo_set_min_command_interval(tx_minimum_delay);
+            if (doorControlType == DOOR_CONTROL_SEC_PLUS_V2 && (err = gdo_set_protocol(GDO_PROTOCOL_SEC_PLUS_V2)) != ESP_OK)
             {
                 ESP_LOGE(TAG, "gdo_set_protocol failed with error: %d", err);
                 return;
@@ -794,7 +854,7 @@ void setup_comms()
         }
         else
         {
-            if ((err = gdo_set_protocol(GDO_PROTOCOL_SEC_PLUS_V1)) != ESP_OK)
+            if ((err = gdo_set_protocol((gdoSecurityType == 4) ? GDO_PROTOCOL_SEC_PLUS_V1_WITH_SMART_PANEL : GDO_PROTOCOL_SEC_PLUS_V1)) != ESP_OK)
             {
                 ESP_LOGE(TAG, "gdo_set_protocol failed with error: %d", err);
                 return;
@@ -817,7 +877,7 @@ void setup_comms()
             .uart_tx_pin = UART_TX_PIN,
             .uart_rx_pin = UART_RX_PIN, // not used for dry contact
             .obst_in_pin = INPUT_OBST_PIN,
-            .obst_tp_pin = GPIO_NUM_0, // only used for testing obstruction sensor
+            .obst_tp_pin = GPIO_NUM_NC, // only used for testing obstruction sensor
             .dc_open_pin = DRY_CONTACT_OPEN_PIN,
             .dc_close_pin = DRY_CONTACT_CLOSE_PIN,
             .dc_discrete_open_pin = DISCRETE_OPEN_PIN,
@@ -2812,9 +2872,6 @@ void door_command_open()
     openPartialDelay.detach();
 
 #ifdef USE_GDOLIB
-    if (doorControlType == DOOR_CONTROL_SEC_PLUS_V2 && userConfig->getBuiltInTTC())
-        gdo_set_time_to_close(0);
-
     gdo_door_open();
 #else
     door_command(DoorAction::Open);
@@ -2932,6 +2989,10 @@ GarageDoorCurrentState stop_door()
 
 GarageDoorCurrentState open_door_partial(int timePercentage)
 {
+#ifdef USE_GDOLIB
+    ESP_LOGI(TAG, "Partial open not supported with GDOLIB");
+    return garage_door.current_state;
+#else
     _millis_t dtime = 0;
 
     if (timePercentage < 10)
@@ -3006,6 +3067,7 @@ GarageDoorCurrentState open_door_partial(int timePercentage)
     }
 
     return garage_door.current_state;
+#endif // USE_GDOLIB
 }
 
 void TTCtimerFn(void (*callback)(), bool light, bool sound)
@@ -3186,18 +3248,7 @@ GarageDoorCurrentState close_door(bool bypass_ttc)
         else
         {
             ESP_LOGI(TAG, "Delay door close by %d seconds", userConfig->getTTCseconds());
-#ifdef USE_GDOLIB
-            if (doorControlType == DOOR_CONTROL_SEC_PLUS_V2 && userConfig->getBuiltInTTC())
-            {
-                gdo_set_time_to_close(userConfig->getTTCseconds());
-            }
-            else
-            {
-                delayFnCall(userConfig->getTTCseconds() * 1000, door_command_close);
-            }
-#else
             delayFnCall(userConfig->getTTCseconds() * 1000, door_command_close);
-#endif // USE_GDOLIB
         }
     }
     return GarageDoorCurrentState::CURR_CLOSING;

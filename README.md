@@ -259,6 +259,10 @@ For Security+ 1.0 and Security +2.0 it is possible to repurpose the sensors used
 
 When enabled, an additional option appears to **Bypass time-to-close delay for hardwired controls**. Use this when the open/close GPIOs are wired to a physical wall button and you want that button to behave like the native door control panel. When checked, any close or toggle action that comes from the hardwired inputs will ignore the configured Time-To-Close warning delay so the door responds immediately, while HomeKit, automations, or remotes continue to respect the delay.
 
+#### Sec+ w/ smart panel and Auto _(GDOLIB builds only)_
+
+Firmware built with the external GDOLIB library offers two more door protocols. **Sec+ w/ smart panel** is Security+ 1.0 with a digital wall panel, ratgdo waits for the panel instead of emulating one. **Auto** detects Security+ 1.0 or 2.0 when ratgdo starts.
+
 #### Use software serial emulation rather than h/w UART _(ratgdo32 boards only)_
 
 For Security+ 1.0 and Security+ 2.0, communications with the garage door uses a serial port. This can be either the ESP32's built-in hardware UART or a software emulation of a UART. Software emulation is required for Security+ 2.0 to allow for automatic sensing and changing of the baud rate... without this, the ratgdo cannot detect button presses at the garage door wall panel controller. For Security+ 1.0, software emulation is optional. If you experience communication errors you can try changing to use hardware UART.

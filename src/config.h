@@ -193,7 +193,12 @@ public:
     bool getPasswordRequired() { return std::get<bool>(get(cfg_passwordRequired)); };
     const char *getwwwUsername() { return (std::get<configStr>(get(cfg_wwwUsername)).str); };
     const char *getwwwCredentials() { return (std::get<configStr>(get(cfg_wwwCredentials)).str); };
+#ifdef USE_GDOLIB
     uint32_t getGDOSecurityType() { return std::get<int>(get(cfg_GDOSecurityType)); };
+#else
+    // 4 (Sec+ 1.0 with smart panel) and 5 (auto-detect) are GDOLIB only, use Sec+ 1.0 and the Sec+ 2.0 default
+    uint32_t getGDOSecurityType() { int t = std::get<int>(get(cfg_GDOSecurityType)); return (t == 4) ? 1 : (t > 3) ? 2 : t; };
+#endif
     uint32_t getTTCseconds() { return std::get<int>(get(cfg_TTCseconds)); };
     bool getTTClight() { return std::get<bool>(get(cfg_TTClight)); };
     uint32_t getRebootSeconds() { return std::get<int>(get(cfg_rebootSeconds)); };
