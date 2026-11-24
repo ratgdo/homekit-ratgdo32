@@ -353,6 +353,9 @@ static DEV_Occupancy *vehicle;
 static DEV_Light *assistLaser;
 static DEV_Occupancy *roomOccupancy;
 static DEV_Stop *stopDoor;
+#ifdef USE_DHT22
+static DEV_TempHumidity *tempHumidity;
+#endif
 #ifdef RATGDO_ENCODER
 static DEV_ManuallyOperated *manuallyOperatedSensor;
 #endif
@@ -1022,6 +1025,19 @@ void setup_homekit()
     enable_service_homekit_room_occupancy(userConfig->getOccupancyDuration() > 0);
     // Create a stop service if enabled in settings
     enable_service_homekit_stop(userConfig->getStopDoorHomeKit());
+#ifdef USE_DHT22
+    // Create a temperature and humidity sensor if a DHT22 pin is set
+    if (dht22Pin >= 0)
+    {
+        new SpanAccessory(HOMEKIT_AID_TEMP_HUMIDITY);
+        new DEV_Info("Temperature Sensor");
+        tempHumidity = new DEV_TempHumidity();
+    }
+    else
+    {
+        ESP_LOGI(TAG, "No DHT22 pin set. Skipping temperature and humidity service");
+    }
+#endif
 
     // Auto poll starts up a new FreeRTOS task to do the HomeKit comms
     // so no need to handle in our Arduino loop.
@@ -1233,6 +1249,59 @@ void DEV_Occupancy::loop()
     }
 }
 
+#ifdef USE_DHT22
+/****************************************************************************
+ * Temperature and Humidity Sensor Service Handler
+ */
+DEV_TempHumidity::DEV_TempHumidity() : Service::TemperatureSensor()
+{
+    ESP_LOGI(TAG, "Configuring HomeKit Temperature and Humidity Service");
+    temperature = new Characteristic::CurrentTemperature(0.0);
+    temperature->setRange(-50, 100); // HAP default is 0-100, allow for below freezing
+
+    // Create a separate Humidity Sensor service for the same accessory
+    new Service::HumiditySensor();
+    humidity = new Characteristic::CurrentRelativeHumidity(0.0);
+}
+
+static portMUX_TYPE tempHumMux = portMUX_INITIALIZER_UNLOCKED;
+static float pendingTemp = 0.0f;
+static float pendingHum = 0.0f;
+static bool pendingTempHum = false;
+
+// Called from the main loop; stores the reading and lets loop() apply it on the HomeSpan poll task
+void DEV_TempHumidity::setValues(float temp, float hum)
+{
+    ESP_LOGI(TAG, "HomeKit temperature: %.1f°C, humidity: %.1f%%", temp, hum);
+    portENTER_CRITICAL(&tempHumMux);
+    pendingTemp = temp;
+    pendingHum = hum;
+    pendingTempHum = true;
+    portEXIT_CRITICAL(&tempHumMux);
+}
+
+void DEV_TempHumidity::loop()
+{
+    float temp = 0.0f, hum = 0.0f;
+    bool apply = false;
+    portENTER_CRITICAL(&tempHumMux);
+    if (pendingTempHum)
+    {
+        temp = pendingTemp;
+        hum = pendingHum;
+        pendingTempHum = false;
+        apply = true;
+    }
+    portEXIT_CRITICAL(&tempHumMux);
+
+    if (apply)
+    {
+        temperature->setVal(temp);
+        humidity->setVal(hum);
+    }
+}
+#endif
+
 /****************************************************************************
  * Switch Service Handler
  */
@@ -1350,6 +1419,16 @@ void notify_homekit_vehicle_departing(bool vehicleDeparting)
     e.value.b = vehicleDeparting;
     queueSendHelper(departing->event_q, e, "departing");
 }
+
+#ifdef USE_DHT22
+void notify_homekit_temperature_humidity(float temp, float hum)
+{
+    if (!isPaired || !tempHumidity)
+        return;
+
+    tempHumidity->setValues(temp, hum);
+}
+#endif
 
 #ifdef RATGDO_ENCODER
 void notify_homekit_manually_operated(bool state)

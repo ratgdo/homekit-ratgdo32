@@ -47,8 +47,14 @@ void homekit_loop();
 #define HOMEKIT_AID_VEHICLE 7
 #define HOMEKIT_AID_LASER 8
 #define HOMEKIT_AID_ROOM_OCCUPANCY 9
+// A board can override these to keep the accessory IDs its users already have.
+#ifndef HOMEKIT_AID_STOP
 #define HOMEKIT_AID_STOP 10
+#endif
 #define HOMEKIT_AID_MANUALLY_OPERATED 11
+#ifndef HOMEKIT_AID_TEMP_HUMIDITY
+#define HOMEKIT_AID_TEMP_HUMIDITY 12
+#endif
 
 enum Light_t : uint8_t
 {
@@ -67,6 +73,9 @@ extern void notify_homekit_room_occupancy(bool occupied);
 extern bool enable_service_homekit_light(bool enable);
 extern bool enable_service_homekit_motion_sensor(bool enable);
 extern bool enable_service_homekit_stop(bool enable);
+#ifdef USE_DHT22
+extern void notify_homekit_temperature_humidity(float temp, float hum);
+#endif
 #ifdef RATGDO_ENCODER
 extern bool enable_service_homekit_manually_operated(bool enable);
 extern void notify_homekit_manually_operated(bool state);
@@ -151,6 +160,18 @@ struct DEV_Stop : Service::Switch
     boolean update();
     void loop();
 };
+
+#ifdef USE_DHT22
+struct DEV_TempHumidity : Service::TemperatureSensor
+{
+    Characteristic::CurrentTemperature *temperature;
+    Characteristic::CurrentRelativeHumidity *humidity;
+
+    DEV_TempHumidity();
+    void loop();
+    void setValues(float temp, float hum);
+};
+#endif
 
 #ifdef RATGDO_ENCODER
 struct DEV_ManuallyOperated : Service::ContactSensor

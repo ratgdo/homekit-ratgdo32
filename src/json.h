@@ -182,6 +182,13 @@ inline char *add_bool(char *s, const char *end, const char *k, bool v)
     return s;
 }
 
+inline char *add_float(char *s, const char *end, const char *k, float v)
+{
+    char num[16];
+    snprintf(num, sizeof(num), "%.1f", v); // one decimal place
+    return add_str(s, end, k, num, true);
+}
+
 #ifndef JSON_BUFFER_SIZE
 #ifdef STATUS_JSON_BUFFER_SIZE
 #define JSON_BUFFER_SIZE STATUS_JSON_BUFFER_SIZE
@@ -198,6 +205,7 @@ inline char *add_bool(char *s, const char *end, const char *k, bool v)
 #define JSON_ADD_INT(k, v) _json_p = add_int(_json_p, _json_end, k, v)
 #define JSON_ADD_STR(k, v) _json_p = add_str(_json_p, _json_end, k, v)
 #define JSON_ADD_BOOL(k, v) _json_p = add_bool(_json_p, _json_end, k, v)
+#define JSON_ADD_FLOAT(k, v) _json_p = add_float(_json_p, _json_end, k, v)
 #define JSON_ADD_RAW(k, v) _json_p = add_str(_json_p, _json_end, k, v, true)               // value added without surrounding quotes
 #define JSON_INSERT_COMMA_NL() _json_p = add_str(_json_p, _json_end, nullptr, ",\n", true) // insert a comma newline
 #define JSON_START_OBJ(k) _json_p = add_str(_json_p, _json_end, k, "{\n", true, false)     // added without surrounding quotes and no comma newline

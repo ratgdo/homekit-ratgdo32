@@ -52,6 +52,9 @@
 #ifdef RATGDO_ENCODER
 #include "encoder.h"
 #endif
+#ifdef USE_DHT22
+#include "temperature.h"
+#endif
 
 // Logger tag
 static const char *TAG = "ratgdo-main";
@@ -377,6 +380,9 @@ void loop()
 #endif
 #ifdef RATGDO32_DISCO
     vehicle_loop();
+#endif
+#ifdef USE_DHT22
+    temperature_loop();
 #endif
     web_loop();
     improv_loop();

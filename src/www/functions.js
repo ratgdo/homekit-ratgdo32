@@ -496,6 +496,23 @@ function setElementsFromStatus(status) {
                 document.getElementById(key).innerHTML = value;
                 document.getElementById("vehicleDistInch").innerHTML = Math.round(value / .254) / 10;
                 break;
+            case "degrees":
+                document.getElementById("temperatureRow").style.display = "table-row";
+                document.getElementById(key).innerHTML = (serverStatus.celsius) ? value.toFixed(1) + "&deg;C" : (value * 9 / 5 + 32).toFixed(1) + "&deg;F";
+                break;
+            case "humidity":
+                document.getElementById("temperatureRow").style.display = "table-row";
+                document.getElementById(key).innerHTML = value.toFixed(1) + "%";
+                break;
+            case "dht22Pin":
+                document.getElementById(key).value = value;
+                document.getElementById("dht22PinRow").style.display = "table-row";
+                document.getElementById("celsiusRow").style.display = (value >= 0) ? "table-row" : "none";
+                break;
+            case "celsius":
+                document.getElementById(key).checked = value;
+                document.getElementById("fahrenheit").checked = !value;
+                break;
             case "laserEnabled":
                 document.getElementById(key).checked = value;
                 document.getElementById("laserSetting").style.display = (serverStatus.distanceSensor) ? "table-row" : "none";
@@ -1525,6 +1542,9 @@ async function saveSettings() {
     const lightHomeKit = (document.getElementById("lightHomeKit").checked) ? '1' : '0';
     const motionHomeKit = (document.getElementById("motionHomeKit").checked) ? '1' : '0';
     const stopDoorHomeKit = (document.getElementById("stopDoorHomeKit").checked) ? '1' : '0';
+    let dht22Pin = parseInt(document.getElementById("dht22Pin").value);
+    if (isNaN(dht22Pin)) dht22Pin = -1;
+    const celsius = (document.getElementById("celsius").checked) ? '1' : '0';
 
     // check IP addresses valid
     const regexIPv4 = /^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$/i;
@@ -1581,6 +1601,8 @@ async function saveSettings() {
         "lightHomeKit", lightHomeKit,
         "motionHomeKit", motionHomeKit,
         "stopDoorHomeKit", stopDoorHomeKit,
+        "dht22Pin", dht22Pin,
+        "celsius", celsius,
         "encoderEnabled", encoderEnabled,
         "encoderReversed", encoderReversed,
         "wpDisconnectOnTx", wpDisconnectOnTx,

@@ -57,6 +57,9 @@
 #ifdef RATGDO32_DISCO
 #include "vehicle.h"
 #endif
+#ifdef USE_DHT22
+#include "temperature.h"
+#endif
 #include "encoder.h"
 
 // built by "build_web_content.py"
@@ -1075,6 +1078,14 @@ void build_status_json(char *json)
     JSON_ADD_INT(cfg_assistDuration, userConfig->getAssistDuration());
     JSON_ADD_BOOL(cfg_TTCsound, userConfig->getTTCsound());
 #endif
+#ifdef USE_DHT22
+    JSON_ADD_INT(cfg_dht22Pin, static_cast<int32_t>(userConfig->getDHT22Pin()));
+    JSON_ADD_BOOL(cfg_celsius, userConfig->getCelsius());
+    if (!isnan(temperature))
+        JSON_ADD_FLOAT("degrees", temperature);
+    if (!isnan(humidity))
+        JSON_ADD_FLOAT("humidity", humidity);
+#endif
     JSON_ADD_BOOL(cfg_homespanCLI, userConfig->getEnableHomeSpanCLI());
     JSON_ADD_BOOL(cfg_motionHomeKit, userConfig->getMotionHomeKit());
     JSON_ADD_BOOL(cfg_stopDoorHomeKit, userConfig->getStopDoorHomeKit());
@@ -1553,6 +1564,20 @@ void SSEheartbeat(SSESubscription *s)
         {
             lastVehicleDistance = vehicleDistance;
             JSON_ADD_INT("vehicleDist", (uint32_t)vehicleDistance);
+        }
+#endif
+#ifdef USE_DHT22
+        static float lastTemperature = NAN;
+        if (!isnan(temperature) && (lastTemperature != temperature))
+        {
+            lastTemperature = temperature;
+            JSON_ADD_FLOAT("degrees", temperature);
+        }
+        static float lastHumidity = NAN;
+        if (!isnan(humidity) && (lastHumidity != humidity))
+        {
+            lastHumidity = humidity;
+            JSON_ADD_FLOAT("humidity", humidity);
         }
 #endif
         if (lastRSSI != WiFi.RSSI())

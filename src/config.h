@@ -95,6 +95,10 @@ constexpr char cfg_wpDisconnectOnTx[] PROGMEM = "wpDisconnectOnTx";
 constexpr char cfg_encoderEnabled[] PROGMEM = "encoderEnabled";
 constexpr char cfg_encoderReversed[] PROGMEM = "encoderReversed";
 #endif
+#ifdef USE_DHT22
+constexpr char cfg_dht22Pin[] PROGMEM = "dht22Pin";
+constexpr char cfg_celsius[] PROGMEM = "celsius";
+#endif
 #ifdef ESP8266
 // On ESP8266 we save user config to a file in LittleFS
 constexpr char cfg_configFile[] PROGMEM = "user_config";
@@ -222,6 +226,11 @@ public:
 #ifdef RATGDO_ENCODER
     bool getEncoderEnabled() { return std::get<bool>(get(cfg_encoderEnabled)); };
     bool getEncoderReversed() { return std::get<bool>(get(cfg_encoderReversed)); };
+#endif
+#ifdef USE_DHT22
+    // -1 unless the saved pin is an output capable GPIO other than 6-11 (SPI flash)
+    gpio_num_t getDHT22Pin() { int p = std::get<int>(get(cfg_dht22Pin)); return (p >= 0 && p < GPIO_PIN_COUNT && GPIO_IS_VALID_OUTPUT_GPIO(p) && (p < 6 || p > 11)) ? static_cast<gpio_num_t>(p) : GPIO_NUM_NC; };
+    bool getCelsius() { return std::get<bool>(get(cfg_celsius)); };
 #endif
 #ifdef RATGDO32_DISCO
     uint32_t getVehicleThreshold() { return std::get<int>(get(cfg_vehicleThreshold)); };

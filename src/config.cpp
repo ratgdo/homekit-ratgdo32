@@ -168,6 +168,10 @@ static configSetting settings_defaults[] PROGMEM = {
     {cfg_encoderEnabled, true, false, false, NULL},  // reboot required to set up encoder ISR
     {cfg_encoderReversed, true, false, false, NULL}, // reboot required to reverse encoder direction
 #endif
+#ifdef USE_DHT22
+    {cfg_dht22Pin, true, false, GPIO_NUM_NC, NULL}, // GPIO pin, -1 = no sensor
+    {cfg_celsius, false, false, true, NULL},
+#endif
 #ifndef ESP8266
     // These features not available on ESP8266
     {cfg_occupancyDuration, false, false, 0, helperOccupancyDuration}, // call fn to enable/disable HomeKit accessories
