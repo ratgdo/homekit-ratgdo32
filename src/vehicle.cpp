@@ -14,7 +14,11 @@
 
 // Arduino includes
 #include <Wire.h>
+#ifdef USE_VL53L1X
+#include <vl53l1x_class.h>
+#else
 #include <vl53l4cx_class.h>
+#endif
 #include "Ticker.h"
 
 // RATGDO project includes
@@ -23,13 +27,19 @@
 #include "vehicle.h"
 #include "homekit.h"
 #include "config.h"
+#include "provision.h"
 
 // Logger tag
 static const char *TAG = "ratgdo-vehicle";
 bool vehicle_setup_done = false;
 bool vehicle_setup_error = false;
 
+#ifdef USE_VL53L1X
+VL53L1X distanceSensor(&Wire, SENSOR_SHUTDOWN_PIN);
+static const int32_t MAX_DISTANCE = 4500; // 4.5 meters, maximum range of the sensor
+#else
 VL53L4CX distanceSensor(&Wire, SENSOR_SHUTDOWN_PIN);
+#endif
 
 static const int32_t MIN_DISTANCE = 25; // ignore bugs crawling on the distance sensor
 
@@ -53,6 +63,123 @@ static constexpr int32_t VEHICLE_AVERAGE_OVER = 50;            // vehicle distan
 static std::bitset<256> distanceInRange;                       // the length of this bitset determines how many out of range readings are required for presence detection to change states
 void calculatePresence(int32_t distance);
 
+#ifdef USE_VL53L1X
+void setup_vehicle()
+{
+    uint8_t status = 0;
+
+    if (vehicle_setup_done || vehicle_setup_error)
+        return;
+
+    ESP_LOGI(TAG, "=== Setup VL53L1X time-of-flight sensor ===");
+
+#ifdef GRGDO1_V1
+    // GPIO1/3 are shared with UART0. Release its clients and driver before
+    // Wire claims those pins; never copy HardwareSerial driver ownership.
+    release_serial_console_for_i2c();
+#endif
+
+    if (!Wire.begin(SENSOR_SDA_PIN, SENSOR_SCL_PIN))
+    {
+        ESP_LOGE(TAG, "VL53L1X I2C pin setup failed");
+        Wire.end();
+#ifdef GRGDO1_V1
+        restore_serial_console_after_i2c();
+#endif
+        vehicle_setup_error = true;
+        return;
+    }
+
+    // Check if sensor is present at I2C address 0x29
+    Wire.beginTransmission(0x29);
+    if (Wire.endTransmission() != 0)
+    {
+        ESP_LOGE(TAG, "VL53L1X ToF not detected at address 0x29");
+        Wire.end();
+#ifdef GRGDO1_V1
+        restore_serial_console_after_i2c();
+#endif
+        vehicle_setup_error = true;
+        return;
+    }
+    ESP_LOGI(TAG, "VL53L1X ToF detected at address 0x29");
+
+    // Initialize sensor
+    distanceSensor.begin();
+
+    // Power off sensor first
+    distanceSensor.VL53L1X_Off();
+    delay(10); // Wait for sensor to power down
+
+    // Power on sensor
+    distanceSensor.VL53L1X_On();
+    delay(10); // Wait for sensor to power up
+
+    // Initialize sensor with default I2C address (0x29 in 7-bit, which is 0x52 in 8-bit)
+    status = distanceSensor.InitSensor(0x29 << 1);
+    if (status != 0)
+    {
+        ESP_LOGE(TAG, "VL53L1X failed to initialize error: %d", status);
+        Wire.end();
+#ifdef GRGDO1_V1
+        restore_serial_console_after_i2c();
+#endif
+        vehicle_setup_error = true;
+        return;
+    }
+
+    status = distanceSensor.VL53L1X_SetDistanceMode(2); // 2 = Long distance mode (up to 4m)
+    if (status != 0)
+    {
+        ESP_LOGE(TAG, "VL53L1X_SetDistanceMode error: %d", status);
+        Wire.end();
+#ifdef GRGDO1_V1
+        restore_serial_console_after_i2c();
+#endif
+        vehicle_setup_error = true;
+        return;
+    }
+    status = distanceSensor.VL53L1X_SetTimingBudgetInMs(100); // Set timing budget to 100ms
+    if (status != 0)
+    {
+        ESP_LOGE(TAG, "VL53L1X_SetTimingBudgetInMs error: %d", status);
+        Wire.end();
+#ifdef GRGDO1_V1
+        restore_serial_console_after_i2c();
+#endif
+        vehicle_setup_error = true;
+        return;
+    }
+    status = distanceSensor.VL53L1X_SetInterMeasurementInMs(100); // Set inter-measurement period to 100ms
+    if (status != 0)
+    {
+        ESP_LOGE(TAG, "VL53L1X_SetInterMeasurementInMs error: %d", status);
+        Wire.end();
+#ifdef GRGDO1_V1
+        restore_serial_console_after_i2c();
+#endif
+        vehicle_setup_error = true;
+        return;
+    }
+    status = distanceSensor.VL53L1X_StartRanging();
+    if (status != 0)
+    {
+        ESP_LOGE(TAG, "VL53L1X_StartRanging error: %d", status);
+        Wire.end();
+#ifdef GRGDO1_V1
+        restore_serial_console_after_i2c();
+#endif
+        vehicle_setup_error = true;
+        return;
+    }
+
+    garage_door.has_distance_sensor = true;
+    nvRam->write(nvram_has_distance, 1);
+    vehicleThresholdDistance = userConfig->getVehicleThreshold() * 10; // convert centimeters to millimeters
+    enable_service_homekit_vehicle(userConfig->getVehicleHomeKit());
+    vehicle_setup_done = true;
+}
+#else
 void setup_vehicle()
 {
     VL53L4CX_Error rc = VL53L4CX_ERROR_NONE;
@@ -98,6 +225,7 @@ void setup_vehicle()
     enable_service_homekit_vehicle(userConfig->getVehicleHomeKit());
     vehicle_setup_done = true;
 }
+#endif
 
 void vehicle_loop()
 {
@@ -105,6 +233,80 @@ void vehicle_loop()
         return;
 
     uint8_t dataReady = 0;
+#ifdef USE_VL53L1X
+    uint8_t status = 0;
+    if ((status = distanceSensor.VL53L1X_CheckForDataReady(&dataReady)) == 0 && dataReady > 0)
+    {
+        uint16_t distance_mm = 0;
+        uint8_t rangeStatus = 0;
+
+        status = distanceSensor.VL53L1X_GetRangeStatus(&rangeStatus);
+        if (status == 0)
+        {
+            status = distanceSensor.VL53L1X_GetDistance(&distance_mm);
+            if (status == 0)
+            {
+                int16_t distance = -1;
+
+                // VL53L1X range status codes:
+                // 0: Valid range
+                // 1: Sigma fail (low confidence)
+                // 2: Signal fail
+                // 4: Out of bounds (phase)
+                // 7: Wraparound
+                switch (rangeStatus)
+                {
+                case 0: // Valid range
+                    distance = distance_mm;
+                    break;
+                case 1: // Sigma fail
+                    ESP_LOGW(TAG, "Vehicle distance sensor sigma fail. Sensor may be pointing at glass, try repositioning: %dmm", distance_mm);
+                    distance = distance_mm; // Use data but with caution
+                    break;
+                case 2: // Signal fail
+                    ESP_LOGV(TAG, "Vehicle distance signal fail: %dmm", distance_mm);
+                    distance = MAX_DISTANCE; // Assume no object
+                    break;
+                case 4: // Out of bounds
+                    ESP_LOGV(TAG, "Vehicle distance out of bounds: %dmm", distance_mm);
+                    distance = MAX_DISTANCE; // Assume no object
+                    break;
+                case 7: // Wraparound
+                    ESP_LOGV(TAG, "Vehicle distance wrap target fail: %dmm", distance_mm);
+                    break;
+                default:
+                    ESP_LOGE(TAG, "Unhandled VL53L1X Range Status: %d, Range: %dmm", rangeStatus, distance_mm);
+                    break;
+                }
+
+                if (distance >= 0)
+                {
+                    calculatePresence(distance);
+                }
+            }
+            else
+            {
+                ESP_LOGE(TAG, "VL53L1X_GetDistance reports error: %d", status);
+            }
+        }
+        else
+        {
+            ESP_LOGE(TAG, "VL53L1X_GetRangeStatus reports error: %d", status);
+        }
+
+        // Clear the interrupt
+        status = distanceSensor.VL53L1X_ClearInterrupt();
+        if (status != 0)
+        {
+            ESP_LOGV(TAG, "VL53L1X_ClearInterrupt reports error: %d", status);
+        }
+    }
+    else
+    {
+        if (status != 0)
+            ESP_LOGE(TAG, "VL53L1X_CheckForDataReady reports error: %d", status);
+    }
+#else
     VL53L4CX_Error err = VL53L4CX_ERROR_NONE;
     if (((err = distanceSensor.VL53L4CX_GetMeasurementDataReady(&dataReady)) == VL53L4CX_ERROR_NONE) && (dataReady > 0))
     {
@@ -181,6 +383,7 @@ void vehicle_loop()
         if (err)
             ESP_LOGE(TAG, "VL53L4CX_GetMeasurementDataReady reports error: %d", err);
     }
+#endif
 
     _millis_t current_millis = _millis();
     // Vehicle Arriving Clear Timer

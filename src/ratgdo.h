@@ -46,6 +46,7 @@
 #define SERIAL_NUMBER "0P3ND00R"
 #define MODEL_NAME "ratgdo_v2.5"
 #define CHIP_FAMILY "ESP8266"
+#define HARDWARE_NAME "ratgdo"
 #else // not ESP8266
 #ifndef DEVICE_NAME
 #define DEVICE_NAME "homekit-ratgdo"
@@ -61,6 +62,17 @@
 #endif
 #ifndef CHIP_FAMILY
 #define CHIP_FAMILY "ESP32"
+#endif
+#ifdef GRGDO1_V1
+#define HARDWARE_NAME "grgdo1-rev1"
+#elif defined(GRGDO1_V2)
+#define HARDWARE_NAME "grgdo1-rev2"
+#else
+#define HARDWARE_NAME "ratgdo32"
+#ifdef RATGDO32_DISCO
+// Same firmware as ratgdo32, reported once the distance sensor has been found
+#define HARDWARE_NAME_DISCO "ratgdo32-disco"
+#endif
 #endif
 #endif // ESP8266
 
